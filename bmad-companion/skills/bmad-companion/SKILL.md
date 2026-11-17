@@ -1,0 +1,38 @@
+---
+name: bmad-companion
+description: Open and drive the global BMAD Companion right-side panel for any workspace. Use when the user wants to visualize BMAD-METHOD progress across phases, epics, and stories, onboard a project into BMAD, reconcile BMAD artifacts with codebase reality using AI, or launch recommended next /bmad-* skill + prompt commands in a new session with a recommended AI model.
+---
+
+# BMAD Companion (Global Right-Side Panel, Model Advisor & New-Session Launcher)
+
+The **BMAD Companion** plugin provides a live right-side panel (`ui://bmad-companion/panel.html`, surface `bmad-companion`) coupled with automatic lifecycle hooks (`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`) and MCP tools that adapt dynamically to **any workspace**.
+
+## Core Principles
+
+1. **Never suggest bare BMAD skill names**:
+   - Do **not** suggest just `/bmad-ux` or `/bmad-build`.
+   - Always format every recommendation with a concrete, workspace-specific quoted prompt AND a dynamically selected AI model (`providerId/modelId`) from `ListModels` that matches the user's active providers, subscription state, and capability requirements:
+     - `/bmad-ux "Enhance the UI/UX of <project> by refining key user workflows and aligning DESIGN.md and EXPERIENCE.md"` — pick the highest-ranked vision/design-capable enabled model
+     - `/bmad-code-review "Review the recent implementation changes in <module> for edge cases, architectural boundaries, and test coverage"` — pick the highest-ranked deep-reasoning enabled model
+     - `/bmad-build "Implement and verify story <id> (<title>) with unit and integration tests"` — pick the highest-ranked coding/tool-capable enabled model
+   - Whenever you inspect `ListModels`, pass the live `models` array in `bmad_update_advisor({ ..., hostModels: models })` so the companion panel stays synchronized with the host's live provider and subscription state.
+2. **Automatic New-Session Launch with Recommended Model**:
+   - In BMAD-METHOD, each workflow step runs best in a **fresh session** using its recommended model.
+   - When the user clicks **🚀 Launch in New Session** in the BMAD Companion panel (which sends `[BMAD Companion — Auto-Launch New Session]`), immediately execute:
+     1. Load `ListProjects`, `CreateSession`, and `OpenSession` via `LocalToolSearch` (`select:ListProjects,CreateSession,OpenSession`).
+     2. Call `ListProjects` to obtain the current workspace's `project` descriptor (`{ kind: "app", projectId, sourceServerId }`).
+     3. Call `CreateSession({ project, model: "<recommendedModelId>", prompt: "<fullCommand>" })`.
+     4. Call `OpenSession({ sessionId: createdSession.session.sessionId })` so ZCode Desktop immediately opens the newly created session in the UI.
+3. **Smart Artifact + AI Progress Verification & Tracker Reconciliation**:
+   - Always report both **Static Tracker Progress** and **Smart AI-Reconciled Progress**, explaining the evidence behind each reconciled story or epic.
+   - When the static tracking files (v6 `sprint-status.yaml` or v7 `tickets.toml`) lag behind the verified code/artifact reality, invoke `bmad_reconcile_trackers` (or guide the user to click **⚡ Reconcile Trackers with Reality** in the panel).
+   - The reconciliation updates `sprint-status.yaml` (including header timestamps and completion counters) and/or `tickets.toml`, creates `.bak` backups, and records an audit trail in `.zcode/bmad-companion/reconciliation-log.json`.
+
+## Workflow & MCP Tools
+
+1. **Open the Right-Side Panel (`bmad_open_companion`)**:
+   - Call `bmad_open_companion` whenever the user asks to open the BMAD Companion, inspect BMAD project progress, or get next-step BMAD guidance.
+2. **Reconcile Trackers with Reality (`bmad_reconcile_trackers`)**:
+   - Call `bmad_reconcile_trackers` with `{ dryRun: boolean, target: "all" | "v6-yaml" | "v7-tickets", backup: boolean }` to synchronize static files with real delivery.
+3. **Push Post-Prompt Recommendations (`bmad_update_advisor`)**:
+   - Call `bmad_update_advisor` with `headline`, `turnSummary`, `recommendations` (including `skill`, `fullCommand`, `recommendedModel`, `modelReason`, `title`, `rationale`, `phase`, `priority`), and optional `storyStatusUpdates`.

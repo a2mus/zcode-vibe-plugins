@@ -1,0 +1,34 @@
+{
+  "name": "bmad-companion",
+  "version": "0.5.0",
+  "description": "Global right-side panel BMAD-METHOD companion for any workspace: analyzes project state after each prompt result to recommend contextual /bmad-* skills with tailored prompts and recommended AI models, auto-launches next prompts in a new session, reconciles v6 YAML and v7 TOML trackers with code reality, and visualizes phase, epic, and story progress.",
+  "description_i18n": {
+    "en": "Global right-side panel BMAD-METHOD companion for any workspace: analyzes project state after each prompt result to recommend contextual /bmad-* skills with tailored prompts and recommended AI models, auto-launches next prompts in a new session, reconciles v6 YAML and v7 TOML trackers with code reality, and visualizes phase, epic, and story progress.",
+    "fr": "Compagnon global BMAD-METHOD en panneau latéral droit : suggère le prochain skill /bmad-* avec un prompt contextuel complet et un modèle IA recommandé, réconcilie les trackers statiques v6 YAML et v7 TOML avec la réalité du code, lance automatiquement le prompt suivant dans une nouvelle session, et visualise la progression des phases, epics et stories.",
+    "zh-CN": "全局右侧栏 BMAD-METHOD 伴侣插件：在每次对话结果后智能分析项目状态，推荐带完整上下文提示词的 /bmad-* 技能与最佳 AI 模型，一键自动将 v6 YAML 与 v7 TOML 追踪文件与代码实际交付状态双向对齐，支持开启新会话执行，并全面可视化阶段、Epic 和 Story 进度。"
+  },
+  "author": {
+    "name": "BMAD Companion"
+  },
+  "license": "MIT",
+  "skills": "./skills",
+  "commands": "./commands",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
+  "ui": {
+    "surfaces": [
+      {
+        "id": "bmad-companion",
+        "title": {
+          "en-US": "BMAD Companion",
+          "fr-FR": "BMAD Companion",
+          "zh-CN": "BMAD 助手"
+        },
+        "icon": "compass",
+        "server": "bmad-companion",
+        "resourceUri": "ui://bmad-companion/panel.html",
+        "availability": "session"
+      }
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" session-start",
+            "statusMessage": "Initializing Vibe Debrief (Visual ELI5) panel state"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" user-prompt",
+            "statusMessage": "Capturing prompt context for Vibe Debrief"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" post-tool",
+            "statusMessage": "Tracking touched files & verification outcome for Vibe Debrief"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" stop",
+            "statusMessage": "Simplifying last AI response into visual ELI5 debrief cards"
+          }
+        ]
+      }
+    ]
+  }
+}

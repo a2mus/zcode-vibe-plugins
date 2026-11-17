@@ -1,0 +1,1930 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>BMAD Companion</title>
+    <style>
+      :root {
+        --bg-primary: #0d1117;
+        --bg-secondary: #161b22;
+        --bg-tertiary: #1f2630;
+        --bg-elevated: #212834;
+        --border: #30363d;
+        --border-subtle: #21262d;
+        --text-primary: #e6edf3;
+        --text-secondary: #9198a1;
+        --text-muted: #6e7681;
+        --accent: #388bfd;
+        --accent-soft: rgba(56, 139, 253, 0.14);
+        --success: #3fb950;
+        --success-soft: rgba(63, 185, 80, 0.14);
+        --warning: #d29922;
+        --warning-soft: rgba(210, 153, 34, 0.15);
+        --purple: #a371f7;
+        --purple-soft: rgba(163, 113, 247, 0.15);
+        --danger: #f85149;
+        --danger-soft: rgba(248, 81, 73, 0.14);
+        --radius: 8px;
+        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+        --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+      }
+
+      body.theme-light {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f6f8fa;
+        --bg-tertiary: #eaeef2;
+        --bg-elevated: #ffffff;
+        --border: #d0d7de;
+        --border-subtle: #e5e9f0;
+        --text-primary: #1f2328;
+        --text-secondary: #59636e;
+        --text-muted: #6e7781;
+        --accent: #0969da;
+        --accent-soft: rgba(9, 105, 218, 0.1);
+        --success: #1a7f37;
+        --success-soft: rgba(26, 127, 55, 0.1);
+        --warning: #9a6700;
+        --warning-soft: rgba(154, 103, 0, 0.12);
+        --purple: #8250df;
+        --purple-soft: rgba(130, 80, 223, 0.1);
+        --danger: #cf222e;
+        --danger-soft: rgba(207, 34, 46, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        font-size: 12.5px;
+        line-height: 1.45;
+      }
+
+      .app-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .top-bar {
+        padding: 10px 12px 8px;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .brand-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .brand-badge {
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, var(--accent), var(--purple));
+        color: #fff;
+        font-weight: 700;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .brand-titles {
+        min-width: 0;
+      }
+
+      .brand-title {
+        font-weight: 700;
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .brand-subtitle {
+        font-size: 11px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-shrink: 0;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 11.5px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        transition: background 0.12s, border-color 0.12s;
+      }
+
+      .btn:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent), #2563eb);
+        border-color: var(--accent);
+        color: #ffffff;
+      }
+
+      .btn-primary:hover {
+        opacity: 0.93;
+        background: linear-gradient(135deg, var(--accent), #2563eb);
+      }
+
+      .btn-purple {
+        background: var(--purple-soft);
+        border-color: var(--purple);
+        color: var(--text-primary);
+      }
+
+      .progress-strip {
+        margin-top: 8px;
+        padding: 7px 9px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+      }
+
+      .progress-strip-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11px;
+        margin-bottom: 5px;
+      }
+
+      .progress-label {
+        font-weight: 600;
+        color: var(--text-primary);
+      }
+
+      .progress-numbers {
+        color: var(--text-secondary);
+        font-family: var(--font-mono);
+        font-size: 11px;
+      }
+
+      .dual-bar {
+        height: 7px;
+        background: var(--bg-tertiary);
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .bar-smart {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--success));
+        border-radius: 999px;
+        transition: width 0.3s ease;
+      }
+
+      .tabs-nav {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 2px;
+        padding: 4px 8px;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      .tab-btn {
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        padding: 6px 4px;
+        font-size: 11.5px;
+        font-weight: 600;
+        border-radius: 5px;
+        cursor: pointer;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .tab-btn:hover {
+        color: var(--text-primary);
+        background: var(--bg-tertiary);
+      }
+
+      .tab-btn.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .toast-banner {
+        display: none;
+        padding: 6px 12px;
+        font-size: 11.5px;
+        font-weight: 600;
+        background: var(--success-soft);
+        color: var(--success);
+        border-bottom: 1px solid var(--border);
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .toast-banner.visible {
+        display: flex;
+      }
+
+      .main-scroll {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 12px 24px;
+      }
+
+      .section-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 11px;
+        margin-bottom: 10px;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 6px;
+      }
+
+      .section-title {
+        font-weight: 700;
+        font-size: 12.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 1.5px 6px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 600;
+        font-family: var(--font-mono);
+      }
+
+      .pill-accent {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .pill-success {
+        background: var(--success-soft);
+        color: var(--success);
+      }
+
+      .pill-warning {
+        background: var(--warning-soft);
+        color: var(--warning);
+      }
+
+      .pill-purple {
+        background: var(--purple-soft);
+        color: var(--purple);
+      }
+
+      .pill-danger {
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .turn-box {
+        border-left: 3px solid var(--purple);
+        background: var(--bg-primary);
+        padding: 8px 10px;
+        border-radius: 0 6px 6px 0;
+        margin-top: 6px;
+        font-size: 11.8px;
+      }
+
+      .turn-headline {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+      }
+
+      .turn-summary {
+        color: var(--text-secondary);
+        font-size: 11.3px;
+      }
+
+      .rec-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 11px;
+        margin-bottom: 9px;
+        transition: border-color 0.15s;
+      }
+
+      .rec-card:hover {
+        border-color: var(--accent);
+      }
+
+      .rec-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 5px;
+      }
+
+      .rec-title {
+        font-weight: 700;
+        font-size: 12.5px;
+        color: var(--text-primary);
+      }
+
+      .rec-rationale {
+        font-size: 11.5px;
+        color: var(--text-secondary);
+        margin: 4px 0 8px;
+      }
+
+      .cmd-editor-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 7px 8px;
+      }
+
+      .cmd-label {
+        font-size: 10.5px;
+        color: var(--text-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .cmd-textarea {
+        width: 100%;
+        border: none;
+        background: transparent;
+        color: var(--accent);
+        font-family: var(--font-mono);
+        font-size: 11.5px;
+        line-height: 1.4;
+        resize: vertical;
+        min-height: 38px;
+        outline: none;
+      }
+
+      /* Recommended Model Bar */
+      .model-bar {
+        margin-top: 7px;
+        padding: 6px 8px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .model-bar-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .model-select {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        border-radius: 5px;
+        padding: 3px 6px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        max-width: 100%;
+        flex: 1;
+        min-width: 150px;
+        outline: none;
+      }
+
+      .model-select:focus {
+        border-color: var(--purple);
+      }
+
+      .model-reason {
+        font-size: 10.8px;
+        color: var(--text-secondary);
+      }
+
+      .rec-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 8px;
+        flex-wrap: wrap;
+      }
+
+      .phase-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 8px;
+        overflow: hidden;
+      }
+
+      .phase-summary-row {
+        padding: 9px 11px;
+        cursor: pointer;
+        user-select: none;
+        transition: background 0.12s;
+      }
+
+      .phase-summary-row:hover {
+        background: var(--bg-tertiary);
+      }
+
+      .phase-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 5px;
+      }
+
+      .phase-body {
+        padding: 8px 11px 10px;
+        border-top: 1px solid var(--border-subtle);
+        background: var(--bg-primary);
+      }
+
+      .phase-artifacts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 7px;
+      }
+
+      .art-chip-group {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 5px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        overflow: hidden;
+        font-size: 10.5px;
+        font-family: var(--font-mono);
+      }
+
+      .art-chip-group:hover {
+        border-color: var(--accent);
+      }
+
+      .art-chip-main {
+        padding: 2.5px 7px;
+        color: var(--text-primary);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .art-chip-main:hover {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .art-chip-open {
+        padding: 2.5px 6px;
+        border-left: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        cursor: pointer;
+        background: var(--bg-tertiary);
+        font-weight: 700;
+      }
+
+      .art-chip-open:hover {
+        color: #fff;
+        background: var(--accent);
+      }
+
+      .diff-line {
+        display: block;
+        padding: 0 4px;
+        border-radius: 2px;
+      }
+
+      .diff-add {
+        background: rgba(63, 185, 80, 0.16);
+        color: var(--success);
+      }
+
+      .diff-del {
+        background: rgba(248, 81, 73, 0.16);
+        color: var(--danger);
+      }
+
+      .diff-hunk {
+        color: var(--accent);
+        font-weight: 600;
+      }
+
+      .diff-meta {
+        color: var(--purple);
+      }
+
+      .filter-bar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 9px;
+        flex-wrap: wrap;
+      }
+
+      .search-input {
+        flex: 1;
+        min-width: 140px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        border-radius: 6px;
+        padding: 5px 8px;
+        font-size: 12px;
+        outline: none;
+      }
+
+      .search-input:focus {
+        border-color: var(--accent);
+      }
+
+      .epic-box {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 8px;
+        overflow: hidden;
+      }
+
+      .epic-summary {
+        padding: 9px 11px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        user-select: none;
+      }
+
+      .epic-summary:hover {
+        background: var(--bg-tertiary);
+      }
+
+      .epic-stories {
+        border-top: 1px solid var(--border-subtle);
+        padding: 6px 9px;
+        background: var(--bg-primary);
+      }
+
+      .story-row {
+        padding: 7px 8px;
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .story-row:last-child {
+        border-bottom: none;
+      }
+
+      .story-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 6px;
+      }
+
+      .story-title {
+        font-weight: 600;
+        font-size: 11.8px;
+      }
+
+      .story-evidence {
+        font-size: 11px;
+        color: var(--purple);
+        background: var(--purple-soft);
+        padding: 3px 6px;
+        border-radius: 4px;
+      }
+
+      .insight-item {
+        padding: 7px 9px;
+        border-radius: 6px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+        margin-bottom: 6px;
+      }
+
+      .insight-title {
+        font-weight: 700;
+        font-size: 11.5px;
+        margin-bottom: 2px;
+      }
+
+      .insight-detail {
+        font-size: 11px;
+        color: var(--text-secondary);
+      }
+
+      .artifact-preview {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        white-space: pre-wrap;
+        max-height: 360px;
+        overflow-y: auto;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="top-bar">
+        <div class="brand-row">
+          <div class="brand-left">
+            <div class="brand-badge">BM</div>
+            <div class="brand-titles">
+              <div class="brand-title" id="projectTitle">BMAD Companion</div>
+              <div class="brand-subtitle" id="projectSubtitle">Scanning workspace BMAD artifacts…</div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button class="btn btn-purple" id="btnDeepAudit" title="Ask ZCode AI to run a deep semantic audit of all BMAD artifacts and push recommendations to this panel">
+              ✨ AI Audit
+            </button>
+            <button class="btn" id="btnRefresh" title="Rescan workspace BMAD artifacts">
+              ↻ Sync
+            </button>
+          </div>
+        </div>
+
+        <div class="progress-strip">
+          <div class="progress-strip-top">
+            <span class="progress-label" id="progressHeadline">Smart AI Progress</span>
+            <span class="progress-numbers" id="progressNumbers">0 / 0 stories (0%)</span>
+          </div>
+          <div class="dual-bar">
+            <div class="bar-smart" id="progressBar" style="width: 0%"></div>
+          </div>
+        </div>
+      </header>
+
+      <nav class="tabs-nav">
+        <button class="tab-btn active" data-tab="advisor">⚡ Next Prompts</button>
+        <button class="tab-btn" data-tab="progress">📊 Phases & Epics</button>
+        <button class="tab-btn" data-tab="catalog">🧭 Skills & Agents</button>
+        <button class="tab-btn" data-tab="artifacts">🗂️ Artifacts</button>
+      </nav>
+
+      <div class="toast-banner" id="toastBanner">
+        <span id="toastText">Launching new session with recommended model…</span>
+      </div>
+
+      <main class="main-scroll" id="mainScroll">
+        <!-- Tab 1: Advisor & Next Prompts -->
+        <section id="tab-advisor">
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">
+                <span>🧠 Post-Prompt AI State & Session Launcher</span>
+              </div>
+              <span class="pill pill-purple" id="turnBadge">Auto New-Session</span>
+            </div>
+            <div id="providerStateBar" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
+            <div class="turn-box">
+              <div class="turn-headline" id="turnHeadline">Analyzing workspace state…</div>
+              <div class="turn-summary" id="turnSummary">
+                Each recommended prompt below includes an optimal AI model and automatically opens a clean new session when launched.
+              </div>
+            </div>
+          </div>
+
+          <div class="section-header" style="margin: 8px 2px 6px;">
+            <div class="section-title">🚀 Next BMAD Prompts (Auto-Opens New Session + Recommended Model)</div>
+          </div>
+          <div id="recommendationsList"></div>
+
+          <div class="section-card" id="insightsCard" style="margin-top: 10px;">
+            <div class="section-header">
+              <div class="section-title">🔍 Smart Artifact + AI Cross-Check Insights</div>
+            </div>
+            <div id="insightsList"></div>
+          </div>
+        </section>
+
+        <!-- Tab 2: Phases, Epics & Stories -->
+        <section id="tab-progress" style="display: none;">
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">📈 Static Tracker vs. Smart AI Reconciliation</div>
+              <span class="pill pill-success" id="reconciledBadge">Smart Verified</span>
+            </div>
+            <div id="metricsBreakdown" style="font-size: 11.5px; color: var(--text-secondary);"></div>
+            <div style="display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap;">
+              <button class="btn btn-primary" id="btnReconcileTrackers" title="Reconcile and write back Smart AI status findings into sprint-status.yaml and/or tickets.toml">
+                ⚡ Reconcile Trackers with Reality
+              </button>
+              <button class="btn" id="btnPreviewReconcile" title="Preview changes before modifying tracker files">
+                🔍 Preview Diff
+              </button>
+            </div>
+            <div id="reconciliationDiffCard" style="display: none; margin-top: 9px; padding: 8px 10px; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px;">
+              <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+                <span id="diffCardTitle">Reconciliation Preview</span>
+                <button class="btn" id="btnCloseDiff" style="padding: 1px 6px; font-size: 10px;">✕ Close</button>
+              </div>
+              <div id="diffCardContent" style="font-size: 11px; max-height: 220px; overflow-y: auto; font-family: var(--font-mono);"></div>
+            </div>
+          </div>
+
+          <div class="section-header" style="margin: 8px 2px 6px;">
+            <div class="section-title">🏛️ 4-Phase BMAD-METHOD Lifecycle</div>
+            <div style="display:flex;gap:4px;">
+              <button class="btn" id="btnExpandAllPhases" style="padding:2px 6px;font-size:10.5px;">Expand All</button>
+              <button class="btn" id="btnCollapseAllPhases" style="padding:2px 6px;font-size:10.5px;">Collapse All</button>
+            </div>
+          </div>
+          <div id="phasesList"></div>
+
+          <div class="section-header" style="margin: 12px 2px 6px;">
+            <div class="section-title">📦 Epics & Stories Progress Explorer</div>
+          </div>
+          <div class="filter-bar">
+            <input type="text" class="search-input" id="storySearch" placeholder="Filter epics, stories, or requirement IDs…" />
+            <select class="btn" id="storyStatusFilter">
+              <option value="all">All Statuses</option>
+              <option value="open">Open (Review / Backlog / WIP)</option>
+              <option value="reconciled">✨ Smart AI Reconciled</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+          <div id="epicsList"></div>
+        </section>
+
+        <!-- Tab 3: Skills & Agents Catalog -->
+        <section id="tab-catalog" style="display: none;">
+          <div class="filter-bar">
+            <input type="text" class="search-input" id="skillSearch" placeholder="Search /bmad-* skills or agents (e.g. ux, build, review, sally)…" />
+            <select class="btn" id="skillPhaseFilter">
+              <option value="all">All Phases</option>
+              <option value="1-analysis">Phase 1 · Analysis</option>
+              <option value="2-planning">Phase 2 · Planning & UX</option>
+              <option value="3-solutioning">Phase 3 · Solutioning</option>
+              <option value="4-implementation">Phase 4 · Implementation</option>
+              <option value="anytime">Anytime / Core</option>
+            </select>
+          </div>
+
+          <div class="section-header" style="margin: 6px 2px;">
+            <div class="section-title">🛠️ Contextual BMAD Skills Launcher (New Session + Model)</div>
+          </div>
+          <div id="skillsCatalogList"></div>
+
+          <div class="section-header" style="margin: 12px 2px 6px;">
+            <div class="section-title">👥 Specialist BMAD Agents</div>
+          </div>
+          <div id="agentsCatalogList"></div>
+        </section>
+
+        <!-- Tab 4: Artifacts Inspector (Ordered by Last Modified + Diff Viewer) -->
+        <section id="tab-artifacts" style="display: none;">
+          <div class="section-card" id="artifactPreviewCard" style="display: none; border-color: var(--accent);">
+            <div class="section-header" style="flex-wrap: wrap;">
+              <div style="min-width: 0;">
+                <div class="section-title" id="previewFileName" style="font-family: var(--font-mono); color: var(--accent);">Artifact Preview</div>
+                <div id="previewMetaSubtitle" style="font-size: 10.8px; color: var(--text-secondary); margin-top: 2px;"></div>
+              </div>
+              <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                <button class="btn btn-purple" id="btnToggleDiffMode" title="Switch between Git Diff and Full Content">🔀 Git Diff</button>
+                <button class="btn" id="btnToggleContentMode" title="View full file content">📄 Content</button>
+                <button class="btn" id="btnOpenArtifactExternal" title="Open this artifact file in your desktop editor/viewer">↗ Open File</button>
+                <button class="btn btn-primary" id="btnReviewArtifact" title="Launch /bmad-review for this artifact in a new session">🚀 Review</button>
+              </div>
+            </div>
+            <div class="artifact-preview" id="artifactPreviewContent"></div>
+          </div>
+
+          <div class="section-card">
+            <div class="section-header">
+              <div class="section-title">🕒 Workspace BMAD Artifacts (Ordered by Last Modified)</div>
+              <span class="pill pill-accent" id="artifactCountBadge">0 files</span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+              Sorted newest-modified first. Click <b>🔀 Diff</b> to inspect the artifact's diff, or <b>↗ Open</b> to launch it in your editor.
+            </div>
+            <div class="filter-bar">
+              <input type="text" class="search-input" id="artifactSearch" placeholder="Filter artifacts by name, path, or phase…" />
+            </div>
+            <div id="artifactsDirectoryList"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      "use strict";
+      (function () {
+        const PROTOCOL_VERSION = "2026-01-26";
+        let rpcId = 1;
+        const pendingRequests = new Map();
+        let currentState = null;
+        let selectedArtifactPath = null;
+        let loadedArtifactData = null;
+        let artifactViewMode = "diff";
+        const expandedPhases = new Set(["4-implementation"]);
+        let initialPhasesExpanded = false;
+        const expandedEpics = new Set();
+        let initialEpicsExpanded = false;
+
+        function sendRpcRequest(method, params) {
+          return new Promise((resolve, reject) => {
+            const id = rpcId++;
+            const timer = setTimeout(() => {
+              if (pendingRequests.has(id)) {
+                pendingRequests.delete(id);
+                reject(new Error("RPC timeout: " + method));
+              }
+            }, 15000);
+            pendingRequests.set(id, { resolve, reject, timer });
+            window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+          });
+        }
+
+        function sendRpcNotification(method, params) {
+          window.parent.postMessage({ jsonrpc: "2.0", method, params: params || {} }, "*");
+        }
+
+        function applyHostTheme(theme) {
+          if (theme === "light") {
+            document.body.classList.add("theme-light");
+          } else {
+            document.body.classList.remove("theme-light");
+          }
+        }
+
+        window.addEventListener("message", (event) => {
+          const data = event.data;
+          if (!data || data.jsonrpc !== "2.0") return;
+
+          if (data.id !== undefined && pendingRequests.has(data.id)) {
+            const req = pendingRequests.get(data.id);
+            pendingRequests.delete(data.id);
+            clearTimeout(req.timer);
+            if (data.error) {
+              req.reject(new Error(data.error.message || "RPC Error"));
+            } else {
+              req.resolve(data.result);
+            }
+            return;
+          }
+
+          if (data.method === "ping" && data.id !== undefined) {
+            window.parent.postMessage({ jsonrpc: "2.0", id: data.id, result: {} }, "*");
+            return;
+          }
+
+          if (data.method === "ui/notifications/host-context-changed") {
+            if (data.params && data.params.theme) {
+              applyHostTheme(data.params.theme);
+            }
+            return;
+          }
+
+          if (data.method === "ui/notifications/tool-result") {
+            if (data.params && data.params.structuredContent && data.params.structuredContent.metrics) {
+              renderWorkspaceState(data.params.structuredContent);
+            } else {
+              refreshState();
+            }
+          }
+        });
+
+        async function initMcpApp() {
+          try {
+            const res = await sendRpcRequest("ui/initialize", {
+              appInfo: { name: "bmad-companion", version: "0.5.0" },
+              appCapabilities: {
+                availableDisplayModes: ["inline", "fullscreen"]
+              },
+              protocolVersion: PROTOCOL_VERSION
+            });
+            if (res && res.hostContext && res.hostContext.theme) {
+              applyHostTheme(res.hostContext.theme);
+            }
+            sendRpcNotification("ui/notifications/initialized", {});
+          } catch (err) {
+            console.warn("BMAD Companion standalone/init fallback:", err);
+          }
+          await refreshState();
+        }
+
+        async function callServerTool(name, args) {
+          return await sendRpcRequest("tools/call", {
+            name,
+            arguments: args || {}
+          });
+        }
+
+        /**
+         * Launches the next BMAD prompt in a brand-new ZCode session with the dynamically recommended AI model
+         * and immediately switches the UI to that new session via CreateSession + OpenSession.
+         */
+        function getFallbackModelId() {
+          const models = currentState?.availableModels || [];
+          const current = models.find((m) => m.current);
+          return current?.id || models[0]?.id || "";
+        }
+
+        async function launchPromptInNewSession(commandText, modelId, skillName, title) {
+          const cleanCmd = String(commandText || "").trim();
+          const rawModel = String(modelId || "").trim();
+          const chosenModel = rawModel === "host-default" ? "" : rawModel || getFallbackModelId();
+          if (!cleanCmd) return;
+
+          try {
+            await callServerTool("bmad_prepare_new_session", {
+              prompt: cleanCmd,
+              model: chosenModel || "host-default",
+              skill: skillName || "",
+              title: title || ""
+            });
+          } catch {}
+
+          const modelLine = chosenModel
+            ? `- Recommended Model: \`${chosenModel}\``
+            : `- Recommended Model: Host default (no specific model override)`;
+          const createSessionStep = chosenModel
+            ? `3. Call \`CreateSession\` with \`project\`, \`model: "${chosenModel}"\`, and \`prompt: ${JSON.stringify(cleanCmd)}\`.`
+            : `3. Call \`CreateSession\` with \`project\` and \`prompt: ${JSON.stringify(cleanCmd)}\` (omit \`model\` to use the configured default).`;
+
+          const autoLaunchDirective = [
+            "[BMAD Companion — Auto-Launch New Session]",
+            `Please immediately create and open a new session for this workspace with the recommended model and initial BMAD prompt below:`,
+            modelLine,
+            `- Initial Prompt to submit in the new session:`,
+            cleanCmd,
+            ``,
+            `Execute these exact tool calls now (do not execute the BMAD skill inside the current session):`,
+            `1. Load \`ListProjects\`, \`CreateSession\`, and \`OpenSession\` via \`LocalToolSearch\` (\`select:ListProjects,CreateSession,OpenSession\`) if not yet loaded.`,
+            `2. Call \`ListProjects\` to get the current workspace's \`project\` object.`,
+            createSessionStep,
+            `4. Call \`OpenSession\` with the returned \`session.sessionId\` so ZCode immediately opens the new session in the UI.`
+          ].join("\n");
+
+          const modelShortLabel = chosenModel ? chosenModel.split("/").pop() : "host-default";
+          try {
+            await sendRpcRequest("ui/message", {
+              role: "user",
+              content: [{ type: "text", text: autoLaunchDirective }]
+            });
+            showToast(`🚀 Opening new session [${modelShortLabel}] → ${cleanCmd.slice(0, 42)}…`);
+          } catch {
+            await copyToClipboard(cleanCmd);
+            showToast(`📋 Copied prompt (Model: ${modelShortLabel})`);
+          }
+        }
+
+        async function sendPromptToCurrentSession(commandText) {
+          const clean = String(commandText || "").trim();
+          if (!clean) return;
+          try {
+            await sendRpcRequest("ui/message", {
+              role: "user",
+              content: [{ type: "text", text: clean }]
+            });
+            showToast("💬 Sent to current session: " + clean.slice(0, 48) + "…");
+          } catch {
+            await copyToClipboard(clean);
+            showToast("📋 Copied to clipboard: " + clean.slice(0, 44) + "…");
+          }
+        }
+
+        async function attachToChatContext(label, commandText, rationale, modelId) {
+          const textBlock = [
+            "[BMAD Companion Context Attached]",
+            "Recommended Command: " + commandText,
+            "Recommended Model: " + (modelId || "default"),
+            "Context: " + (rationale || label),
+            "Please execute or advise on this BMAD-METHOD workflow step for the current workspace."
+          ].join("\n");
+          try {
+            await sendRpcRequest("ui/update-model-context", {
+              content: [{ type: "text", text: textBlock }],
+              structuredContent: {
+                bmadRecommendation: { label, command: commandText, rationale, modelId }
+              }
+            });
+            showToast("📎 Attached to your next chat message!");
+          } catch {
+            await copyToClipboard(commandText);
+            showToast("📋 Copied command to clipboard!");
+          }
+        }
+
+        async function copyToClipboard(text) {
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            ta.remove();
+          }
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+          const banner = document.getElementById("toastBanner");
+          const txt = document.getElementById("toastText");
+          txt.textContent = msg;
+          banner.classList.add("visible");
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => banner.classList.remove("visible"), 4000);
+        }
+
+        function escapeHtml(str) {
+          return String(str ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function buildModelSelectOptions(selectedModelId) {
+          const models = currentState?.availableModels || [];
+          if (!models.length && !selectedModelId) {
+            return `<option value="">🤖 Host Default Model</option>`;
+          }
+          const hasSelected = selectedModelId && models.some((m) => m.id === selectedModelId);
+          const list = hasSelected || !selectedModelId
+            ? models
+            : [{ id: selectedModelId, modelId: selectedModelId.split("/").pop(), providerName: selectedModelId.split("/")[0] }, ...models];
+          return list
+            .map((m) => {
+              const ctxTag = m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k` : "";
+              const provTag = m.providerName ? ` (${m.providerName})` : "";
+              const recTag = m.id === selectedModelId ? " ★ Recommended" : "";
+              return `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? "selected" : ""}>🤖 ${escapeHtml(m.modelId || m.label || m.id)}${escapeHtml(provTag)}${escapeHtml(ctxTag)}${recTag}</option>`;
+            })
+            .join("");
+        }
+
+        async function refreshState() {
+          try {
+            const result = await callServerTool("bmad_get_state", { refresh: true });
+            if (result && result.structuredContent) {
+              renderWorkspaceState(result.structuredContent);
+            }
+          } catch {
+            document.getElementById("projectSubtitle").textContent =
+              "Ready · Click Sync or run bmad_open_companion";
+          }
+        }
+
+        function renderWorkspaceState(state) {
+          currentState = state;
+          const m = state.metrics || {};
+          if (!initialPhasesExpanded && Array.isArray(state.phases) && state.phases.length > 0) {
+            initialPhasesExpanded = true;
+            const incomplete = state.phases.filter((p) => p.progressPct < 100);
+            if (incomplete.length > 0) {
+              expandedPhases.clear();
+              incomplete.forEach((p) => expandedPhases.add(p.id));
+            }
+          }
+          if (!initialEpicsExpanded && Array.isArray(state.epics) && state.epics.length > 0) {
+            initialEpicsExpanded = true;
+            const openEpics = state.epics.filter((e) => e.smartProgressPct < 100);
+            const toExpand = (openEpics.length > 0 ? openEpics : state.epics).slice(0, 2);
+            toExpand.forEach((e) => expandedEpics.add(e.id));
+          }
+
+          document.getElementById("projectTitle").textContent =
+            (state.projectName || "Workspace") + " · BMAD Companion v0.5";
+          document.getElementById("projectSubtitle").textContent =
+            `${state.techStack || "Workspace"} · ${m.totalEpics || 0} Epics · ${m.smartDoneStories || 0}/${m.totalStories || 0} Stories · ${state.git?.branch || "main"}`;
+
+          const provBar = document.getElementById("providerStateBar");
+          if (provBar) {
+            const pState = state.providerState || {};
+            const activeProvs = pState.activeProviders || [];
+            const subBadges = Object.entries(pState.subscriptionSelections || {}).map(
+              ([fam, sel]) => `<span class="pill pill-accent" title="Active Subscription Selection">🔑 ${escapeHtml(fam)}: ${escapeHtml(sel?.kind || "active")}</span>`
+            );
+            const provBadges = activeProvs.map(
+              (p) => `<span class="pill pill-success" title="Active Provider (${escapeHtml(p.kind)} / ${escapeHtml(p.plan || "")})">⚡ ${escapeHtml(p.providerName)} (${p.modelCount})</span>`
+            );
+            const syncPill = pState.syncedFromRuntime
+              ? `<span class="pill pill-purple">✓ Runtime Catalog Synced</span>`
+              : `<span class="pill pill-purple">↻ Dynamic Config + Capabilities</span>`;
+            provBar.innerHTML = [...provBadges, ...subBadges, syncPill].join("");
+          }
+
+          document.getElementById("progressHeadline").textContent =
+            `Smart AI Progress (${m.smartOverallPct || 0}% vs ${m.declaredOverallPct || 0}% static tracker)`;
+          document.getElementById("progressNumbers").textContent =
+            `${m.smartDoneStories || 0}/${m.totalStories || 0} (${m.smartOverallPct || 0}%)`;
+          document.getElementById("progressBar").style.width = `${Math.min(100, m.smartOverallPct || 0)}%`;
+
+          const turn = state.turnAnalysis || {};
+          document.getElementById("turnBadge").textContent =
+            turn.turnCount > 0 ? `Turn #${turn.turnCount} · Auto New-Session` : "Auto New-Session";
+          document.getElementById("turnHeadline").textContent =
+            turn.aiSummaryHeadline || "Workspace analyzed — launch any recommended prompt in a new session below.";
+          document.getElementById("turnSummary").textContent =
+            turn.lastAssistantSummary || "";
+
+          renderRecommendations(state.recommendations || []);
+          renderInsights(state.smartInsights || []);
+          renderPhases(state.phases || []);
+          renderEpics();
+          renderSkillsCatalog();
+          renderArtifactsDirectory(state.phases || []);
+        }
+
+        function renderRecommendations(recs) {
+          const container = document.getElementById("recommendationsList");
+          if (!recs.length) {
+            container.innerHTML = `<div class="section-card">No recommendations yet. Click Sync to analyze workspace.</div>`;
+            return;
+          }
+          container.innerHTML = recs
+            .map((r, idx) => {
+              const prioClass =
+                r.priority === "high"
+                  ? "pill-danger"
+                  : r.priority === "medium"
+                    ? "pill-accent"
+                    : "pill-purple";
+              const recModel = r.recommendedModel || {
+                modelId: getFallbackModelId(),
+                shortName: getFallbackModelId() ? getFallbackModelId().split("/").pop() : "host-default",
+                tier: "🤖 Dynamic Fit",
+                reason: "Dynamically resolved from active provider & subscription state."
+              };
+              return `
+                <div class="rec-card">
+                  <div class="rec-top">
+                    <span class="rec-title">${escapeHtml(r.title)}</span>
+                    <div style="display:flex;gap:4px;">
+                      <span class="pill ${prioClass}">${escapeHtml(r.badge || r.priority)}</span>
+                      <span class="pill pill-purple">${escapeHtml(r.phase)}</span>
+                    </div>
+                  </div>
+                  <div class="rec-rationale">${escapeHtml(r.rationale)}</div>
+                  <div class="cmd-editor-wrap">
+                    <div class="cmd-label">
+                      <span>Contextual BMAD Skill + Prompt (Editable)</span>
+                      <span>${escapeHtml(r.skill)}</span>
+                    </div>
+                    <textarea class="cmd-textarea" id="rec-cmd-${idx}" rows="2">${escapeHtml(r.fullCommand)}</textarea>
+                  </div>
+                  <div class="model-bar">
+                    <div class="model-bar-top">
+                      <span class="pill pill-purple">${escapeHtml(recModel.tier)}</span>
+                      <select class="model-select" id="rec-model-${idx}" title="Recommended model for the new session">
+                        ${buildModelSelectOptions(recModel.modelId)}
+                      </select>
+                    </div>
+                    <div class="model-reason">${escapeHtml(recModel.reason)}</div>
+                  </div>
+                  <div class="rec-actions">
+                    <button class="btn btn-primary" data-action="launch-new-rec" data-idx="${idx}" title="Automatically open a new session with the selected recommended model and submit this prompt">
+                      🚀 Launch in New Session
+                    </button>
+                    <button class="btn" data-action="send-current-rec" data-idx="${idx}" title="Run in the current session instead">
+                      💬 Run Here
+                    </button>
+                    <button class="btn" data-action="attach-rec" data-idx="${idx}">
+                      📎 Attach
+                    </button>
+                    <button class="btn" data-action="copy-rec" data-idx="${idx}">
+                      📋 Copy
+                    </button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+
+          container.querySelectorAll("button[data-action]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const idx = Number(btn.getAttribute("data-idx"));
+              const rec = recs[idx];
+              const ta = document.getElementById(`rec-cmd-${idx}`);
+              const modelSel = document.getElementById(`rec-model-${idx}`);
+              const cmd = ta ? ta.value.trim() : rec.fullCommand;
+              const chosenModel = modelSel ? modelSel.value : rec.recommendedModel?.modelId;
+              const action = btn.getAttribute("data-action");
+              if (action === "launch-new-rec") {
+                await launchPromptInNewSession(cmd, chosenModel, rec.skill, rec.title);
+              } else if (action === "send-current-rec") {
+                await sendPromptToCurrentSession(cmd);
+              } else if (action === "attach-rec") {
+                await attachToChatContext(rec.title, cmd, rec.rationale, chosenModel);
+              } else if (action === "copy-rec") {
+                await copyToClipboard(cmd);
+                showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
+              }
+            });
+          });
+        }
+
+        function renderInsights(insights) {
+          const list = document.getElementById("insightsList");
+          if (!insights.length) {
+            list.innerHTML = `<div class="insight-item"><div class="insight-detail">All trackers and artifacts are synchronized.</div></div>`;
+            return;
+          }
+          list.innerHTML = insights
+            .map((ins) => {
+              const badge =
+                ins.severity === "warning"
+                  ? "⚠️"
+                  : ins.severity === "success"
+                    ? "✅"
+                    : "✨";
+              return `
+                <div class="insight-item">
+                  <div class="insight-title">${badge} ${escapeHtml(ins.title)}</div>
+                  <div class="insight-detail">${escapeHtml(ins.detail)}</div>
+                </div>
+              `;
+            })
+            .join("");
+        }
+
+        function formatTimestamp(ms) {
+          if (!ms) return "";
+          const d = new Date(ms);
+          const diffSec = Math.max(0, Math.floor((Date.now() - ms) / 1000));
+          let rel = "";
+          if (diffSec < 60) rel = "just now";
+          else if (diffSec < 3600) rel = `${Math.floor(diffSec / 60)}m ago`;
+          else if (diffSec < 86400) rel = `${Math.floor(diffSec / 3600)}h ago`;
+          else rel = `${Math.floor(diffSec / 86400)}d ago`;
+          const iso = d.toISOString().replace("T", " ").slice(0, 16);
+          return `${iso} (${rel})`;
+        }
+
+        function formatDiffHtml(diffText) {
+          const lines = String(diffText || "").split(/\r?\n/);
+          return lines
+            .map((line) => {
+              const esc = escapeHtml(line);
+              if (line.startsWith("+++") || line.startsWith("---")) {
+                return `<span class="diff-line diff-meta">${esc}</span>`;
+              }
+              if (line.startsWith("+")) {
+                return `<span class="diff-line diff-add">${esc}</span>`;
+              }
+              if (line.startsWith("-")) {
+                return `<span class="diff-line diff-del">${esc}</span>`;
+              }
+              if (line.startsWith("@@")) {
+                return `<span class="diff-line diff-hunk">${esc}</span>`;
+              }
+              if (/^(commit |Author:|Date:|Subject:)/.test(line)) {
+                return `<span class="diff-line diff-meta">${esc}</span>`;
+              }
+              return `<span class="diff-line">${esc}</span>`;
+            })
+            .join("");
+        }
+
+        async function openArtifactExternally(relPath) {
+          try {
+            showToast("↗ Opening " + relPath + "…");
+            const res = await callServerTool("bmad_open_artifact_file", { relPath });
+            if (res && res.structuredContent) {
+              loadedArtifactData = res.structuredContent;
+              selectedArtifactPath = relPath;
+              renderArtifactInspectorCard();
+            }
+          } catch (err) {
+            showToast("Failed to open file: " + err.message);
+          }
+        }
+
+        function renderPhases(phases) {
+          if (!currentState) return;
+          const m = currentState.metrics || {};
+          document.getElementById("reconciledBadge").textContent =
+            `${m.reconciledStoriesCount || 0} Stories AI-Reconciled`;
+          document.getElementById("metricsBreakdown").innerHTML = `
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+              <span class="pill pill-success">✓ Done: ${m.smartDoneStories || 0}</span>
+              <span class="pill pill-warning">👁 In Review: ${m.reviewStories || 0}</span>
+              <span class="pill pill-accent">⚙ In Progress: ${m.inProgressStories || 0}</span>
+              <span class="pill pill-purple">📋 Backlog: ${m.backlogStories || 0}</span>
+            </div>
+            <div style="margin-top:6px;">
+              Static tracker declares <b>${m.declaredDoneStories}/${m.totalStories} (${m.declaredOverallPct}%)</b>, while Smart AI + artifact cross-checking confirms <b>${m.smartDoneStories}/${m.totalStories} (${m.smartOverallPct}%)</b> delivered.
+            </div>
+          `;
+
+          const container = document.getElementById("phasesList");
+          container.innerHTML = phases
+            .map((p) => {
+              const isExpanded = expandedPhases.has(p.id);
+              const pillCls = p.progressPct >= 95 ? "pill-success" : "pill-accent";
+              const artCount = p.totalArtifactsCount ?? (p.artifacts || []).length;
+              const chips = (p.artifacts || [])
+                .map(
+                  (a) => `
+                    <span class="art-chip-group" title="${escapeHtml(a.relPath)} · Last modified: ${escapeHtml(formatTimestamp(a.mtimeMs))}">
+                      <span class="art-chip-main" data-art-diff="${escapeHtml(a.relPath)}">
+                        📄 ${escapeHtml(a.displayLabel || a.name)}
+                      </span>
+                      <span class="art-chip-open" data-art-open="${escapeHtml(a.relPath)}" title="Open ${escapeHtml(a.relPath)} in desktop editor">
+                        ↗
+                      </span>
+                    </span>
+                  `
+                )
+                .join("");
+
+              const bodyHtml = isExpanded
+                ? `
+                  <div class="phase-body">
+                    <div style="font-size:11.3px;color:var(--text-secondary);margin-bottom:6px;">
+                      ${escapeHtml(p.summary)}
+                    </div>
+                    <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:4px;">
+                      Generated Artifacts (${artCount}) — click file name to view diff, or <b>↗</b> to open file:
+                    </div>
+                    <div class="phase-artifacts">${chips || `<span style="font-size:11px;color:var(--text-muted);">No artifacts generated in this phase yet.</span>`}</div>
+                  </div>
+                `
+                : "";
+
+              return `
+                <div class="phase-card">
+                  <div class="phase-summary-row" data-phase-toggle="${escapeHtml(p.id)}">
+                    <div class="phase-top">
+                      <span style="font-weight:700;">${isExpanded ? "▾" : "▸"} ${escapeHtml(p.name)}</span>
+                      <div style="display:flex;gap:4px;align-items:center;">
+                        <span class="pill pill-purple">${artCount} files</span>
+                        <span class="pill ${pillCls}">${p.progressPct}% · ${escapeHtml(p.status)}</span>
+                      </div>
+                    </div>
+                    <div class="dual-bar" style="height:5px;">
+                      <div class="bar-smart" style="width:${p.progressPct}%"></div>
+                    </div>
+                  </div>
+                  ${bodyHtml}
+                </div>
+              `;
+            })
+            .join("");
+
+          container.querySelectorAll("[data-phase-toggle]").forEach((row) => {
+            row.addEventListener("click", () => {
+              const pid = row.getAttribute("data-phase-toggle");
+              if (expandedPhases.has(pid)) expandedPhases.delete(pid);
+              else expandedPhases.add(pid);
+              renderPhases(currentState.phases || []);
+            });
+          });
+
+          container.querySelectorAll("[data-art-diff]").forEach((el) => {
+            el.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const rel = el.getAttribute("data-art-diff");
+              switchTab("artifacts");
+              loadArtifactPreview(rel, "diff");
+            });
+          });
+
+          container.querySelectorAll("[data-art-open]").forEach((el) => {
+            el.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              const rel = el.getAttribute("data-art-open");
+              await openArtifactExternally(rel);
+            });
+          });
+        }
+
+        function renderEpics() {
+          if (!currentState) return;
+          const query = (document.getElementById("storySearch").value || "").toLowerCase().trim();
+          const statusFilter = document.getElementById("storyStatusFilter").value;
+          const epics = currentState.epics || [];
+          const container = document.getElementById("epicsList");
+
+          const htmlParts = [];
+          for (const epic of epics) {
+            const filteredStories = (epic.stories || []).filter((s) => {
+              if (statusFilter === "open" && s.smartStatus === "done") return false;
+              if (statusFilter === "reconciled" && !s.aiReconciled) return false;
+              if (statusFilter === "done" && s.smartStatus !== "done") return false;
+              if (!query) return true;
+              const hay = `${epic.title} ${s.id} ${s.title} ${s.description} ${(s.covers || []).join(" ")}`.toLowerCase();
+              return hay.includes(query);
+            });
+
+            if (filteredStories.length === 0 && (query || statusFilter !== "all")) continue;
+
+            const isExpanded = expandedEpics.has(epic.id) || Boolean(query) || statusFilter !== "all";
+            const statusPill =
+              epic.smartProgressPct === 100
+                ? `<span class="pill pill-success">100% Done</span>`
+                : `<span class="pill pill-accent">${epic.smartProgressPct}% Smart (${epic.declaredProgressPct}% Tracker)</span>`;
+
+            const storiesHtml = isExpanded
+              ? `<div class="epic-stories">
+                  ${filteredStories
+                    .map((s) => {
+                      const sPill =
+                        s.smartStatus === "done"
+                          ? "pill-success"
+                          : s.smartStatus === "review"
+                            ? "pill-warning"
+                            : "pill-purple";
+                      const smartPrompt =
+                        s.smartStatus === "done"
+                          ? `/bmad-code-review "Verify story ${s.id} (${s.title}) implementation and acceptance criteria"`
+                          : `/bmad-build "Implement and verify story ${s.id} (${s.title}): ${s.verify || s.description || "complete all acceptance criteria and unit tests"}"`;
+                      const stModel = s.recommendedModel?.modelId || getFallbackModelId();
+                      const stModelShort = s.recommendedModel?.shortName || (stModel ? stModel.split("/").pop() : "host-default");
+                      return `
+                        <div class="story-row">
+                          <div class="story-head">
+                            <div class="story-title">
+                              <span style="font-family:var(--font-mono);color:var(--accent);">${escapeHtml(s.id)}</span>
+                              ${escapeHtml(s.title)}
+                            </div>
+                            <div style="display:flex;gap:4px;flex-shrink:0;">
+                              ${s.aiReconciled ? `<span class="pill pill-purple" title="Reconciled by Smart AI + Artifact check">✨ AI</span>` : ""}
+                              <span class="pill ${sPill}">${escapeHtml(s.smartStatus)}</span>
+                            </div>
+                          </div>
+                          ${s.smartEvidence ? `<div class="story-evidence">✨ ${escapeHtml(s.smartEvidence)}</div>` : ""}
+                          <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:3px;flex-wrap:wrap;">
+                            <span class="pill pill-accent" title="Recommended Model: ${escapeHtml(stModel)}">
+                              🤖 ${escapeHtml(stModelShort)}
+                            </span>
+                            <button class="btn btn-primary" style="padding:2px 7px;font-size:10.5px;" data-story-prompt="${escapeHtml(smartPrompt)}" data-story-model="${escapeHtml(stModel)}" data-story-title="${escapeHtml(s.title)}">
+                              🚀 New Session: ${s.smartStatus === "done" ? "/bmad-code-review" : "/bmad-build"}
+                            </button>
+                          </div>
+                        </div>
+                      `;
+                    })
+                    .join("")}
+                </div>`
+              : "";
+
+            htmlParts.push(`
+              <div class="epic-box">
+                <div class="epic-summary" data-epic-toggle="${escapeHtml(epic.id)}">
+                  <div style="min-width:0;">
+                    <div style="font-weight:700;font-size:12px;">
+                      ${isExpanded ? "▾" : "▸"} Epic ${escapeHtml(epic.number)} · ${escapeHtml(epic.title)}
+                    </div>
+                    <div style="font-size:10.8px;color:var(--text-secondary);">
+                      ${filteredStories.length} stories ${epic.hasRetrospective ? "· ✓ Retrospective complete" : ""}
+                    </div>
+                  </div>
+                  <div style="flex-shrink:0;">${statusPill}</div>
+                </div>
+                ${storiesHtml}
+              </div>
+            `);
+          }
+
+          container.innerHTML =
+            htmlParts.join("") || `<div class="section-card">No matching stories found.</div>`;
+
+          container.querySelectorAll("[data-epic-toggle]").forEach((el) => {
+            el.addEventListener("click", () => {
+              const id = el.getAttribute("data-epic-toggle");
+              if (expandedEpics.has(id)) expandedEpics.delete(id);
+              else expandedEpics.add(id);
+              renderEpics();
+            });
+          });
+
+          container.querySelectorAll("[data-story-prompt]").forEach((btn) => {
+            btn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              const cmd = btn.getAttribute("data-story-prompt");
+              const model = btn.getAttribute("data-story-model");
+              const title = btn.getAttribute("data-story-title");
+              await launchPromptInNewSession(cmd, model, "", title);
+            });
+          });
+        }
+
+        function renderSkillsCatalog() {
+          if (!currentState) return;
+          const query = (document.getElementById("skillSearch").value || "").toLowerCase().trim();
+          const phaseFilter = document.getElementById("skillPhaseFilter").value;
+          const skills = (currentState.skillsCatalog || []).filter((s) => {
+            if (phaseFilter !== "all" && s.phase !== phaseFilter) return false;
+            if (!query) return true;
+            const hay = `${s.skill} ${s.displayName} ${s.description} ${s.module} ${s.phase}`.toLowerCase();
+            return hay.includes(query);
+          });
+
+          const skillsEl = document.getElementById("skillsCatalogList");
+          skillsEl.innerHTML = skills
+            .map((s, idx) => {
+              const flow = [
+                ...(s.precededBy || []).map((p) => `← ${p}`),
+                ...(s.followedBy || []).map((f) => `→ ${f}`)
+              ].join(" · ");
+              const sModel = s.recommendedModel || {
+                modelId: getFallbackModelId(),
+                tier: "🤖 Dynamic Fit",
+                reason: "Dynamically resolved from active provider & subscription state."
+              };
+              return `
+                <div class="rec-card">
+                  <div class="rec-top">
+                    <span class="rec-title">${escapeHtml(s.displayName)}</span>
+                    <div style="display:flex;gap:4px;">
+                      <span class="pill pill-accent">/${escapeHtml(s.skill)}</span>
+                      <span class="pill pill-purple">${escapeHtml(s.phase)}</span>
+                    </div>
+                  </div>
+                  <div class="rec-rationale">${escapeHtml(s.description)}</div>
+                  ${flow ? `<div style="font-size:10.5px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono);">${escapeHtml(flow)}</div>` : ""}
+                  <div class="cmd-editor-wrap">
+                    <textarea class="cmd-textarea" id="cat-cmd-${idx}" rows="2">${escapeHtml(s.contextualCommand)}</textarea>
+                  </div>
+                  <div class="model-bar">
+                    <div class="model-bar-top">
+                      <span class="pill pill-purple">${escapeHtml(sModel.tier)}</span>
+                      <select class="model-select" id="cat-model-${idx}">
+                        ${buildModelSelectOptions(sModel.modelId)}
+                      </select>
+                    </div>
+                  </div>
+                  <div class="rec-actions">
+                    <button class="btn btn-primary" data-cat-launch="${idx}">🚀 Launch in New Session</button>
+                    <button class="btn" data-cat-send="${idx}">💬 Run Here</button>
+                    <button class="btn" data-cat-copy="${idx}">📋 Copy</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+
+          skillsEl.querySelectorAll("[data-cat-launch]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const idx = Number(btn.getAttribute("data-cat-launch"));
+              const ta = document.getElementById(`cat-cmd-${idx}`);
+              const sel = document.getElementById(`cat-model-${idx}`);
+              const cmd = ta ? ta.value : skills[idx].contextualCommand;
+              const model = sel ? sel.value : skills[idx].recommendedModel?.modelId;
+              await launchPromptInNewSession(cmd, model, skills[idx].skill, skills[idx].displayName);
+            });
+          });
+
+          skillsEl.querySelectorAll("[data-cat-send]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const idx = Number(btn.getAttribute("data-cat-send"));
+              const ta = document.getElementById(`cat-cmd-${idx}`);
+              await sendPromptToCurrentSession(ta ? ta.value : skills[idx].contextualCommand);
+            });
+          });
+
+          skillsEl.querySelectorAll("[data-cat-copy]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const idx = Number(btn.getAttribute("data-cat-copy"));
+              const ta = document.getElementById(`cat-cmd-${idx}`);
+              const cmd = ta ? ta.value : skills[idx].contextualCommand;
+              await copyToClipboard(cmd);
+              showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
+            });
+          });
+
+          const agents = currentState.agentsCatalog || [];
+          const agentsEl = document.getElementById("agentsCatalogList");
+          agentsEl.innerHTML = agents
+            .map((a) => {
+              const agentCmd = `/${a.skill} "Hi ${a.name} (${a.title}), review our current ${currentState.projectName} state and advise on ${a.focus}"`;
+              const aModel = a.recommendedModel?.modelId || getFallbackModelId();
+              const aShort = a.recommendedModel?.shortName || (aModel ? aModel.split("/").pop() : "host-default");
+              return `
+                <div class="phase-card" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <div>
+                    <div style="font-weight:700;">${escapeHtml(a.icon)} ${escapeHtml(a.name)} — ${escapeHtml(a.title)}</div>
+                    <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(a.focus)}</div>
+                    <div style="margin-top:3px;"><span class="pill pill-purple">🤖 ${escapeHtml(aShort)}</span></div>
+                  </div>
+                  <button class="btn btn-primary" data-agent-cmd="${escapeHtml(agentCmd)}" data-agent-model="${escapeHtml(aModel)}" data-agent-name="${escapeHtml(a.name)}">
+                    🚀 New Session
+                  </button>
+                </div>
+              `;
+            })
+            .join("");
+
+          agentsEl.querySelectorAll("[data-agent-cmd]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              await launchPromptInNewSession(
+                btn.getAttribute("data-agent-cmd"),
+                btn.getAttribute("data-agent-model"),
+                "",
+                btn.getAttribute("data-agent-name")
+              );
+            });
+          });
+        }
+
+        function renderArtifactsDirectory() {
+          if (!currentState) return;
+          const query = (document.getElementById("artifactSearch")?.value || "").toLowerCase().trim();
+          const rawArts = Array.isArray(currentState.artifacts) ? currentState.artifacts : [];
+          // Strictly sorted by mtimeMs descending (newest modified first)
+          const sortedArts = [...rawArts]
+            .sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0))
+            .filter((a) => {
+              if (!query) return true;
+              const hay = `${a.relPath} ${a.name} ${a.kind} ${a.phaseName} ${a.gitStatus}`.toLowerCase();
+              return hay.includes(query);
+            });
+
+          document.getElementById("artifactCountBadge").textContent = `${sortedArts.length} files`;
+          const list = document.getElementById("artifactsDirectoryList");
+          list.innerHTML = sortedArts
+            .map((a) => {
+              const statusBadge =
+                a.gitStatus === "modified"
+                  ? `<span class="pill pill-warning">M Modified</span>`
+                  : a.gitStatus === "untracked"
+                    ? `<span class="pill pill-purple">U Untracked</span>`
+                    : `<span class="pill pill-success">✓ Committed</span>`;
+              return `
+                <div class="insight-item" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                  <div style="min-width:0;cursor:pointer;flex:1;" data-open-art="${escapeHtml(a.relPath)}">
+                    <div style="font-weight:600;font-family:var(--font-mono);font-size:11.3px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                      ${escapeHtml(a.relPath)}
+                    </div>
+                    <div style="font-size:10.6px;color:var(--text-secondary);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px;">
+                      <span>🕒 ${escapeHtml(formatTimestamp(a.mtimeMs))}</span>
+                      <span>· ${escapeHtml(a.kind)} (${escapeHtml(a.phaseName || a.phaseId)})</span>
+                      ${statusBadge}
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:4px;flex-shrink:0;">
+                    <button class="btn btn-purple" style="padding:3px 7px;font-size:10.5px;" data-open-art="${escapeHtml(a.relPath)}" title="View Git Diff & Content">
+                      🔀 Diff
+                    </button>
+                    <button class="btn" style="padding:3px 7px;font-size:10.5px;" data-ext-art="${escapeHtml(a.relPath)}" title="Open file in desktop editor">
+                      ↗ Open
+                    </button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+
+          list.querySelectorAll("[data-open-art]").forEach((el) => {
+            el.addEventListener("click", () => {
+              loadArtifactPreview(el.getAttribute("data-open-art"), "diff");
+            });
+          });
+
+          list.querySelectorAll("[data-ext-art]").forEach((btn) => {
+            btn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              await openArtifactExternally(btn.getAttribute("data-ext-art"));
+            });
+          });
+        }
+
+        function renderArtifactInspectorCard() {
+          if (!loadedArtifactData) return;
+          const card = document.getElementById("artifactPreviewCard");
+          const title = document.getElementById("previewFileName");
+          const metaSub = document.getElementById("previewMetaSubtitle");
+          const content = document.getElementById("artifactPreviewContent");
+          const btnDiff = document.getElementById("btnToggleDiffMode");
+          const btnContent = document.getElementById("btnToggleContentMode");
+
+          card.style.display = "block";
+          title.textContent = loadedArtifactData.relPath;
+          metaSub.textContent = `🕒 Modified: ${formatTimestamp(loadedArtifactData.mtimeMs)} · ${loadedArtifactData.diffSource || "Git Diff"}`;
+
+          btnDiff.classList.toggle("btn-purple", artifactViewMode === "diff");
+          btnContent.classList.toggle("btn-purple", artifactViewMode === "content");
+
+          if (artifactViewMode === "diff") {
+            content.innerHTML = formatDiffHtml(loadedArtifactData.diff || "No diff available.");
+          } else {
+            content.textContent = loadedArtifactData.preview || "Empty artifact.";
+          }
+        }
+
+        async function loadArtifactPreview(relPath, mode = "diff") {
+          selectedArtifactPath = relPath;
+          artifactViewMode = mode;
+          const card = document.getElementById("artifactPreviewCard");
+          const title = document.getElementById("previewFileName");
+          const content = document.getElementById("artifactPreviewContent");
+          card.style.display = "block";
+          title.textContent = relPath;
+          content.textContent = "Loading artifact diff & content…";
+          try {
+            const res = await callServerTool("bmad_inspect_artifact", { relPath });
+            if (res && res.structuredContent) {
+              loadedArtifactData = res.structuredContent;
+              renderArtifactInspectorCard();
+            } else {
+              content.textContent = res?.content?.[0]?.text || "Empty artifact.";
+            }
+          } catch (err) {
+            content.textContent = "Failed to load artifact: " + err.message;
+          }
+        }
+
+        async function runReconciliation(dryRun) {
+          try {
+            showToast(dryRun ? "🔍 Simulating tracker reconciliation…" : "⚡ Reconciling tracker files with reality…");
+            const res = await callServerTool("bmad_reconcile_trackers", { dryRun, target: "all", backup: true });
+            const data = res?.structuredContent;
+            if (!data) throw new Error("No reconciliation data returned.");
+
+            const diffCard = document.getElementById("reconciliationDiffCard");
+            const diffTitle = document.getElementById("diffCardTitle");
+            const diffContent = document.getElementById("diffCardContent");
+
+            diffCard.style.display = "block";
+            diffTitle.textContent = dryRun
+              ? `🔍 Dry Run Preview (${data.changesCount} keys across ${data.updatedFiles.length} file(s))`
+              : `✅ Reconciled ${data.changesCount} keys across ${data.updatedFiles.length} file(s)!`;
+
+            if (data.changes.length === 0) {
+              diffContent.innerHTML = `<div style="color:var(--success);padding:4px 0;">✓ All tracker files are already 100% synchronized with code reality! No changes needed.</div>`;
+            } else {
+              diffContent.innerHTML = data.changes
+                .map(
+                  (c) => `
+                <div style="margin-bottom: 5px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 3px;">
+                  <span style="color:var(--text-muted);font-size:10px;">${escapeHtml(c.file)}</span><br/>
+                  <b>${escapeHtml(c.key)}</b>: <span style="color:var(--danger);">${escapeHtml(c.oldStatus)}</span> → <b style="color:var(--success);">${escapeHtml(c.newStatus)}</b>
+                  <div style="font-size:10px;color:var(--text-secondary);">${escapeHtml(c.reason)}</div>
+                </div>
+              `
+                )
+                .join("");
+            }
+
+            if (!dryRun) {
+              showToast(`✓ Successfully reconciled ${data.changesCount} keys to match code reality!`);
+              if (data.newScan) {
+                renderWorkspaceState(data.newScan);
+              } else {
+                await refreshState();
+              }
+            }
+          } catch (err) {
+            showToast("❌ Reconciliation error: " + err.message);
+          }
+        }
+
+        function switchTab(tabId) {
+          document.querySelectorAll(".tab-btn").forEach((b) => {
+            b.classList.toggle("active", b.getAttribute("data-tab") === tabId);
+          });
+          ["advisor", "progress", "catalog", "artifacts"].forEach((id) => {
+            const el = document.getElementById("tab-" + id);
+            if (el) el.style.display = id === tabId ? "block" : "none";
+          });
+        }
+
+        document.querySelectorAll(".tab-btn").forEach((btn) => {
+          btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+        });
+
+        document.getElementById("btnRefresh").addEventListener("click", async () => {
+          await refreshState();
+          showToast("↻ Workspace BMAD artifacts & models synchronized!");
+        });
+
+        document.getElementById("btnDeepAudit").addEventListener("click", async () => {
+          const proj = currentState?.projectName || "this workspace";
+          const auditPrompt = `Please analyze the current BMAD-METHOD state of ${proj} (artifacts in _bmad-output, sprint status, epics, stories, and recent code changes) and call bmad_update_advisor to update the right-side BMAD Companion panel with your smart progress reconciliation and top 4 contextual /bmad-<skill> "<prompt>" recommendations including a recommendedModel for each.`;
+          await sendPromptToCurrentSession(auditPrompt);
+        });
+
+        document.getElementById("btnReconcileTrackers").addEventListener("click", () => runReconciliation(false));
+        document.getElementById("btnPreviewReconcile").addEventListener("click", () => runReconciliation(true));
+        document.getElementById("btnCloseDiff").addEventListener("click", () => {
+          document.getElementById("reconciliationDiffCard").style.display = "none";
+        });
+
+        document.getElementById("storySearch").addEventListener("input", renderEpics);
+        document.getElementById("storyStatusFilter").addEventListener("change", renderEpics);
+        document.getElementById("skillSearch").addEventListener("input", renderSkillsCatalog);
+        document.getElementById("skillPhaseFilter").addEventListener("change", renderSkillsCatalog);
+        document.getElementById("artifactSearch").addEventListener("input", renderArtifactsDirectory);
+
+        document.getElementById("btnExpandAllPhases").addEventListener("click", () => {
+          (currentState?.phases || []).forEach((p) => expandedPhases.add(p.id));
+          renderPhases(currentState?.phases || []);
+        });
+        document.getElementById("btnCollapseAllPhases").addEventListener("click", () => {
+          expandedPhases.clear();
+          renderPhases(currentState?.phases || []);
+        });
+
+        document.getElementById("btnToggleDiffMode").addEventListener("click", () => {
+          artifactViewMode = "diff";
+          renderArtifactInspectorCard();
+        });
+        document.getElementById("btnToggleContentMode").addEventListener("click", () => {
+          artifactViewMode = "content";
+          renderArtifactInspectorCard();
+        });
+        document.getElementById("btnOpenArtifactExternal").addEventListener("click", async () => {
+          if (selectedArtifactPath) await openArtifactExternally(selectedArtifactPath);
+        });
+
+        document.getElementById("btnReviewArtifact").addEventListener("click", async () => {
+          if (!selectedArtifactPath) return;
+          const reviewModel =
+            currentState?.recommendations?.find((r) => r.skill === "/bmad-code-review")?.recommendedModel?.modelId ||
+            currentState?.recommendations?.[0]?.recommendedModel?.modelId ||
+            getFallbackModelId();
+          await launchPromptInNewSession(
+            `/bmad-review "Review the BMAD artifact ${selectedArtifactPath} for completeness, consistency with codebase reality, and verification gaps"`,
+            reviewModel,
+            "/bmad-review",
+            `Review ${selectedArtifactPath}`
+          );
+        });
+
+        setInterval(() => {
+          if (!document.hidden) {
+            refreshState();
+          }
+        }, 5000);
+
+        initMcpApp();
+      })();
+    </script>
+  </body>
+</html>

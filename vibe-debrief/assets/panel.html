@@ -1,0 +1,1448 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Vibe Debrief (Visual ELI5)</title>
+    <style>
+      :root {
+        --bg-primary: #0b0f17;
+        --bg-secondary: #131a26;
+        --bg-tertiary: #1c2536;
+        --bg-elevated: #182030;
+        --border: #2a354b;
+        --border-subtle: #1e2738;
+        --text-primary: #f0f6fc;
+        --text-secondary: #9ba7b8;
+        --text-muted: #697586;
+        --accent: #38bdf8;
+        --accent-soft: rgba(56, 189, 248, 0.14);
+        --success: #34d399;
+        --success-soft: rgba(52, 211, 153, 0.14);
+        --warning: #fbbf24;
+        --warning-soft: rgba(251, 191, 36, 0.15);
+        --purple: #a78bfa;
+        --purple-soft: rgba(167, 139, 250, 0.15);
+        --danger: #fb7185;
+        --danger-soft: rgba(251, 113, 133, 0.15);
+        --teal: #2dd4bf;
+        --teal-soft: rgba(45, 212, 191, 0.14);
+        --radius: 10px;
+        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+        --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+      }
+
+      body.theme-light {
+        --bg-primary: #f8fafc;
+        --bg-secondary: #ffffff;
+        --bg-tertiary: #f1f5f9;
+        --bg-elevated: #ffffff;
+        --border: #cbd5e1;
+        --border-subtle: #e2e8f0;
+        --text-primary: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #64748b;
+        --accent: #0284c7;
+        --accent-soft: rgba(2, 132, 199, 0.1);
+        --success: #059669;
+        --success-soft: rgba(5, 150, 105, 0.1);
+        --warning: #d97706;
+        --warning-soft: rgba(217, 119, 6, 0.12);
+        --purple: #7c3aed;
+        --purple-soft: rgba(124, 58, 237, 0.1);
+        --danger: #e11d48;
+        --danger-soft: rgba(225, 29, 72, 0.1);
+        --teal: #0d9488;
+        --teal-soft: rgba(13, 148, 136, 0.1);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .app-shell {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* Top Bar */
+      .top-bar {
+        padding: 10px 12px 8px;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      .brand-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .brand-left {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        min-width: 0;
+      }
+
+      .brand-badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #38bdf8, #a78bfa);
+        color: #0b0f17;
+        font-weight: 800;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
+      }
+
+      .brand-title {
+        font-weight: 800;
+        font-size: 13.5px;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .brand-subtitle {
+        font-size: 11px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        flex-shrink: 0;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        border-radius: 7px;
+        padding: 5px 9px;
+        font-size: 11.5px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.14s ease;
+      }
+
+      .btn:hover {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #0ea5e9, #6366f1);
+        border-color: #38bdf8;
+        color: #ffffff;
+      }
+
+      .btn-primary:hover {
+        opacity: 0.94;
+        background: linear-gradient(135deg, #0ea5e9, #6366f1);
+      }
+
+      .btn-success {
+        background: var(--success-soft);
+        border-color: var(--success);
+        color: var(--success);
+      }
+
+      .btn-success:hover {
+        background: var(--success);
+        color: #0b0f17;
+      }
+
+      /* Mode Switcher Row (Bug vs Implementation) */
+      .mode-switcher-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-top: 9px;
+        background: var(--bg-primary);
+        padding: 4px;
+        border-radius: 9px;
+        border: 1px solid var(--border-subtle);
+      }
+
+      .mode-btn {
+        appearance: none;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--text-secondary);
+        padding: 6px 8px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-weight: 700;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: all 0.15s ease;
+      }
+
+      .mode-btn.active-bug {
+        background: var(--danger-soft);
+        border-color: var(--danger);
+        color: var(--danger);
+      }
+
+      .mode-btn.active-impl {
+        background: var(--accent-soft);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      /* Persona Strip */
+      .persona-strip {
+        display: flex;
+        gap: 5px;
+        margin-top: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .persona-chip {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all 0.14s ease;
+      }
+
+      .persona-chip:hover {
+        border-color: var(--purple);
+        color: var(--text-primary);
+      }
+
+      .persona-chip.active {
+        background: var(--purple-soft);
+        border-color: var(--purple);
+        color: var(--text-primary);
+      }
+
+      /* Tabs */
+      .tabs-nav {
+        display: flex;
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+        padding: 0 10px;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+
+      .tab-btn {
+        appearance: none;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--text-secondary);
+        padding: 8px 10px;
+        font-size: 11.5px;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .tab-btn.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+
+      /* Main Scroll Content */
+      .content-area {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px;
+      }
+
+      /* Toast Banner */
+      .toast-banner {
+        display: none;
+        margin-bottom: 10px;
+        padding: 8px 11px;
+        border-radius: 8px;
+        background: var(--success-soft);
+        border: 1px solid var(--success);
+        color: var(--text-primary);
+        font-size: 12px;
+        font-weight: 600;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .toast-banner.visible {
+        display: flex;
+      }
+
+      /* Hero TL;DR + Analogy Card */
+      .hero-card {
+        background: linear-gradient(160deg, var(--bg-secondary), var(--bg-tertiary));
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .hero-meta-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-bottom: 6px;
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 10.5px;
+        font-weight: 700;
+      }
+
+      .pill-bug {
+        background: var(--danger-soft);
+        color: var(--danger);
+        border: 1px solid rgba(251, 113, 133, 0.35);
+      }
+
+      .pill-impl {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border: 1px solid rgba(56, 189, 248, 0.35);
+      }
+
+      .pill-persona {
+        background: var(--purple-soft);
+        color: var(--purple);
+        border: 1px solid rgba(167, 139, 250, 0.35);
+      }
+
+      .pill-success {
+        background: var(--success-soft);
+        color: var(--success);
+        border: 1px solid rgba(52, 211, 153, 0.35);
+      }
+
+      .pill-warning {
+        background: var(--warning-soft);
+        color: var(--warning);
+        border: 1px solid rgba(251, 191, 36, 0.35);
+      }
+
+      .tldr-headline {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--text-primary);
+        line-height: 1.4;
+        margin-bottom: 9px;
+      }
+
+      .analogy-box {
+        background: var(--bg-primary);
+        border-left: 3px solid var(--warning);
+        border-radius: 7px;
+        padding: 9px 11px;
+        font-size: 12.2px;
+        color: var(--text-secondary);
+      }
+
+      .analogy-title {
+        font-weight: 700;
+        color: var(--warning);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 3px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+
+      /* Visual Flowchart Strip */
+      .flowchart-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 10px 11px;
+        margin-bottom: 12px;
+      }
+
+      .section-kicker {
+        font-size: 10.5px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .flow-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+      }
+
+      @media (max-width: 460px) {
+        .flow-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      .flow-node {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 7px 8px;
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .flow-node.status-done {
+        border-color: rgba(52, 211, 153, 0.5);
+        background: rgba(52, 211, 153, 0.05);
+      }
+
+      .flow-node.status-active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      .flow-node.status-warning {
+        border-color: var(--danger);
+        background: var(--danger-soft);
+      }
+
+      .flow-node-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 14px;
+      }
+
+      .flow-step-num {
+        font-size: 10px;
+        font-weight: 800;
+        color: var(--text-muted);
+        font-family: var(--font-mono);
+      }
+
+      .flow-node-title {
+        font-weight: 700;
+        font-size: 11.5px;
+        color: var(--text-primary);
+        margin-top: 2px;
+      }
+
+      .flow-node-sub {
+        font-size: 10.5px;
+        color: var(--text-secondary);
+        line-height: 1.3;
+      }
+
+      /* 4-Block Storyboard Cards */
+      .story-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--accent);
+        border-radius: var(--radius);
+        padding: 11px 13px;
+        margin-bottom: 10px;
+      }
+
+      .story-card.card-cause {
+        border-left-color: var(--danger);
+      }
+
+      .story-card.card-plan {
+        border-left-color: var(--accent);
+      }
+
+      .story-card.card-why {
+        border-left-color: var(--purple);
+      }
+
+      .story-card.card-result {
+        border-left-color: var(--success);
+      }
+
+      .story-card.card-consequences {
+        border-left-color: var(--teal);
+      }
+
+      .story-card.card-lessons {
+        border-left-color: var(--warning);
+      }
+
+      .story-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .story-card-title {
+        font-weight: 800;
+        font-size: 12.5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .story-card-body {
+        font-size: 12.8px;
+        color: var(--text-primary);
+        white-space: pre-line;
+      }
+
+      /* Success Status Banner inside Bug Card 3 */
+      .status-banner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 11px;
+        border-radius: 8px;
+        margin-bottom: 7px;
+        font-weight: 700;
+      }
+
+      .status-banner.yes {
+        background: var(--success-soft);
+        border: 1px solid var(--success);
+        color: var(--success);
+      }
+
+      .status-banner.partial {
+        background: var(--warning-soft);
+        border: 1px solid var(--warning);
+        color: var(--warning);
+      }
+
+      .status-banner.no {
+        background: var(--danger-soft);
+        border: 1px solid var(--danger);
+        color: var(--danger);
+      }
+
+      /* Touched Files Visual Strip */
+      .files-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .file-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        font-size: 11px;
+        font-family: var(--font-mono);
+      }
+
+      .file-role-tag {
+        font-family: var(--font-sans);
+        font-size: 10px;
+        color: var(--text-secondary);
+        font-weight: 600;
+      }
+
+      /* Lesson Item Card */
+      .lesson-item {
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px 11px;
+        margin-top: 8px;
+      }
+
+      .lesson-item.confirmed {
+        border-color: var(--success);
+        background: rgba(52, 211, 153, 0.05);
+      }
+
+      .lesson-title-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 5px;
+      }
+
+      .lesson-title {
+        font-weight: 800;
+        font-size: 12.5px;
+        color: var(--text-primary);
+      }
+
+      .lesson-summary {
+        font-size: 12.2px;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+      }
+
+      .lesson-meta-box {
+        font-size: 11.3px;
+        color: var(--text-secondary);
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        padding: 6px 9px;
+        margin-bottom: 8px;
+      }
+
+      .lesson-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      /* Custom Lesson Form */
+      .form-input,
+      .form-textarea {
+        width: 100%;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        border-radius: 6px;
+        padding: 6px 8px;
+        font-family: var(--font-sans);
+        font-size: 12px;
+        margin-bottom: 6px;
+      }
+
+      .form-textarea {
+        min-height: 54px;
+        resize: vertical;
+      }
+
+      .memory-code-box {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 260px;
+        overflow-y: auto;
+      }
+
+      .history-item {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 9px 11px;
+        margin-bottom: 8px;
+        cursor: pointer;
+        transition: border-color 0.14s;
+      }
+
+      .history-item:hover {
+        border-color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-shell">
+      <!-- Header -->
+      <header class="top-bar">
+        <div class="brand-row">
+          <div class="brand-left">
+            <div class="brand-badge">⚡</div>
+            <div style="min-width: 0;">
+              <div class="brand-title" id="panelTitle">Vibe Debrief · Visual ELI5</div>
+              <div class="brand-subtitle" id="panelSubtitle">Simplifying responses for multi-project vibe-coders</div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <select class="btn" id="smartGeminiModelSelect" title="Lightweight Gemini model used for smart ELI5 refresh actions (saves expensive models)" style="max-width: 145px; text-overflow: ellipsis;">
+              <option value="new-provider/gemini-4-argon">⚡ gemini-4-argon</option>
+            </select>
+            <button class="btn btn-primary" id="btnAskAiExplain" title="Run smart ELI5 debrief using the selected lightweight Gemini model (avoids expensive models)">
+              ✨ AI Explain
+            </button>
+            <button class="btn" id="btnRefresh" title="Sync latest turn state">
+              🔄
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode Switcher: Bug / Error vs Implementation -->
+        <div class="mode-switcher-row">
+          <button class="mode-btn" id="btnModeBug" title="View as Shared Bug / Error Fix (Cause, Plan, Succeeded, Consequences, Lessons)">
+            🐛 Bug / Error Fix
+          </button>
+          <button class="mode-btn" id="btnModeImpl" title="View as Implementation (Purpose/Objective, Plan & Why, Result, Consequences & Lessons)">
+            🚀 Implementation
+          </button>
+        </div>
+
+        <!-- Persona Bar -->
+        <div class="persona-strip" id="personaStrip"></div>
+      </header>
+
+      <!-- Tabs -->
+      <nav class="tabs-nav">
+        <button class="tab-btn active" data-tab="storyboard">📊 Visual Debrief</button>
+        <button class="tab-btn" data-tab="memory">🧠 ZCode Memory (<span id="memoryCountBadge">0</span>)</button>
+        <button class="tab-btn" data-tab="history">🕒 Turn History</button>
+      </nav>
+
+      <!-- Main Content -->
+      <main class="content-area">
+        <div class="toast-banner" id="toastBanner">
+          <span id="toastText">Saved!</span>
+        </div>
+
+        <!-- TAB 1: VISUAL STORYBOARD -->
+        <section id="tab-storyboard">
+          <!-- Hero TL;DR + Real-World Analogy -->
+          <div class="hero-card">
+            <div class="hero-meta-row">
+              <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+                <span class="pill pill-impl" id="activeModePill">🚀 IMPLEMENTATION</span>
+                <span class="pill pill-persona" id="activePersonaPill">🧑‍💻 Vibe Mentor</span>
+              </div>
+              <span style="font-size: 10.5px; color: var(--text-muted);" id="debriefTimestamp">Just now</span>
+            </div>
+            <div class="tldr-headline" id="tldrHeadline">
+              Loading visual debrief…
+            </div>
+            <div class="analogy-box">
+              <div class="analogy-title">💡 Picture It Like This (Mental Model)</div>
+              <div id="realWorldAnalogy"></div>
+            </div>
+          </div>
+
+          <!-- Visual Flowchart Diagram -->
+          <div class="flowchart-card">
+            <div class="section-kicker">
+              <span>🗺️ Visual Cause-to-Outcome Map</span>
+              <span id="touchedFilesCountLabel">0 files touched</span>
+            </div>
+            <div class="flow-grid" id="visualFlowGrid"></div>
+            <div class="files-strip" id="touchedFilesStrip"></div>
+          </div>
+
+          <!-- BUG / ERROR FIX VIEW -->
+          <div id="bugStoryboardSection" style="display: none;">
+            <div class="story-card card-cause">
+              <div class="story-card-header">
+                <div class="story-card-title">🔴 1. What Was the Cause?</div>
+                <span class="pill pill-bug">Root Cause</span>
+              </div>
+              <div class="story-card-body" id="bugCauseText"></div>
+            </div>
+
+            <div class="story-card card-plan">
+              <div class="story-card-header">
+                <div class="story-card-title">🛠️ 2. What Was the Plan to Fix It?</div>
+                <span class="pill pill-impl">Fix Strategy</span>
+              </div>
+              <div class="story-card-body" id="bugPlanText"></div>
+            </div>
+
+            <div class="story-card card-result">
+              <div class="story-card-header">
+                <div class="story-card-title">✅ 3. Did It Succeed?</div>
+                <span class="pill pill-success" id="bugSuccessPill">Verified</span>
+              </div>
+              <div class="status-banner yes" id="bugSuccessBanner">
+                <span id="bugSuccessIcon" style="font-size: 18px;">✅</span>
+                <span id="bugSuccessHeadline">YES — Fix Succeeded</span>
+              </div>
+              <div class="story-card-body" id="bugSuccessSummaryText"></div>
+            </div>
+
+            <div class="story-card card-consequences">
+              <div class="story-card-header">
+                <div class="story-card-title">🌊 4. Consequences of This Fix</div>
+                <span class="pill pill-persona">Ripple Effect</span>
+              </div>
+              <div class="story-card-body" id="bugConsequencesText"></div>
+            </div>
+          </div>
+
+          <!-- IMPLEMENTATION VIEW -->
+          <div id="implStoryboardSection">
+            <div class="story-card card-plan">
+              <div class="story-card-header">
+                <div class="story-card-title">🎯 1. Purpose / Objective of the Implementation</div>
+                <span class="pill pill-impl">The Goal</span>
+              </div>
+              <div class="story-card-body" id="implObjectiveText"></div>
+            </div>
+
+            <div class="story-card card-why">
+              <div class="story-card-header">
+                <div class="story-card-title">🧭 2. Plan / Suggested Resolution & WHY</div>
+                <span class="pill pill-persona">Why This Way</span>
+              </div>
+              <div class="story-card-body" id="implPlanWhyText"></div>
+            </div>
+
+            <div class="story-card card-result">
+              <div class="story-card-header">
+                <div class="story-card-title">🏆 3. Result of the Implementation</div>
+                <span class="pill pill-success">What Works Now</span>
+              </div>
+              <div class="story-card-body" id="implResultText"></div>
+            </div>
+
+            <div class="story-card card-consequences">
+              <div class="story-card-header">
+                <div class="story-card-title">🌊 4. Consequences of This Implementation</div>
+                <span class="pill pill-warning">Impact & Watch-Outs</span>
+              </div>
+              <div class="story-card-body" id="implConsequencesText"></div>
+            </div>
+          </div>
+
+          <!-- SHARED 5TH SECTION: LESSONS LEARNED + ZCODE MEMORY -->
+          <div class="story-card card-lessons">
+            <div class="story-card-header">
+              <div class="story-card-title">🧠 5. Lessons Learned (Confirm → ZCode Memory)</div>
+              <button class="btn" id="btnToggleCustomLesson" style="padding: 2px 7px; font-size: 10.5px;">
+                ➕ Add Lesson
+              </button>
+            </div>
+            <div style="font-size: 11.3px; color: var(--text-secondary); margin-bottom: 6px;">
+              Any confirmed lesson is automatically written to ZCode's persistent project <code>MEMORY.md</code> so future AI sessions remember it.
+            </div>
+
+            <!-- Custom Lesson Creator Form -->
+            <div id="customLessonForm" style="display: none; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 9px;">
+              <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: var(--warning);">
+                ✍️ Confirm & Save a Custom Lesson to ZCode Memory
+              </div>
+              <input type="text" class="form-input" id="customLessonTitle" placeholder="Short rule title (e.g. Always check DepotId before validating POS sale)" />
+              <textarea class="form-textarea" id="customLessonSummary" placeholder="What is the lesson learned?"></textarea>
+              <input type="text" class="form-input" id="customLessonWhy" placeholder="Why does this matter? (optional)" />
+              <input type="text" class="form-input" id="customLessonHow" placeholder="How should the AI apply this next time? (optional)" />
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-success" id="btnSaveCustomLesson">📌 Confirm & Save to ZCode Memory</button>
+                <button class="btn" id="btnCancelCustomLesson">Cancel</button>
+              </div>
+            </div>
+
+            <div id="lessonsListContainer"></div>
+          </div>
+        </section>
+
+        <!-- TAB 2: ZCODE MEMORY BANK -->
+        <section id="tab-memory" style="display: none;">
+          <div class="story-card card-lessons">
+            <div class="story-card-header">
+              <div class="story-card-title">📌 Confirmed Lessons Saved to ZCode Memory</div>
+              <span class="pill pill-success" id="confirmedTotalPill">0 saved</span>
+            </div>
+            <div style="font-size: 11.3px; color: var(--text-secondary); margin-bottom: 8px;">
+              Memory Directory: <code id="memoryDirPathLabel" style="font-family: var(--font-mono);">~/.zcode/cli/memories/...</code>
+            </div>
+            <div id="confirmedLessonsBankList"></div>
+          </div>
+
+          <div class="story-card card-plan">
+            <div class="story-card-header">
+              <div class="story-card-title">📄 Live ZCode <code>MEMORY.md</code> Index</div>
+            </div>
+            <div class="memory-code-box" id="memoryIndexPreviewBox">Loading MEMORY.md…</div>
+          </div>
+        </section>
+
+        <!-- TAB 3: TURN HISTORY -->
+        <section id="tab-history" style="display: none;">
+          <div style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 8px;">
+            Click any recent turn below to view its visual ELI5 debrief:
+          </div>
+          <div id="historyListContainer"></div>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      "use strict";
+      (function () {
+        const PROTOCOL_VERSION = "2026-01-26";
+        let rpcId = 1;
+        const pendingRequests = new Map();
+        let currentState = null;
+
+        function sendRpcRequest(method, params) {
+          return new Promise((resolve, reject) => {
+            const id = rpcId++;
+            const timer = setTimeout(() => {
+              if (pendingRequests.has(id)) {
+                pendingRequests.delete(id);
+                reject(new Error("RPC timeout: " + method));
+              }
+            }, 15000);
+            pendingRequests.set(id, { resolve, reject, timer });
+            window.parent.postMessage({ jsonrpc: "2.0", id, method, params }, "*");
+          });
+        }
+
+        function sendRpcNotification(method, params) {
+          window.parent.postMessage({ jsonrpc: "2.0", method, params: params || {} }, "*");
+        }
+
+        function applyHostTheme(theme) {
+          if (theme === "light") {
+            document.body.classList.add("theme-light");
+          } else {
+            document.body.classList.remove("theme-light");
+          }
+        }
+
+        window.addEventListener("message", (event) => {
+          const data = event.data;
+          if (!data || data.jsonrpc !== "2.0") return;
+
+          if (data.id !== undefined && pendingRequests.has(data.id)) {
+            const req = pendingRequests.get(data.id);
+            pendingRequests.delete(data.id);
+            clearTimeout(req.timer);
+            if (data.error) {
+              req.reject(new Error(data.error.message || "RPC Error"));
+            } else {
+              req.resolve(data.result);
+            }
+            return;
+          }
+
+          if (data.method === "ping" && data.id !== undefined) {
+            window.parent.postMessage({ jsonrpc: "2.0", id: data.id, result: {} }, "*");
+            return;
+          }
+
+          if (data.method === "ui/notifications/host-context-changed") {
+            if (data.params && data.params.theme) {
+              applyHostTheme(data.params.theme);
+            }
+            return;
+          }
+
+          if (data.method === "ui/notifications/tool-result") {
+            if (data.params && data.params.structuredContent && data.params.structuredContent.currentDebrief) {
+              renderPanelState(data.params.structuredContent);
+            } else {
+              refreshState();
+            }
+          }
+        });
+
+        async function callServerTool(name, args) {
+          return await sendRpcRequest("tools/call", {
+            name,
+            arguments: args || {}
+          });
+        }
+
+        let toastTimer = null;
+        function showToast(msg) {
+          const banner = document.getElementById("toastBanner");
+          const txt = document.getElementById("toastText");
+          txt.textContent = msg;
+          banner.classList.add("visible");
+          clearTimeout(toastTimer);
+          toastTimer = setTimeout(() => banner.classList.remove("visible"), 4200);
+        }
+
+        function escapeHtml(str) {
+          return String(str ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        async function refreshState() {
+          try {
+            const res = await callServerTool("vibe_debrief_get_state", { refresh: true });
+            if (res && res.structuredContent) {
+              renderPanelState(res.structuredContent);
+            }
+          } catch (err) {
+            console.warn("Failed to load vibe debrief state:", err);
+          }
+        }
+
+        function renderPanelState(state) {
+          currentState = state;
+          const debrief = state.currentDebrief || {};
+          const personas = state.personas || [];
+          const activePersonaId = debrief.persona || state.activePersona || "vibe-mentor";
+          const activePersonaObj = personas.find((p) => p.id === activePersonaId) || personas[0] || {
+            id: "vibe-mentor",
+            name: "Vibe Mentor",
+            badge: "🧑‍💻 Vibe-Coder Buddy"
+          };
+
+          document.getElementById("panelTitle").textContent =
+            "Vibe Debrief · " + (state.projectName || "Workspace");
+          document.getElementById("panelSubtitle").textContent =
+            activePersonaObj.tagline || "Visual ELI5 explainer for multi-project vibe-coders";
+
+          // Populate Lightweight Gemini Model Picker
+          const modelSelect = document.getElementById("smartGeminiModelSelect");
+          const lightModels = Array.isArray(state.lightweightGeminiModels) ? state.lightweightGeminiModels : [];
+          const recModel = state.recommendedGeminiModel || "new-provider/gemini-3.8-flash";
+          const modelOpts = lightModels.length
+            ? lightModels
+            : [{ id: recModel, modelId: recModel.split("/").pop() }];
+          modelSelect.innerHTML = modelOpts
+            .map(
+              (m) =>
+                `<option value="${escapeHtml(m.id)}" ${m.id === recModel ? "selected" : ""}>⚡ ${escapeHtml(m.modelId || m.id)}</option>`
+            )
+            .join("");
+
+          // Render Persona Strip
+          const personaStrip = document.getElementById("personaStrip");
+          personaStrip.innerHTML = personas
+            .map(
+              (p) =>
+                `<button class="persona-chip ${p.id === activePersonaId ? "active" : ""}" data-persona="${escapeHtml(p.id)}" title="${escapeHtml(p.tagline)}">${escapeHtml(p.badge)}</button>`
+            )
+            .join("");
+
+          personaStrip.querySelectorAll(".persona-chip").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const chosen = btn.getAttribute("data-persona");
+              try {
+                const res = await callServerTool("vibe_debrief_set_persona", { persona: chosen });
+                if (res && res.structuredContent) {
+                  renderPanelState(res.structuredContent);
+                  showToast("🎭 Switched persona to " + chosen);
+                }
+              } catch {}
+            });
+          });
+
+          renderActiveDebrief(debrief, activePersonaObj);
+          renderMemoryBank(state);
+          renderHistoryList(state.history || []);
+        }
+
+        function renderActiveDebrief(debrief, activePersonaObj) {
+          const isBug = debrief.responseType === "bug";
+
+          // Update Mode buttons
+          const btnBug = document.getElementById("btnModeBug");
+          const btnImpl = document.getElementById("btnModeImpl");
+          btnBug.className = "mode-btn" + (isBug ? " active-bug" : "");
+          btnImpl.className = "mode-btn" + (!isBug ? " active-impl" : "");
+
+          // Hero pills
+          const modePill = document.getElementById("activeModePill");
+          modePill.className = "pill " + (isBug ? "pill-bug" : "pill-impl");
+          modePill.textContent = isBug ? "🐛 BUG / ERROR FIX" : "🚀 IMPLEMENTATION";
+
+          const personaPill = document.getElementById("activePersonaPill");
+          personaPill.textContent = activePersonaObj.badge || "🧑‍💻 Vibe Mentor";
+
+          document.getElementById("debriefTimestamp").textContent = debrief.createdAt
+            ? new Date(debrief.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : "Latest Turn";
+
+          document.getElementById("tldrHeadline").textContent =
+            debrief.tldrHeadline || "Visual summary of the latest response.";
+          document.getElementById("realWorldAnalogy").textContent =
+            debrief.realWorldAnalogy || "";
+
+          // Visual Flowchart
+          const flowGrid = document.getElementById("visualFlowGrid");
+          const flowSteps = Array.isArray(debrief.visualFlow) ? debrief.visualFlow : [];
+          flowGrid.innerHTML = flowSteps
+            .map(
+              (node, i) => `
+              <div class="flow-node status-${escapeHtml(node.status || "done")}">
+                <div class="flow-node-top">
+                  <span>${escapeHtml(node.icon || "✨")}</span>
+                  <span class="flow-step-num">STEP ${escapeHtml(node.step || i + 1)}</span>
+                </div>
+                <div class="flow-node-title">${escapeHtml(node.title || "")}</div>
+                <div class="flow-node-sub">${escapeHtml(node.subtitle || "")}</div>
+              </div>`
+            )
+            .join("");
+
+          // Touched Files
+          const files = Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [];
+          document.getElementById("touchedFilesCountLabel").textContent =
+            files.length === 1 ? "1 file touched" : `${files.length} files touched`;
+          const filesStrip = document.getElementById("touchedFilesStrip");
+          filesStrip.innerHTML = files
+            .map(
+              (f) => `
+              <span class="file-badge" title="${escapeHtml(f.path)}">
+                <span>${escapeHtml(f.icon || "📄")}</span>
+                <span>${escapeHtml(f.shortName || f.path)}</span>
+                <span class="file-role-tag">· ${escapeHtml(f.role || "File")}</span>
+              </span>`
+            )
+            .join("");
+
+          // Toggle Bug vs Implementation sections
+          document.getElementById("bugStoryboardSection").style.display = isBug ? "block" : "none";
+          document.getElementById("implStoryboardSection").style.display = isBug ? "none" : "block";
+
+          // Populate Bug section
+          const bug = debrief.bugReport || {};
+          document.getElementById("bugCauseText").textContent = bug.cause || "N/A";
+          document.getElementById("bugPlanText").textContent = bug.plan || "N/A";
+
+          const succeeded = bug.succeeded || "yes";
+          const banner = document.getElementById("bugSuccessBanner");
+          const icon = document.getElementById("bugSuccessIcon");
+          const headline = document.getElementById("bugSuccessHeadline");
+          const pill = document.getElementById("bugSuccessPill");
+
+          if (succeeded === "yes") {
+            banner.className = "status-banner yes";
+            icon.textContent = "✅";
+            headline.textContent = "YES — Fix Succeeded & Verified";
+            pill.className = "pill pill-success";
+            pill.textContent = "Succeeded";
+          } else if (succeeded === "no") {
+            banner.className = "status-banner no";
+            icon.textContent = "❌";
+            headline.textContent = "NOT YET — Needs Additional Fix";
+            pill.className = "pill pill-bug";
+            pill.textContent = "Not Yet";
+          } else {
+            banner.className = "status-banner partial";
+            icon.textContent = "⚠️";
+            headline.textContent = "PARTIAL — Applied, Needs Verification";
+            pill.className = "pill pill-warning";
+            pill.textContent = "Partial / Check";
+          }
+          document.getElementById("bugSuccessSummaryText").textContent = bug.successSummary || "";
+          document.getElementById("bugConsequencesText").textContent = bug.consequences || "N/A";
+
+          // Populate Implementation section
+          const imp = debrief.implementationReport || {};
+          document.getElementById("implObjectiveText").textContent = imp.objective || "N/A";
+          document.getElementById("implPlanWhyText").textContent = imp.planAndWhy || "N/A";
+          document.getElementById("implResultText").textContent = imp.result || "N/A";
+          document.getElementById("implConsequencesText").textContent = imp.consequences || "N/A";
+
+          // Populate Lessons Learned
+          const lessons = Array.isArray(debrief.lessonsLearned) ? debrief.lessonsLearned : [];
+          const container = document.getElementById("lessonsListContainer");
+          if (lessons.length === 0) {
+            container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 6px 0;">No specific new lessons flagged on this turn — click <b>➕ Add Lesson</b> above to record one to ZCode Memory.</div>`;
+          } else {
+            container.innerHTML = lessons
+              .map(
+                (l, idx) => `
+                <div class="lesson-item ${l.confirmed ? "confirmed" : ""}">
+                  <div class="lesson-title-row">
+                    <div class="lesson-title">💡 ${escapeHtml(l.title)}</div>
+                    <span class="pill ${l.confirmed ? "pill-success" : "pill-warning"}">
+                      ${l.confirmed ? "✅ Saved in MEMORY.md" : "⏳ Unconfirmed"}
+                    </span>
+                  </div>
+                  <div class="lesson-summary">${escapeHtml(l.summary)}</div>
+                  <div class="lesson-meta-box">
+                    <div><b>Why it matters:</b> ${escapeHtml(l.why || "Prevents repeat mistakes across projects.")}</div>
+                    <div style="margin-top: 3px;"><b>How to apply:</b> ${escapeHtml(l.howToApply || "Apply automatically in future sessions.")}</div>
+                  </div>
+                  <div class="lesson-actions">
+                    <button class="btn ${l.confirmed ? "" : "btn-success"} btn-confirm-lesson" data-idx="${idx}">
+                      ${l.confirmed ? "🔄 Re-Sync to ZCode Memory" : "📌 Confirm & Save to ZCode Memory"}
+                    </button>
+                  </div>
+                </div>`
+              )
+              .join("");
+
+            container.querySelectorAll(".btn-confirm-lesson").forEach((btn) => {
+              btn.addEventListener("click", async () => {
+                const idx = Number(btn.getAttribute("data-idx"));
+                const lesson = lessons[idx];
+                if (!lesson) return;
+                try {
+                  const res = await callServerTool("vibe_debrief_confirm_lesson", {
+                    id: lesson.id,
+                    slug: lesson.slug,
+                    title: lesson.title,
+                    summary: lesson.summary,
+                    why: lesson.why,
+                    howToApply: lesson.howToApply,
+                    memoryType: lesson.memoryType || "feedback"
+                  });
+                  if (res && res.structuredContent) {
+                    renderPanelState(res.structuredContent);
+                    showToast("✅ Lesson confirmed & written to ZCode MEMORY.md!");
+                  }
+                } catch (err) {
+                  showToast("⚠️ Could not save lesson: " + err.message);
+                }
+              });
+            });
+          }
+        }
+
+        function renderMemoryBank(state) {
+          const confirmed = Array.isArray(state.confirmedLessons) ? state.confirmedLessons : [];
+          document.getElementById("memoryCountBadge").textContent = String(confirmed.length);
+          document.getElementById("confirmedTotalPill").textContent = `${confirmed.length} saved`;
+          document.getElementById("memoryDirPathLabel").textContent =
+            state.zcodeMemory?.memoryDir || "~/.zcode/cli/memories";
+          document.getElementById("memoryIndexPreviewBox").textContent =
+            state.zcodeMemory?.indexContent || "(MEMORY.md is currently empty)";
+
+          const listEl = document.getElementById("confirmedLessonsBankList");
+          if (confirmed.length === 0) {
+            listEl.innerHTML = `<div style="font-size: 12px; color: var(--text-muted);">No lessons confirmed in this workspace yet. Confirm a lesson in the Visual Debrief tab to persist it to ZCode Memory.</div>`;
+            return;
+          }
+          listEl.innerHTML = confirmed
+            .map(
+              (c) => `
+              <div class="lesson-item confirmed">
+                <div class="lesson-title-row">
+                  <div class="lesson-title">✅ ${escapeHtml(c.title)}</div>
+                  <span class="pill pill-success">${escapeHtml(c.slug)}.md</span>
+                </div>
+                <div class="lesson-summary">${escapeHtml(c.summary)}</div>
+                <div class="lesson-meta-box">
+                  <div><b>Why:</b> ${escapeHtml(c.why)}</div>
+                  <div><b>How to apply:</b> ${escapeHtml(c.howToApply)}</div>
+                </div>
+              </div>`
+            )
+            .join("");
+        }
+
+        function renderHistoryList(history) {
+          const container = document.getElementById("historyListContainer");
+          if (!history.length) {
+            container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted);">No previous turns recorded yet.</div>`;
+            return;
+          }
+          container.innerHTML = history
+            .map(
+              (h, idx) => `
+              <div class="history-item" data-hidx="${idx}">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="pill ${h.responseType === "bug" ? "pill-bug" : "pill-impl"}">
+                    ${h.responseType === "bug" ? "🐛 Bug Fix" : "🚀 Implementation"}
+                  </span>
+                  <span style="font-size: 10.5px; color: var(--text-muted);">
+                    ${h.createdAt ? new Date(h.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                  </span>
+                </div>
+                <div style="font-weight: 700; font-size: 12.2px;">${escapeHtml(h.tldrHeadline)}</div>
+              </div>`
+            )
+            .join("");
+
+          container.querySelectorAll(".history-item").forEach((el) => {
+            el.addEventListener("click", () => {
+              const idx = Number(el.getAttribute("data-hidx"));
+              const item = history[idx];
+              if (!item || !currentState) return;
+              currentState.currentDebrief = item;
+              renderPanelState(currentState);
+              switchTab("storyboard");
+            });
+          });
+        }
+
+        function switchTab(tabId) {
+          document.querySelectorAll(".tab-btn").forEach((b) => {
+            b.classList.toggle("active", b.getAttribute("data-tab") === tabId);
+          });
+          ["storyboard", "memory", "history"].forEach((id) => {
+            const sec = document.getElementById("tab-" + id);
+            if (sec) sec.style.display = id === tabId ? "block" : "none";
+          });
+        }
+
+        // Wire Tab buttons
+        document.querySelectorAll(".tab-btn").forEach((btn) => {
+          btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+        });
+
+        // Wire Mode Switcher buttons
+        document.getElementById("btnModeBug").addEventListener("click", async () => {
+          try {
+            const res = await callServerTool("vibe_debrief_set_persona", { responseType: "bug" });
+            if (res && res.structuredContent) renderPanelState(res.structuredContent);
+          } catch {}
+        });
+
+        document.getElementById("btnModeImpl").addEventListener("click", async () => {
+          try {
+            const res = await callServerTool("vibe_debrief_set_persona", { responseType: "implementation" });
+            if (res && res.structuredContent) renderPanelState(res.structuredContent);
+          } catch {}
+        });
+
+        // Wire Refresh button
+        document.getElementById("btnRefresh").addEventListener("click", () => {
+          refreshState();
+          showToast("🔄 Synced latest Vibe Debrief state");
+        });
+
+        // Wire "AI Explain" button to route ELI5 refresh through the selected lightweight Gemini model
+        document.getElementById("btnAskAiExplain").addEventListener("click", async () => {
+          const persona = currentState?.activePersona || "vibe-mentor";
+          const mode = currentState?.currentDebrief?.responseType || "implementation";
+          const chosenGemini =
+            document.getElementById("smartGeminiModelSelect")?.value ||
+            currentState?.recommendedGeminiModel ||
+            "new-provider/gemini-3.8-flash";
+          const lastUserSnippet = String(currentState?.lastUserPrompt || "").slice(0, 600);
+          const lastAssistSnippet = String(currentState?.lastAssistantMessage || "").slice(0, 2200);
+
+          const delegatedPrompt = [
+            `Simplify the following turn for a visual learner and beginner/vibe-coding developer (Persona: \`${persona}\`, Mode: \`${mode}\`) and publish it to the Vibe Debrief panel by calling \`vibe_debrief_publish\` (load via \`LocalToolSearch\` if needed):`,
+            `- If it is a **Bug / Error Message** (\`responseType: "bug"\`): explain (1) What was the cause, (2) Plan to fix it, (3) Whether it succeeded, (4) Consequences of this fix, and (5) Lessons learned.`,
+            `- If it is an **Implementation** (\`responseType: "implementation"\`): explain (1) Purpose/objective, (2) Plan/suggested resolution and WHY, (3) Result, and (4) Consequences & lessons learned.`,
+            lastUserSnippet ? `\nLast User Prompt:\n${lastUserSnippet}` : "",
+            lastAssistSnippet ? `\nLast AI Response:\n${lastAssistSnippet}` : ""
+          ]
+            .filter(Boolean)
+            .join("\n");
+
+          const prompt = [
+            `[Vibe Debrief — Deep Refresh]`,
+            `Cost-Aware Smart Action: Do NOT spend an expensive flagship model on this simple ELI5 simplification task.`,
+            `Recommended Lightweight Gemini Model: \`${chosenGemini}\``,
+            `- If this session is already on a lightweight Gemini model, call \`vibe_debrief_publish\` directly now.`,
+            `- Otherwise, delegate this lightweight debrief task in the background via \`ListProjects\` -> \`CreateSession({ project, model: "${chosenGemini}", prompt: ${JSON.stringify(delegatedPrompt)} })\` (do NOT call \`OpenSession\`, so focus stays here).`
+          ].join("\n");
+
+          try {
+            await sendRpcRequest("ui/message", {
+              role: "user",
+              content: [{ type: "text", text: prompt }]
+            });
+            showToast(`⚡ Requested ELI5 refresh via ${chosenGemini.split("/").pop()}!`);
+          } catch {
+            showToast("⚠️ Could not send message to chat session.");
+          }
+        });
+
+        // Custom Lesson Toggle & Save
+        document.getElementById("btnToggleCustomLesson").addEventListener("click", () => {
+          const form = document.getElementById("customLessonForm");
+          form.style.display = form.style.display === "none" ? "block" : "none";
+        });
+
+        document.getElementById("btnCancelCustomLesson").addEventListener("click", () => {
+          document.getElementById("customLessonForm").style.display = "none";
+        });
+
+        document.getElementById("btnSaveCustomLesson").addEventListener("click", async () => {
+          const title = document.getElementById("customLessonTitle").value.trim();
+          const summary = document.getElementById("customLessonSummary").value.trim();
+          const why = document.getElementById("customLessonWhy").value.trim();
+          const howToApply = document.getElementById("customLessonHow").value.trim();
+          if (!title || !summary) {
+            showToast("⚠️ Please enter a title and summary for the lesson.");
+            return;
+          }
+          try {
+            const res = await callServerTool("vibe_debrief_confirm_lesson", {
+              title,
+              summary,
+              why,
+              howToApply,
+              memoryType: "feedback"
+            });
+            if (res && res.structuredContent) {
+              renderPanelState(res.structuredContent);
+              document.getElementById("customLessonForm").style.display = "none";
+              document.getElementById("customLessonTitle").value = "";
+              document.getElementById("customLessonSummary").value = "";
+              document.getElementById("customLessonWhy").value = "";
+              document.getElementById("customLessonHow").value = "";
+              showToast("✅ Custom lesson saved directly to ZCode MEMORY.md!");
+            }
+          } catch (err) {
+            showToast("⚠️ Failed to save custom lesson: " + err.message);
+          }
+        });
+
+        async function initMcpApp() {
+          try {
+            const res = await sendRpcRequest("ui/initialize", {
+              appInfo: { name: "vibe-debrief", version: "0.1.0" },
+              appCapabilities: {
+                availableDisplayModes: ["inline", "fullscreen"]
+              },
+              protocolVersion: PROTOCOL_VERSION
+            });
+            if (res && res.hostContext && res.hostContext.theme) {
+              applyHostTheme(res.hostContext.theme);
+            }
+            sendRpcNotification("ui/notifications/initialized", {});
+          } catch (err) {
+            console.warn("Vibe Debrief standalone/init fallback:", err);
+          }
+          await refreshState();
+        }
+
+        initMcpApp();
+      })();
+    </script>
+  </body>
+</html>

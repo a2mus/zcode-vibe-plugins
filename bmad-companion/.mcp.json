@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "bmad-companion": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-server.mjs"
+      ],
+      "cwd": "${CLAUDE_PROJECT_DIR}"
+    }
+  }
+}

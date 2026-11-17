@@ -1,0 +1,49 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" session-start",
+            "statusMessage": "Initializing BMAD Companion workspace state"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" user-prompt",
+            "statusMessage": "Recording prompt for BMAD Companion analysis"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" post-tool",
+            "statusMessage": "Updating BMAD Companion artifact tracker"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/hook-runner.mjs\" stop",
+            "statusMessage": "Analyzing turn result and generating BMAD next-step prompts"
+          }
+        ]
+      }
+    ]
+  }
+}
