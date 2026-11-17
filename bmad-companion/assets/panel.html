@@ -1027,7 +1027,7 @@
         async function initMcpApp() {
           try {
             const res = await sendRpcRequest("ui/initialize", {
-              appInfo: { name: "bmad-companion", version: "0.5.1" },
+              appInfo: { name: "bmad-companion", version: "0.5.2" },
               appCapabilities: {
                 availableDisplayModes: ["inline", "fullscreen"]
               },
@@ -1252,7 +1252,7 @@
           }
 
           document.getElementById("projectTitle").textContent =
-            (state.projectName || "Workspace") + " · BMAD Companion v0.5.1";
+            (state.projectName || "Workspace") + " · BMAD Companion v0.5.2";
           document.getElementById("projectSubtitle").textContent =
             `${state.techStack || "Workspace"} · ${m.totalEpics || 0} Epics · ${m.smartDoneStories || 0}/${m.totalStories || 0} Stories · ${state.git?.branch || "main"}`;
 

@@ -707,7 +707,7 @@ rl.on("line", async (line) => {
         },
         serverInfo: {
           name: "bmad-companion",
-          version: "0.5.1"
+          version: "0.5.2"
         }
       });
       return;

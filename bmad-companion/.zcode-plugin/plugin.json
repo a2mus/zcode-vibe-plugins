@@ -1,6 +1,6 @@
 {
   "name": "bmad-companion",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Global right-side panel BMAD-METHOD companion for any workspace: analyzes project state after each prompt result to recommend contextual /bmad-* skills with tailored prompts and recommended AI models, auto-launches next prompts in a new session, reconciles v6 YAML and v7 TOML trackers with code reality, and visualizes phase, epic, and story progress.",
   "description_i18n": {
     "en": "Global right-side panel BMAD-METHOD companion for any workspace: analyzes project state after each prompt result to recommend contextual /bmad-* skills with tailored prompts and recommended AI models, auto-launches next prompts in a new session, reconciles v6 YAML and v7 TOML trackers with code reality, and visualizes phase, epic, and story progress.",

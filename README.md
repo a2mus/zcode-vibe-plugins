@@ -2,7 +2,7 @@
 
 A community ZCode plugin marketplace featuring two workspace-agnostic **right-side panel plugins** designed for visual clarity, high-ROI workflow navigation, and cost-aware AI model routing:
 
-1. **🧭 BMAD Companion (`bmad-companion` · `v0.5.1`)** — Interactive 4-phase BMAD-METHOD lifecycle tracker, smart AI vs. static tracker reconciliation (`sprint-status.yaml` & `tickets.toml`), newest-first git diff artifact inspector, contextual `/bmad-*` prompt generator, and dynamic cost-aware model router.
+1. **🧭 BMAD Companion (`bmad-companion` · `v0.5.2`)** — Interactive 4-phase BMAD-METHOD lifecycle tracker, smart AI vs. static tracker reconciliation (`sprint-status.yaml` & `tickets.toml`), newest-first git diff artifact inspector, contextual `/bmad-*` prompt generator, and dynamic cost-aware model router.
 2. **⚡ Vibe Debrief — Comprehension-First ELI5 Panel (`vibe-debrief` · `v0.2.0`)** — Translates the last AI turn into scannable visual cards using **80% ASD-STE100 clarity**, always-on **interactive SVG diagrams**, inline **proof & uncertainty checks**, **standalone HTML export**, **complex-only 3b1b animated explainers**, and **1-click saving of confirmed lessons** directly into ZCode's persistent `MEMORY.md`.
 
 ---
@@ -22,7 +22,7 @@ A community ZCode plugin marketplace featuring two workspace-agnostic **right-si
 
 ---
 
-## 🧭 1. BMAD Companion (`bmad-companion` · `v0.5.1`)
+## 🧭 1. BMAD Companion (`bmad-companion` · `v0.5.2`)
 
 A global right-side panel for projects using **BMAD-METHOD** (v6 YAML and/or v7 TOML trackers), or any repository initializing structured AI-assisted planning:
 
