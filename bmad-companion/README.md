@@ -13,7 +13,7 @@ A global ZCode workspace companion plugin for the [BMAD-METHOD](https://github.c
      - **🎨 UX & Visual Systems** (`gemini-4-hydrogen-xhigh`) for `/bmad-ux`, `/bmad-brainstorming`, `/bmad-agent-ux-designer`.
      - **💻 Agentic Coding & TDD** (`claude-sonnet-5-5-high`) for `/bmad-build`, `/bmad-qa-generate-e2e-tests`, `/bmad-testarch-atdd`.
      - **⚡ Fast Planning & Synthesis** (`gemini-4-argon-high`) for `/bmad-sprint-planning`, `/bmad-project-context`, `/bmad-walkthrough`.
-   - Clicking **🚀 Launch in New Session** automatically creates a new ZCode root session with the selected recommended model (`CreateSession`), submits the `/bmad-<skill> "<prompt>"` command as its first prompt, and opens that new session in the ZCode UI (`OpenSession`).
+   - Clicking **🚀 Launch in New Session** copies the `/bmad-<skill> "<prompt>"` command, directly opens a new ZCode conversation (`Ctrl/Cmd+N`), and pre-pastes the chosen prompt into the composer without running anything in the current session.
 3. **Post-Prompt AI Advisor (Never Bare Skill Names)**:
    - Hooks into `UserPromptSubmit`, `PostToolUse`, `Stop`, and `SessionStart` to analyze what just happened after each prompt result and advise full `/bmad-<skill> "<contextual prompt>"` commands.
 4. **Smart Artifact + AI Progress Visualization & Tracker Reconciliation**:

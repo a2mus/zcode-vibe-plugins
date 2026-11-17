@@ -102,13 +102,13 @@
       }
 
       .brand-badge {
-        width: 30px;
-        height: 30px;
+        width: 28px;
+        height: 28px;
         border-radius: 8px;
         background: linear-gradient(135deg, #38bdf8, #a78bfa);
         color: #0b0f17;
         font-weight: 800;
-        font-size: 15px;
+        font-size: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -136,7 +136,7 @@
       .header-actions {
         display: flex;
         align-items: center;
-        gap: 5px;
+        gap: 4px;
         flex-shrink: 0;
       }
 
@@ -146,13 +146,13 @@
         background: var(--bg-tertiary);
         color: var(--text-primary);
         border-radius: 7px;
-        padding: 5px 9px;
-        font-size: 11.5px;
+        padding: 5px 8px;
+        font-size: 11px;
         font-weight: 600;
         cursor: pointer;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
+        gap: 4px;
         transition: all 0.14s ease;
       }
 
@@ -183,14 +183,14 @@
         color: #0b0f17;
       }
 
-      /* Mode Switcher Row (Bug vs Implementation) */
+      /* Mode Switcher Row */
       .mode-switcher-row {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 6px;
-        margin-top: 9px;
+        margin-top: 8px;
         background: var(--bg-primary);
-        padding: 4px;
+        padding: 3px;
         border-radius: 9px;
         border: 1px solid var(--border-subtle);
       }
@@ -200,7 +200,7 @@
         border: 1px solid transparent;
         background: transparent;
         color: var(--text-secondary);
-        padding: 6px 8px;
+        padding: 5px 8px;
         border-radius: 6px;
         font-size: 11.5px;
         font-weight: 700;
@@ -224,13 +224,21 @@
         color: var(--accent);
       }
 
-      /* Persona Strip */
+      /* Persona + STE-80 Strip */
+      .persona-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        margin-top: 7px;
+      }
+
       .persona-strip {
         display: flex;
         gap: 5px;
-        margin-top: 8px;
         overflow-x: auto;
         padding-bottom: 2px;
+        flex: 1;
       }
 
       .persona-chip {
@@ -239,8 +247,8 @@
         background: var(--bg-tertiary);
         color: var(--text-secondary);
         border-radius: 999px;
-        padding: 3px 9px;
-        font-size: 11px;
+        padding: 3px 8px;
+        font-size: 10.5px;
         font-weight: 600;
         cursor: pointer;
         white-space: nowrap;
@@ -256,6 +264,26 @@
         background: var(--purple-soft);
         border-color: var(--purple);
         color: var(--text-primary);
+      }
+
+      .ste-toggle-chip {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        border-radius: 999px;
+        padding: 3px 8px;
+        font-size: 10.5px;
+        font-weight: 700;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .ste-toggle-chip.active {
+        background: var(--teal-soft);
+        border-color: var(--teal);
+        color: var(--teal);
       }
 
       /* Tabs */
@@ -274,7 +302,7 @@
         border: none;
         border-bottom: 2px solid transparent;
         color: var(--text-secondary);
-        padding: 8px 10px;
+        padding: 8px 9px;
         font-size: 11.5px;
         font-weight: 700;
         cursor: pointer;
@@ -320,7 +348,7 @@
         border: 1px solid var(--border);
         border-radius: var(--radius);
         padding: 12px;
-        margin-bottom: 12px;
+        margin-bottom: 11px;
       }
 
       .hero-meta-row {
@@ -328,7 +356,7 @@
         align-items: center;
         justify-content: space-between;
         gap: 6px;
-        margin-bottom: 6px;
+        margin-bottom: 7px;
         flex-wrap: wrap;
       }
 
@@ -372,6 +400,16 @@
         border: 1px solid rgba(251, 191, 36, 0.35);
       }
 
+      .pill-teal {
+        background: var(--teal-soft);
+        color: var(--teal);
+        border: 1px solid rgba(45, 212, 191, 0.35);
+      }
+
+      .pill-clickable {
+        cursor: pointer;
+      }
+
       .tldr-headline {
         font-size: 14px;
         font-weight: 800;
@@ -384,30 +422,27 @@
         background: var(--bg-primary);
         border-left: 3px solid var(--warning);
         border-radius: 7px;
-        padding: 9px 11px;
-        font-size: 12.2px;
+        padding: 8px 11px;
+        font-size: 12px;
         color: var(--text-secondary);
       }
 
       .analogy-title {
         font-weight: 700;
         color: var(--warning);
-        font-size: 11px;
+        font-size: 10.5px;
         text-transform: uppercase;
         letter-spacing: 0.04em;
-        margin-bottom: 3px;
-        display: flex;
-        align-items: center;
-        gap: 5px;
+        margin-bottom: 2px;
       }
 
-      /* Visual Flowchart Strip */
-      .flowchart-card {
+      /* Unified Always-On Interactive SVG Diagram Card */
+      .diagram-card {
         background: var(--bg-secondary);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         padding: 10px 11px;
-        margin-bottom: 12px;
+        margin-bottom: 11px;
       }
 
       .section-kicker {
@@ -416,75 +451,88 @@
         text-transform: uppercase;
         letter-spacing: 0.05em;
         color: var(--text-muted);
-        margin-bottom: 8px;
+        margin-bottom: 7px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-      }
-
-      .flow-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
         gap: 6px;
       }
 
-      @media (max-width: 460px) {
-        .flow-grid {
-          grid-template-columns: repeat(2, 1fr);
-        }
+      .diagram-stage {
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        padding: 6px;
+        overflow: hidden;
       }
 
-      .flow-node {
+      .diagram-svg {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .diagram-node-group {
+        cursor: pointer;
+      }
+
+      .diagram-node-group:hover rect {
+        filter: brightness(1.15);
+      }
+
+      .files-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 8px;
+      }
+
+      .file-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 7px;
+        border-radius: 6px;
         background: var(--bg-primary);
         border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 7px 8px;
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
+        font-size: 10.8px;
+        font-family: var(--font-mono);
+        color: var(--text-primary);
+        cursor: pointer;
       }
 
-      .flow-node.status-done {
-        border-color: rgba(52, 211, 153, 0.5);
-        background: rgba(52, 211, 153, 0.05);
+      .file-badge.risk-high {
+        border-color: rgba(251, 113, 133, 0.55);
       }
 
-      .flow-node.status-active {
+      .file-badge.risk-medium {
+        border-color: rgba(251, 191, 36, 0.45);
+      }
+
+      .file-badge.selected {
         border-color: var(--accent);
         background: var(--accent-soft);
       }
 
-      .flow-node.status-warning {
-        border-color: var(--danger);
-        background: var(--danger-soft);
+      .file-role-tag {
+        font-family: var(--font-sans);
+        font-size: 9.8px;
+        color: var(--text-secondary);
+        font-weight: 600;
       }
 
-      .flow-node-top {
+      .node-inspector {
+        margin-top: 7px;
+        padding: 6px 9px;
+        border-radius: 7px;
+        background: var(--bg-primary);
+        border: 1px dashed var(--border);
+        font-size: 11.3px;
+        color: var(--text-secondary);
         display: flex;
         align-items: center;
         justify-content: space-between;
-        font-size: 14px;
-      }
-
-      .flow-step-num {
-        font-size: 10px;
-        font-weight: 800;
-        color: var(--text-muted);
-        font-family: var(--font-mono);
-      }
-
-      .flow-node-title {
-        font-weight: 700;
-        font-size: 11.5px;
-        color: var(--text-primary);
-        margin-top: 2px;
-      }
-
-      .flow-node-sub {
-        font-size: 10.5px;
-        color: var(--text-secondary);
-        line-height: 1.3;
+        gap: 8px;
       }
 
       /* 4-Block Storyboard Cards */
@@ -538,7 +586,7 @@
       }
 
       .story-card-body {
-        font-size: 12.8px;
+        font-size: 12.6px;
         color: var(--text-primary);
         white-space: pre-line;
       }
@@ -547,8 +595,8 @@
       .status-banner {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 9px 11px;
+        gap: 9px;
+        padding: 8px 10px;
         border-radius: 8px;
         margin-bottom: 7px;
         font-weight: 700;
@@ -572,31 +620,107 @@
         color: var(--danger);
       }
 
-      /* Touched Files Visual Strip */
-      .files-strip {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
+      /* Inline Proof Claims inside Card 3 */
+      .proof-strip {
         margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
       }
 
-      .file-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        padding: 3px 8px;
+      .proof-item {
+        font-size: 11.4px;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+      }
+
+      .proof-evidence {
+        font-family: var(--font-mono);
+        font-size: 10.3px;
+        color: var(--text-muted);
+      }
+
+      /* Fused Uncertainty Audit & Verification Checklist inside Card 4 */
+      .oversight-subblock {
+        margin-top: 9px;
+        padding-top: 9px;
+        border-top: 1px solid var(--border-subtle);
+      }
+
+      .oversight-label {
+        font-size: 10.5px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-muted);
+        margin-bottom: 5px;
+      }
+
+      .audit-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 5px 8px;
         border-radius: 6px;
         background: var(--bg-primary);
-        border: 1px solid var(--border);
-        font-size: 11px;
-        font-family: var(--font-mono);
+        border: 1px solid var(--border-subtle);
+        margin-bottom: 5px;
+        font-size: 11.6px;
       }
 
-      .file-role-tag {
-        font-family: var(--font-sans);
+      .check-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 5px 8px;
+        border-radius: 6px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+        margin-bottom: 5px;
+        font-size: 11.6px;
+      }
+
+      .check-label {
+        display: flex;
+        align-items: flex-start;
+        gap: 7px;
+        cursor: pointer;
+        flex: 1;
+      }
+
+      .check-label input[type="checkbox"] {
+        margin-top: 2px;
+        accent-color: var(--success);
+        cursor: pointer;
+      }
+
+      .check-done {
+        text-decoration: line-through;
+        color: var(--text-muted);
+      }
+
+      .mini-promote-btn {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--warning);
+        border-radius: 5px;
+        padding: 2px 6px;
         font-size: 10px;
-        color: var(--text-secondary);
-        font-weight: 600;
+        font-weight: 700;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+
+      .mini-promote-btn:hover {
+        border-color: var(--warning);
+        background: var(--warning-soft);
       }
 
       /* Lesson Item Card */
@@ -628,13 +752,13 @@
       }
 
       .lesson-summary {
-        font-size: 12.2px;
+        font-size: 12px;
         color: var(--text-primary);
         margin-bottom: 6px;
       }
 
       .lesson-meta-box {
-        font-size: 11.3px;
+        font-size: 11.2px;
         color: var(--text-secondary);
         background: var(--bg-secondary);
         border-radius: 6px;
@@ -694,6 +818,66 @@
       .history-item:hover {
         border-color: var(--accent);
       }
+
+      /* Complex Explainer Tab (Rung 4) */
+      .explainer-stage {
+        background: #070b12;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px;
+        margin-bottom: 10px;
+      }
+
+      .explainer-canvas {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 6px;
+      }
+
+      .explainer-controls {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+      }
+
+      .explainer-caption-box {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 8px;
+        padding: 9px 11px;
+        margin-bottom: 10px;
+        font-size: 12.5px;
+      }
+
+      .scene-pill-row {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+        margin-bottom: 9px;
+      }
+
+      .scene-pill {
+        appearance: none;
+        border: 1px solid var(--border);
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .scene-pill.active {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--text-primary);
+      }
     </style>
   </head>
   <body>
@@ -705,15 +889,18 @@
             <div class="brand-badge">⚡</div>
             <div style="min-width: 0;">
               <div class="brand-title" id="panelTitle">Vibe Debrief · Visual ELI5</div>
-              <div class="brand-subtitle" id="panelSubtitle">Simplifying responses for multi-project vibe-coders</div>
+              <div class="brand-subtitle" id="panelSubtitle">STE-80 clarity + live diagram + oversight</div>
             </div>
           </div>
           <div class="header-actions">
-            <select class="btn" id="smartGeminiModelSelect" title="Lightweight Gemini model used for smart ELI5 refresh actions (saves expensive models)" style="max-width: 145px; text-overflow: ellipsis;">
+            <select class="btn" id="smartGeminiModelSelect" title="Lightweight Gemini model used for reading-boundary debrief refresh" style="max-width: 118px; text-overflow: ellipsis;">
               <option value="new-provider/gemini-4-argon">⚡ gemini-4-argon</option>
             </select>
-            <button class="btn btn-primary" id="btnAskAiExplain" title="Run smart ELI5 debrief using the selected lightweight Gemini model (avoids expensive models)">
+            <button class="btn btn-primary" id="btnAskAiExplain" title="Run cost-aware reading-boundary debrief via lightweight Gemini">
               ✨ AI Explain
+            </button>
+            <button class="btn" id="btnExportHtml" title="Export standalone interactive HTML explainer artifact">
+              🌐 HTML
             </button>
             <button class="btn" id="btnRefresh" title="Sync latest turn state">
               🔄
@@ -723,23 +910,29 @@
 
         <!-- Mode Switcher: Bug / Error vs Implementation -->
         <div class="mode-switcher-row">
-          <button class="mode-btn" id="btnModeBug" title="View as Shared Bug / Error Fix (Cause, Plan, Succeeded, Consequences, Lessons)">
+          <button class="mode-btn" id="btnModeBug" title="View as Bug / Error Fix (Cause, Plan, Succeeded, Consequences + Checks, Lessons)">
             🐛 Bug / Error Fix
           </button>
-          <button class="mode-btn" id="btnModeImpl" title="View as Implementation (Purpose/Objective, Plan & Why, Result, Consequences & Lessons)">
+          <button class="mode-btn" id="btnModeImpl" title="View as Implementation (Objective, Plan & Why, Result, Consequences + Checks, Lessons)">
             🚀 Implementation
           </button>
         </div>
 
-        <!-- Persona Bar -->
-        <div class="persona-strip" id="personaStrip"></div>
+        <!-- Persona Bar + STE-80 Toggle -->
+        <div class="persona-row">
+          <div class="persona-strip" id="personaStrip"></div>
+          <button class="ste-toggle-chip active" id="btnToggleSte100" title="Toggle 80% ASD-STE100 clarity pass (short active sentences, plain verbs)">
+            ✂️ STE-80: ON
+          </button>
+        </div>
       </header>
 
       <!-- Tabs -->
       <nav class="tabs-nav">
-        <button class="tab-btn active" data-tab="storyboard">📊 Visual Debrief</button>
-        <button class="tab-btn" data-tab="memory">🧠 ZCode Memory (<span id="memoryCountBadge">0</span>)</button>
-        <button class="tab-btn" data-tab="history">🕒 Turn History</button>
+        <button class="tab-btn active" data-tab="storyboard">📊 Debrief</button>
+        <button class="tab-btn" id="tabBtnExplainer" data-tab="explainer" style="display: none;">🎬 Explainer</button>
+        <button class="tab-btn" data-tab="memory">🧠 Memory (<span id="memoryCountBadge">0</span>)</button>
+        <button class="tab-btn" data-tab="history">🕒 History</button>
       </nav>
 
       <!-- Main Content -->
@@ -748,14 +941,16 @@
           <span id="toastText">Saved!</span>
         </div>
 
-        <!-- TAB 1: VISUAL STORYBOARD -->
+        <!-- TAB 1: UNIFIED VISUAL DEBRIEF -->
         <section id="tab-storyboard">
           <!-- Hero TL;DR + Real-World Analogy -->
           <div class="hero-card">
             <div class="hero-meta-row">
-              <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+              <div style="display: flex; gap: 5px; align-items: center; flex-wrap: wrap;">
                 <span class="pill pill-impl" id="activeModePill">🚀 IMPLEMENTATION</span>
                 <span class="pill pill-persona" id="activePersonaPill">🧑‍💻 Vibe Mentor</span>
+                <span class="pill pill-teal" id="steMetricsPill" title="Readability score & estimated read time">📖 ~25s · STE-80</span>
+                <span class="pill pill-warning" id="complexityPill" style="display: none;">🧩 Complex</span>
               </div>
               <span style="font-size: 10.5px; color: var(--text-muted);" id="debriefTimestamp">Just now</span>
             </div>
@@ -763,19 +958,24 @@
               Loading visual debrief…
             </div>
             <div class="analogy-box">
-              <div class="analogy-title">💡 Picture It Like This (Mental Model)</div>
+              <div class="analogy-title">💡 Picture It Like This</div>
               <div id="realWorldAnalogy"></div>
             </div>
           </div>
 
-          <!-- Visual Flowchart Diagram -->
-          <div class="flowchart-card">
+          <!-- UNIFIED ALWAYS-ON INTERACTIVE SVG DIAGRAM CARD -->
+          <div class="diagram-card">
             <div class="section-kicker">
-              <span>🗺️ Visual Cause-to-Outcome Map</span>
-              <span id="touchedFilesCountLabel">0 files touched</span>
+              <span id="diagramTitleLabel">🗺️ Component & Flow Diagram</span>
+              <span id="touchedFilesCountLabel">0 files</span>
             </div>
-            <div class="flow-grid" id="visualFlowGrid"></div>
+            <div class="diagram-stage">
+              <svg class="diagram-svg" id="diagramSvg" viewBox="0 0 460 190"></svg>
+            </div>
             <div class="files-strip" id="touchedFilesStrip"></div>
+            <div class="node-inspector" id="nodeInspectorBar">
+              <span>Click any diagram node or file chip to inspect its role &amp; risk.</span>
+            </div>
           </div>
 
           <!-- BUG / ERROR FIX VIEW -->
@@ -790,8 +990,8 @@
 
             <div class="story-card card-plan">
               <div class="story-card-header">
-                <div class="story-card-title">🛠️ 2. What Was the Plan to Fix It?</div>
-                <span class="pill pill-impl">Fix Strategy</span>
+                <div class="story-card-title">🛠️ 2. Fix Plan</div>
+                <span class="pill pill-impl">Strategy</span>
               </div>
               <div class="story-card-body" id="bugPlanText"></div>
             </div>
@@ -802,18 +1002,20 @@
                 <span class="pill pill-success" id="bugSuccessPill">Verified</span>
               </div>
               <div class="status-banner yes" id="bugSuccessBanner">
-                <span id="bugSuccessIcon" style="font-size: 18px;">✅</span>
+                <span id="bugSuccessIcon" style="font-size: 16px;">✅</span>
                 <span id="bugSuccessHeadline">YES — Fix Succeeded</span>
               </div>
               <div class="story-card-body" id="bugSuccessSummaryText"></div>
+              <div class="proof-strip" id="bugProofStrip"></div>
             </div>
 
             <div class="story-card card-consequences">
               <div class="story-card-header">
-                <div class="story-card-title">🌊 4. Consequences of This Fix</div>
-                <span class="pill pill-persona">Ripple Effect</span>
+                <div class="story-card-title">🌊 4. Consequences &amp; What to Double-Check</div>
+                <span class="pill pill-teal">Oversight</span>
               </div>
               <div class="story-card-body" id="bugConsequencesText"></div>
+              <div class="oversight-subblock" id="bugOversightBlock"></div>
             </div>
           </div>
 
@@ -821,7 +1023,7 @@
           <div id="implStoryboardSection">
             <div class="story-card card-plan">
               <div class="story-card-header">
-                <div class="story-card-title">🎯 1. Purpose / Objective of the Implementation</div>
+                <div class="story-card-title">🎯 1. Objective &amp; Why It Matters</div>
                 <span class="pill pill-impl">The Goal</span>
               </div>
               <div class="story-card-body" id="implObjectiveText"></div>
@@ -829,26 +1031,28 @@
 
             <div class="story-card card-why">
               <div class="story-card-header">
-                <div class="story-card-title">🧭 2. Plan / Suggested Resolution & WHY</div>
-                <span class="pill pill-persona">Why This Way</span>
+                <div class="story-card-title">🧭 2. Plan &amp; Why This Way</div>
+                <span class="pill pill-persona">Design Choice</span>
               </div>
               <div class="story-card-body" id="implPlanWhyText"></div>
             </div>
 
             <div class="story-card card-result">
               <div class="story-card-header">
-                <div class="story-card-title">🏆 3. Result of the Implementation</div>
-                <span class="pill pill-success">What Works Now</span>
+                <div class="story-card-title">🏆 3. Result &amp; Evidence</div>
+                <span class="pill pill-success">Delivered</span>
               </div>
               <div class="story-card-body" id="implResultText"></div>
+              <div class="proof-strip" id="implProofStrip"></div>
             </div>
 
             <div class="story-card card-consequences">
               <div class="story-card-header">
-                <div class="story-card-title">🌊 4. Consequences of This Implementation</div>
-                <span class="pill pill-warning">Impact & Watch-Outs</span>
+                <div class="story-card-title">🌊 4. Consequences &amp; What to Double-Check</div>
+                <span class="pill pill-teal">Oversight</span>
               </div>
               <div class="story-card-body" id="implConsequencesText"></div>
+              <div class="oversight-subblock" id="implOversightBlock"></div>
             </div>
           </div>
 
@@ -860,21 +1064,20 @@
                 ➕ Add Lesson
               </button>
             </div>
-            <div style="font-size: 11.3px; color: var(--text-secondary); margin-bottom: 6px;">
-              Any confirmed lesson is automatically written to ZCode's persistent project <code>MEMORY.md</code> so future AI sessions remember it.
+            <div style="font-size: 11.2px; color: var(--text-secondary); margin-bottom: 6px;">
+              Confirmed rules save directly to ZCode's persistent <code>MEMORY.md</code> for future sessions.
             </div>
 
-            <!-- Custom Lesson Creator Form -->
             <div id="customLessonForm" style="display: none; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 9px;">
               <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: var(--warning);">
-                ✍️ Confirm & Save a Custom Lesson to ZCode Memory
+                ✍️ Confirm &amp; Save a Lesson to ZCode Memory
               </div>
-              <input type="text" class="form-input" id="customLessonTitle" placeholder="Short rule title (e.g. Always check DepotId before validating POS sale)" />
+              <input type="text" class="form-input" id="customLessonTitle" placeholder="Short rule title (e.g. Check DepotId before validating POS sale)" />
               <textarea class="form-textarea" id="customLessonSummary" placeholder="What is the lesson learned?"></textarea>
               <input type="text" class="form-input" id="customLessonWhy" placeholder="Why does this matter? (optional)" />
               <input type="text" class="form-input" id="customLessonHow" placeholder="How should the AI apply this next time? (optional)" />
               <div style="display: flex; gap: 6px;">
-                <button class="btn btn-success" id="btnSaveCustomLesson">📌 Confirm & Save to ZCode Memory</button>
+                <button class="btn btn-success" id="btnSaveCustomLesson">📌 Confirm &amp; Save</button>
                 <button class="btn" id="btnCancelCustomLesson">Cancel</button>
               </div>
             </div>
@@ -883,7 +1086,50 @@
           </div>
         </section>
 
-        <!-- TAB 2: ZCODE MEMORY BANK -->
+        <!-- TAB 2 (CONDITIONAL): COMPLEX-ONLY 3B1B ANIMATED EXPLAINER -->
+        <section id="tab-explainer" style="display: none;">
+          <div class="explainer-stage">
+            <canvas class="explainer-canvas" id="explainerCanvas" width="600" height="250"></canvas>
+            <div class="explainer-controls">
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <button class="btn btn-primary" id="btnExplainerPlay">▶ Play</button>
+                <button class="btn" id="btnExplainerPrev">⏮</button>
+                <button class="btn" id="btnExplainerNext">⏭</button>
+              </div>
+              <div style="display: flex; gap: 4px; align-items: center;">
+                <select class="btn" id="explainerSpeedSelect" title="Playback speed">
+                  <option value="0.85">0.85x</option>
+                  <option value="1" selected>1x</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                </select>
+                <button class="btn" id="btnExplainerVoice" title="Toggle Web Speech voice narration">🔇 Voice Off</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="scene-pill-row" id="explainerScenePills"></div>
+
+          <div class="explainer-caption-box">
+            <div style="font-size: 10.5px; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-bottom: 3px;" id="explainerSceneTitle">
+              Scene 1
+            </div>
+            <div id="explainerSceneNarration"></div>
+          </div>
+
+          <div class="story-card card-plan">
+            <div class="story-card-header">
+              <div class="story-card-title">📄 Standalone Narration Script (Verify Claims)</div>
+              <button class="btn" id="btnCopyScript">📋 Copy Script</button>
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">
+              Polished visuals can feel convincing even when wrong — scan the plain-text script below to verify facts quickly.
+            </div>
+            <div class="memory-code-box" id="plainTextScriptBox"></div>
+          </div>
+        </section>
+
+        <!-- TAB 3: ZCODE MEMORY BANK -->
         <section id="tab-memory" style="display: none;">
           <div class="story-card card-lessons">
             <div class="story-card-header">
@@ -904,10 +1150,10 @@
           </div>
         </section>
 
-        <!-- TAB 3: TURN HISTORY -->
+        <!-- TAB 4: TURN HISTORY -->
         <section id="tab-history" style="display: none;">
           <div style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 8px;">
-            Click any recent turn below to view its visual ELI5 debrief:
+            Click any recent turn below to view its diagram, oversight checks, and debrief:
           </div>
           <div id="historyListContainer"></div>
         </section>
@@ -921,6 +1167,18 @@
         let rpcId = 1;
         const pendingRequests = new Map();
         let currentState = null;
+        let selectedNodeId = null;
+
+        // Complex-only Explainer Player state
+        let playerState = {
+          playing: false,
+          sceneIndex: 0,
+          tick: 0,
+          rafId: null,
+          sceneTimer: null,
+          voiceEnabled: false,
+          speed: 1
+        };
 
         function sendRpcRequest(method, params) {
           return new Promise((resolve, reject) => {
@@ -999,7 +1257,7 @@
           txt.textContent = msg;
           banner.classList.add("visible");
           clearTimeout(toastTimer);
-          toastTimer = setTimeout(() => banner.classList.remove("visible"), 4200);
+          toastTimer = setTimeout(() => banner.classList.remove("visible"), 4500);
         }
 
         function escapeHtml(str) {
@@ -1035,7 +1293,13 @@
           document.getElementById("panelTitle").textContent =
             "Vibe Debrief · " + (state.projectName || "Workspace");
           document.getElementById("panelSubtitle").textContent =
-            activePersonaObj.tagline || "Visual ELI5 explainer for multi-project vibe-coders";
+            activePersonaObj.tagline || "STE-80 clarity + diagram + oversight";
+
+          // STE-80 Toggle Chip
+          const steOn = state.ste100Enabled !== false;
+          const steBtn = document.getElementById("btnToggleSte100");
+          steBtn.classList.toggle("active", steOn);
+          steBtn.textContent = steOn ? "✂️ STE-80: ON" : "✂️ STE-80: OFF";
 
           // Populate Lightweight Gemini Model Picker
           const modelSelect = document.getElementById("smartGeminiModelSelect");
@@ -1074,26 +1338,278 @@
           });
 
           renderActiveDebrief(debrief, activePersonaObj);
+          renderExplainerTab(debrief);
           renderMemoryBank(state);
           renderHistoryList(state.history || []);
+        }
+
+        function renderInteractiveDiagram(debrief) {
+          const diagram = debrief.diagram || { title: "Flow Diagram", nodes: [], edges: [] };
+          const nodes = Array.isArray(diagram.nodes) ? diagram.nodes : [];
+          const edges = Array.isArray(diagram.edges) ? diagram.edges : [];
+          const svg = document.getElementById("diagramSvg");
+          const files = Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [];
+
+          document.getElementById("diagramTitleLabel").textContent =
+            "🗺️ " + (diagram.title || "Component & Flow Diagram");
+          document.getElementById("touchedFilesCountLabel").textContent =
+            files.length === 1 ? "1 file" : `${files.length} files`;
+
+          if (nodes.length === 0) {
+            svg.setAttribute("viewBox", "0 0 460 80");
+            svg.innerHTML = `<text x="230" y="45" text-anchor="middle" fill="#9ba7b8" font-size="12">Diagram pending…</text>`;
+            return;
+          }
+
+          // Adaptive 2-row grid for narrow right-side panels when nodes >= 3
+          const cols = nodes.length <= 2 ? nodes.length : nodes.length <= 4 ? 2 : 3;
+          const rows = Math.ceil(nodes.length / cols);
+          const svgW = 460;
+          const padX = 14;
+          const padY = 16;
+          const gapX = 26;
+          const gapY = 30;
+          const boxW = Math.floor((svgW - padX * 2 - gapX * (cols - 1)) / cols);
+          const boxH = 58;
+          const svgH = padY * 2 + rows * boxH + Math.max(0, rows - 1) * gapY;
+          svg.setAttribute("viewBox", `0 0 ${svgW} ${svgH}`);
+
+          const pos = {};
+          nodes.forEach((n, i) => {
+            const row = Math.floor(i / cols);
+            const colInRow = i % cols;
+            // Serpentine ordering on odd rows so arrows flow naturally without crossing
+            const col = row % 2 === 1 ? cols - 1 - colInRow : colInRow;
+            pos[n.id] = {
+              x: padX + col * (boxW + gapX),
+              y: padY + row * (boxH + gapY),
+              w: boxW,
+              h: boxH
+            };
+          });
+
+          let svgMarkup = `
+            <defs>
+              <marker id="vd-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+              </marker>
+            </defs>`;
+
+          // Render Numbered Edges
+          edges.forEach((e, idx) => {
+            const a = pos[e.from];
+            const b = pos[e.to];
+            if (!a || !b) return;
+            const ax = a.x + a.w / 2;
+            const ay = a.y + a.h / 2;
+            const bx = b.x + b.w / 2;
+            const by = b.y + b.h / 2;
+
+            let x1 = ax, y1 = ay, x2 = bx, y2 = by;
+            if (Math.abs(ay - by) < 10) {
+              // Same row horizontal edge
+              if (bx > ax) {
+                x1 = a.x + a.w;
+                x2 = b.x - 4;
+              } else {
+                x1 = a.x;
+                x2 = b.x + b.w + 4;
+              }
+            } else {
+              // Vertical transition between rows
+              y1 = by > ay ? a.y + a.h : a.y;
+              y2 = by > ay ? b.y - 4 : b.y + b.h + 4;
+            }
+
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            const edgeColor = e.risk === "high" ? "#fb7185" : e.risk === "medium" ? "#fbbf24" : "#38bdf8";
+
+            svgMarkup += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${edgeColor}" stroke-width="1.8" marker-end="url(#vd-arrow)" />`;
+            svgMarkup += `<circle cx="${mx}" cy="${my}" r="8.5" fill="#0b0f17" stroke="${edgeColor}" stroke-width="1.5" />`;
+            svgMarkup += `<text x="${mx}" y="${my + 3.5}" text-anchor="middle" fill="#f0f6fc" font-size="9.5" font-weight="800">${escapeHtml(e.stepNumber || idx + 1)}</text>`;
+          });
+
+          // Render Nodes
+          nodes.forEach((n) => {
+            const p = pos[n.id];
+            const isSelected = selectedNodeId === n.id;
+            const riskColor =
+              n.risk === "high" ? "#fb7185" : n.risk === "medium" ? "#fbbf24" : n.status === "active" ? "#38bdf8" : "#34d399";
+            const fill = isSelected ? "rgba(56,189,248,0.16)" : "#131a26";
+            const strokeW = isSelected ? "2.4" : "1.5";
+            const shortTitle = String(n.label || "").slice(0, cols === 3 ? 16 : 22);
+            const shortSub = String(n.sublabel || n.role || "").slice(0, cols === 3 ? 18 : 26);
+
+            svgMarkup += `
+              <g class="diagram-node-group" data-node-id="${escapeHtml(n.id)}">
+                <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${fill}" stroke="${riskColor}" stroke-width="${strokeW}" />
+                <text x="${p.x + 9}" y="${p.y + 20}" fill="#f0f6fc" font-size="11.2" font-weight="800">${escapeHtml(shortTitle)}</text>
+                <text x="${p.x + 9}" y="${p.y + 35}" fill="#9ba7b8" font-size="9.8">${escapeHtml(shortSub)}</text>
+                <text x="${p.x + 9}" y="${p.y + 49}" fill="${riskColor}" font-size="8.8" font-weight="700">${escapeHtml((n.risk || "low").toUpperCase())}${n.file ? " · FILE" : ""}</text>
+              </g>`;
+          });
+
+          svg.innerHTML = svgMarkup;
+
+          const inspectNode = (node) => {
+            selectedNodeId = node.id;
+            const bar = document.getElementById("nodeInspectorBar");
+            bar.innerHTML = `
+              <span><strong>${escapeHtml(node.label)}</strong> · ${escapeHtml(node.role || "Step")} · Risk: <strong style="color:${
+              node.risk === "high" ? "var(--danger)" : node.risk === "medium" ? "var(--warning)" : "var(--success)"
+            }">${escapeHtml((node.risk || "low").toUpperCase())}</strong>${
+              node.file ? ` · <code>${escapeHtml(node.file)}</code>` : ""
+            }</span>`;
+            renderInteractiveDiagram(debrief);
+          };
+
+          svg.querySelectorAll(".diagram-node-group").forEach((g) => {
+            g.addEventListener("click", () => {
+              const nid = g.getAttribute("data-node-id");
+              const found = nodes.find((n) => n.id === nid);
+              if (found) inspectNode(found);
+            });
+          });
+
+          // Synced Risk-Coded File Legend Chips
+          const filesStrip = document.getElementById("touchedFilesStrip");
+          filesStrip.innerHTML = files
+            .map((f, idx) => {
+              const matchedNode = nodes.find((n) => n.file === f.path || n.label === f.shortName);
+              const activeCls = matchedNode && selectedNodeId === matchedNode.id ? "selected" : "";
+              return `
+                <button class="file-badge risk-${escapeHtml(f.risk || "low")} ${activeCls}" data-fidx="${idx}" title="${escapeHtml(f.path)}">
+                  <span>${escapeHtml(f.icon || "📄")}</span>
+                  <span>${escapeHtml(f.shortName || f.path)}</span>
+                  <span class="file-role-tag">· ${escapeHtml((f.risk || "low").toUpperCase())}</span>
+                </button>`;
+            })
+            .join("");
+
+          filesStrip.querySelectorAll(".file-badge").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const f = files[Number(btn.getAttribute("data-fidx"))];
+              if (!f) return;
+              const matchedNode = nodes.find((n) => n.file === f.path || n.label === f.shortName);
+              if (matchedNode) {
+                inspectNode(matchedNode);
+              } else {
+                document.getElementById("nodeInspectorBar").innerHTML =
+                  `<span><strong>${escapeHtml(f.shortName)}</strong> · ${escapeHtml(f.role)} · Risk: <strong>${escapeHtml((f.risk || "low").toUpperCase())}</strong> · <code>${escapeHtml(f.path)}</code></span>`;
+              }
+            });
+          });
+        }
+
+        function renderProofStrip(elId, claims) {
+          const el = document.getElementById(elId);
+          const list = Array.isArray(claims) ? claims : [];
+          if (!list.length) {
+            el.innerHTML = "";
+            return;
+          }
+          el.innerHTML = list
+            .map((p) => {
+              const icon = p.status === "verified" ? "✅" : p.status === "unverified" ? "❌" : "ℹ️";
+              return `<div class="proof-item"><span>${icon}</span><span><strong>${escapeHtml(p.claim)}</strong> <span class="proof-evidence">(${escapeHtml(p.evidence)})</span></span></div>`;
+            })
+            .join("");
+        }
+
+        function renderOversightBlock(elId, debrief) {
+          const el = document.getElementById(elId);
+          const audit = Array.isArray(debrief.uncertaintyAudit) ? debrief.uncertaintyAudit : [];
+          const checks = Array.isArray(debrief.verificationChecklist) ? debrief.verificationChecklist : [];
+          let html = "";
+
+          if (audit.length > 0) {
+            html += `<div class="oversight-label">⚠️ Least Certain / Watch Out</div>`;
+            html += audit
+              .map(
+                (u, i) => `
+                <div class="audit-row">
+                  <div>
+                    <span class="pill ${u.riskLevel === "high" ? "pill-bug" : u.riskLevel === "medium" ? "pill-warning" : "pill-success"}" style="margin-right:4px;">${escapeHtml(String(u.riskLevel || "med").toUpperCase())}</span>
+                    <strong>${escapeHtml(u.area)}:</strong> <span style="color:var(--text-secondary);">${escapeHtml(u.reason)}</span>
+                  </div>
+                  <button class="mini-promote-btn btn-promote-audit" data-aidx="${i}" title="Turn this into a Lesson Learned">💡→Rule</button>
+                </div>`
+              )
+              .join("");
+          }
+
+          if (checks.length > 0) {
+            html += `<div class="oversight-label" style="margin-top:8px;">☑️ Quick Verify Checklist</div>`;
+            html += checks
+              .map(
+                (c) => `
+                <div class="check-row">
+                  <label class="check-label">
+                    <input type="checkbox" class="chk-verify-box" data-cid="${escapeHtml(c.id)}" ${c.checked ? "checked" : ""} />
+                    <span class="${c.checked ? "check-done" : ""}">${escapeHtml(c.text)} <span class="proof-evidence">(${escapeHtml(c.source || "check")})</span></span>
+                  </label>
+                </div>`
+              )
+              .join("");
+          }
+
+          el.innerHTML = html;
+
+          el.querySelectorAll(".chk-verify-box").forEach((box) => {
+            box.addEventListener("change", async () => {
+              const checkId = box.getAttribute("data-cid");
+              try {
+                const res = await callServerTool("vibe_debrief_toggle_check", {
+                  checkId,
+                  checked: box.checked
+                });
+                if (res && res.structuredContent) renderPanelState(res.structuredContent);
+              } catch {}
+            });
+          });
+
+          el.querySelectorAll(".btn-promote-audit").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const u = audit[Number(btn.getAttribute("data-aidx"))];
+              if (!u) return;
+              document.getElementById("customLessonForm").style.display = "block";
+              document.getElementById("customLessonTitle").value = `Double-check ${u.area}`;
+              document.getElementById("customLessonSummary").value = u.reason;
+              document.getElementById("customLessonForm").scrollIntoView({ behavior: "smooth", block: "nearest" });
+            });
+          });
         }
 
         function renderActiveDebrief(debrief, activePersonaObj) {
           const isBug = debrief.responseType === "bug";
 
-          // Update Mode buttons
-          const btnBug = document.getElementById("btnModeBug");
-          const btnImpl = document.getElementById("btnModeImpl");
-          btnBug.className = "mode-btn" + (isBug ? " active-bug" : "");
-          btnImpl.className = "mode-btn" + (!isBug ? " active-impl" : "");
+          document.getElementById("btnModeBug").className = "mode-btn" + (isBug ? " active-bug" : "");
+          document.getElementById("btnModeImpl").className = "mode-btn" + (!isBug ? " active-impl" : "");
 
-          // Hero pills
           const modePill = document.getElementById("activeModePill");
           modePill.className = "pill " + (isBug ? "pill-bug" : "pill-impl");
-          modePill.textContent = isBug ? "🐛 BUG / ERROR FIX" : "🚀 IMPLEMENTATION";
+          modePill.textContent = isBug ? "🐛 BUG FIX" : "🚀 IMPLEMENTATION";
 
-          const personaPill = document.getElementById("activePersonaPill");
-          personaPill.textContent = activePersonaObj.badge || "🧑‍💻 Vibe Mentor";
+          document.getElementById("activePersonaPill").textContent = activePersonaObj.badge || "🧑‍💻 Vibe Mentor";
+
+          const metrics = debrief.ste100Metrics || { estimatedReadSeconds: 30, grade: "STE-80", score: 85 };
+          document.getElementById("steMetricsPill").textContent =
+            `📖 ~${metrics.estimatedReadSeconds}s · ${metrics.grade} (${metrics.score}%)`;
+
+          // Complexity Pill — only shows Explainer trigger when complex!
+          const complexity = debrief.complexity || { level: "simple" };
+          const hasScenes = Array.isArray(debrief.explainerScenes) && debrief.explainerScenes.length > 0;
+          const compPill = document.getElementById("complexityPill");
+          if (complexity.level === "complex" || hasScenes) {
+            compPill.style.display = "inline-flex";
+            compPill.className = "pill pill-warning pill-clickable";
+            compPill.textContent = "🧩 Complex · ▶ Explainer";
+            compPill.title = complexity.reason || "Complex workflow — click to play animated explainer";
+            compPill.onclick = () => switchTab("explainer");
+          } else {
+            compPill.style.display = "none";
+          }
 
           document.getElementById("debriefTimestamp").textContent = debrief.createdAt
             ? new Date(debrief.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -1104,38 +1620,8 @@
           document.getElementById("realWorldAnalogy").textContent =
             debrief.realWorldAnalogy || "";
 
-          // Visual Flowchart
-          const flowGrid = document.getElementById("visualFlowGrid");
-          const flowSteps = Array.isArray(debrief.visualFlow) ? debrief.visualFlow : [];
-          flowGrid.innerHTML = flowSteps
-            .map(
-              (node, i) => `
-              <div class="flow-node status-${escapeHtml(node.status || "done")}">
-                <div class="flow-node-top">
-                  <span>${escapeHtml(node.icon || "✨")}</span>
-                  <span class="flow-step-num">STEP ${escapeHtml(node.step || i + 1)}</span>
-                </div>
-                <div class="flow-node-title">${escapeHtml(node.title || "")}</div>
-                <div class="flow-node-sub">${escapeHtml(node.subtitle || "")}</div>
-              </div>`
-            )
-            .join("");
-
-          // Touched Files
-          const files = Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [];
-          document.getElementById("touchedFilesCountLabel").textContent =
-            files.length === 1 ? "1 file touched" : `${files.length} files touched`;
-          const filesStrip = document.getElementById("touchedFilesStrip");
-          filesStrip.innerHTML = files
-            .map(
-              (f) => `
-              <span class="file-badge" title="${escapeHtml(f.path)}">
-                <span>${escapeHtml(f.icon || "📄")}</span>
-                <span>${escapeHtml(f.shortName || f.path)}</span>
-                <span class="file-role-tag">· ${escapeHtml(f.role || "File")}</span>
-              </span>`
-            )
-            .join("");
+          // Always-On Interactive SVG Diagram
+          renderInteractiveDiagram(debrief);
 
           // Toggle Bug vs Implementation sections
           document.getElementById("bugStoryboardSection").style.display = isBug ? "block" : "none";
@@ -1172,20 +1658,24 @@
             pill.textContent = "Partial / Check";
           }
           document.getElementById("bugSuccessSummaryText").textContent = bug.successSummary || "";
+          renderProofStrip("bugProofStrip", debrief.proofClaims);
           document.getElementById("bugConsequencesText").textContent = bug.consequences || "N/A";
+          renderOversightBlock("bugOversightBlock", debrief);
 
           // Populate Implementation section
           const imp = debrief.implementationReport || {};
           document.getElementById("implObjectiveText").textContent = imp.objective || "N/A";
           document.getElementById("implPlanWhyText").textContent = imp.planAndWhy || "N/A";
           document.getElementById("implResultText").textContent = imp.result || "N/A";
+          renderProofStrip("implProofStrip", debrief.proofClaims);
           document.getElementById("implConsequencesText").textContent = imp.consequences || "N/A";
+          renderOversightBlock("implOversightBlock", debrief);
 
           // Populate Lessons Learned
           const lessons = Array.isArray(debrief.lessonsLearned) ? debrief.lessonsLearned : [];
           const container = document.getElementById("lessonsListContainer");
           if (lessons.length === 0) {
-            container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 6px 0;">No specific new lessons flagged on this turn — click <b>➕ Add Lesson</b> above to record one to ZCode Memory.</div>`;
+            container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 6px 0;">No new lessons flagged — click <b>➕ Add Lesson</b> or <b>💡→Rule</b> above to save one.</div>`;
           } else {
             container.innerHTML = lessons
               .map(
@@ -1199,8 +1689,8 @@
                   </div>
                   <div class="lesson-summary">${escapeHtml(l.summary)}</div>
                   <div class="lesson-meta-box">
-                    <div><b>Why it matters:</b> ${escapeHtml(l.why || "Prevents repeat mistakes across projects.")}</div>
-                    <div style="margin-top: 3px;"><b>How to apply:</b> ${escapeHtml(l.howToApply || "Apply automatically in future sessions.")}</div>
+                    <div><b>Why:</b> ${escapeHtml(l.why || "Prevents repeat mistakes.")}</div>
+                    <div style="margin-top: 2px;"><b>How to apply:</b> ${escapeHtml(l.howToApply || "Apply automatically in future sessions.")}</div>
                   </div>
                   <div class="lesson-actions">
                     <button class="btn ${l.confirmed ? "" : "btn-success"} btn-confirm-lesson" data-idx="${idx}">
@@ -1213,8 +1703,7 @@
 
             container.querySelectorAll(".btn-confirm-lesson").forEach((btn) => {
               btn.addEventListener("click", async () => {
-                const idx = Number(btn.getAttribute("data-idx"));
-                const lesson = lessons[idx];
+                const lesson = lessons[Number(btn.getAttribute("data-idx"))];
                 if (!lesson) return;
                 try {
                   const res = await callServerTool("vibe_debrief_confirm_lesson", {
@@ -1238,6 +1727,218 @@
           }
         }
 
+        // =====================================================================
+        // RUNG 4: Complex-Only 3b1b-Style Animated Explainer Player
+        // =====================================================================
+
+        function stopExplainerPlayback() {
+          playerState.playing = false;
+          if (playerState.rafId) cancelAnimationFrame(playerState.rafId);
+          if (playerState.sceneTimer) clearTimeout(playerState.sceneTimer);
+          playerState.rafId = null;
+          playerState.sceneTimer = null;
+          if (window.speechSynthesis) {
+            try {
+              window.speechSynthesis.cancel();
+            } catch {}
+          }
+          const btn = document.getElementById("btnExplainerPlay");
+          if (btn) btn.textContent = "▶ Play";
+        }
+
+        function speakScene(text) {
+          if (!playerState.voiceEnabled || !window.speechSynthesis || !text) return;
+          try {
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.rate = playerState.speed || 1;
+            window.speechSynthesis.speak(utter);
+          } catch {}
+        }
+
+        function drawExplainerFrame() {
+          const canvas = document.getElementById("explainerCanvas");
+          if (!canvas || !currentState?.currentDebrief) return;
+          const ctx = canvas.getContext("2d");
+          const debrief = currentState.currentDebrief;
+          const scenes = debrief.explainerScenes || [];
+          const diagram = debrief.diagram || { nodes: [], edges: [] };
+          const nodes = diagram.nodes || [];
+          const sc = scenes[playerState.sceneIndex] || scenes[0];
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+          // 3b1b dark blueprint grid
+          ctx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+          ctx.lineWidth = 1;
+          for (let gx = 0; gx < canvas.width; gx += 30) {
+            ctx.beginPath();
+            ctx.moveTo(gx, 0);
+            ctx.lineTo(gx, canvas.height);
+            ctx.stroke();
+          }
+          for (let gy = 0; gy < canvas.height; gy += 30) {
+            ctx.beginPath();
+            ctx.moveTo(0, gy);
+            ctx.lineTo(canvas.width, gy);
+            ctx.stroke();
+          }
+
+          if (!sc) return;
+          const hi = new Set(sc.highlightNodeIds || []);
+          const count = Math.max(1, nodes.length);
+          const margin = 26;
+          const gap = 22;
+          const nw = Math.min(130, Math.floor((canvas.width - margin * 2 - gap * (count - 1)) / count));
+          const totalW = nw * count + gap * (count - 1);
+          const startX = Math.floor((canvas.width - totalW) / 2);
+          const ny = 84;
+          const nh = 78;
+
+          // Edges + Animated Data Pulse
+          for (let i = 0; i < count - 1; i++) {
+            const x1 = startX + i * (nw + gap) + nw;
+            const x2 = x1 + gap;
+            const cy = ny + nh / 2;
+            ctx.strokeStyle = "#2a354b";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x1, cy);
+            ctx.lineTo(x2, cy);
+            ctx.stroke();
+
+            if (playerState.playing) {
+              const prog = ((playerState.tick * playerState.speed) % 60) / 60;
+              const px = x1 + prog * gap;
+              ctx.fillStyle = "#38bdf8";
+              ctx.beginPath();
+              ctx.arc(px, cy, 4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          }
+
+          // Nodes
+          nodes.forEach((n, i) => {
+            const nx = startX + i * (nw + gap);
+            const isActive = hi.has(n.id);
+            const accent = sc.visualType === "audit-warning" && n.risk === "high" ? "#fb7185" : "#38bdf8";
+            ctx.fillStyle = isActive ? "rgba(56, 189, 248, 0.2)" : "#131a26";
+            ctx.strokeStyle = isActive ? accent : "#2a354b";
+            ctx.lineWidth = isActive ? 2.8 : 1.4;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(nx, ny, nw, nh, 8);
+            } else {
+              ctx.rect(nx, ny, nw, nh);
+            }
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = "#f0f6fc";
+            ctx.font = "bold 11px sans-serif";
+            ctx.fillText(String(n.label || "").slice(0, 15), nx + 8, ny + 26);
+
+            ctx.fillStyle = "#9ba7b8";
+            ctx.font = "10px sans-serif";
+            ctx.fillText(String(n.sublabel || "").slice(0, 17), nx + 8, ny + 44);
+
+            ctx.fillStyle = n.risk === "high" ? "#fb7185" : n.risk === "medium" ? "#fbbf24" : "#34d399";
+            ctx.font = "bold 9px sans-serif";
+            ctx.fillText(String(n.risk || "low").toUpperCase(), nx + 8, ny + 64);
+          });
+
+          // Title & Callout
+          ctx.fillStyle = "#fbbf24";
+          ctx.font = "bold 13px sans-serif";
+          ctx.fillText(String(sc.title || ""), 20, 32);
+
+          if (sc.callout) {
+            ctx.fillStyle = "#38bdf8";
+            ctx.font = "11px sans-serif";
+            ctx.fillText("→ " + String(sc.callout).slice(0, 74), 20, 52);
+          }
+
+          // Timeline bar
+          const pct = scenes.length ? (playerState.sceneIndex + 1) / scenes.length : 1;
+          ctx.fillStyle = "#1c2536";
+          ctx.fillRect(20, 214, canvas.width - 40, 6);
+          ctx.fillStyle = "#38bdf8";
+          ctx.fillRect(20, 214, Math.floor((canvas.width - 40) * pct), 6);
+        }
+
+        function renderExplainerTab(debrief) {
+          const scenes = Array.isArray(debrief.explainerScenes) ? debrief.explainerScenes : [];
+          const isComplex = debrief.complexity?.level === "complex" || scenes.length > 0;
+          const tabBtn = document.getElementById("tabBtnExplainer");
+          tabBtn.style.display = isComplex && scenes.length > 0 ? "inline-flex" : "none";
+
+          if (!isComplex || scenes.length === 0) {
+            stopExplainerPlayback();
+            return;
+          }
+
+          if (playerState.sceneIndex >= scenes.length) {
+            playerState.sceneIndex = 0;
+          }
+
+          const pillsEl = document.getElementById("explainerScenePills");
+          pillsEl.innerHTML = scenes
+            .map(
+              (s, idx) =>
+                `<button class="scene-pill ${idx === playerState.sceneIndex ? "active" : ""}" data-sidx="${idx}">${escapeHtml(s.title)}</button>`
+            )
+            .join("");
+
+          pillsEl.querySelectorAll(".scene-pill").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              playerState.sceneIndex = Number(btn.getAttribute("data-sidx"));
+              renderExplainerTab(debrief);
+              if (playerState.playing) {
+                speakScene(scenes[playerState.sceneIndex]?.narration);
+              }
+            });
+          });
+
+          const activeScene = scenes[playerState.sceneIndex] || scenes[0];
+          document.getElementById("explainerSceneTitle").textContent =
+            `${activeScene.title} (${playerState.sceneIndex + 1}/${scenes.length})`;
+          document.getElementById("explainerSceneNarration").textContent =
+            activeScene.narration || "";
+
+          document.getElementById("plainTextScriptBox").textContent =
+            scenes.map((s, i) => `[Scene ${i + 1} · ${s.durationSec || 7}s] ${s.title}\n${s.narration}`).join("\n\n");
+
+          drawExplainerFrame();
+        }
+
+        function advanceSceneLoop() {
+          const scenes = currentState?.currentDebrief?.explainerScenes || [];
+          if (!playerState.playing || !scenes.length) return;
+          const cur = scenes[playerState.sceneIndex] || scenes[0];
+          const durMs = Math.max(2500, ((cur.durationSec || 7) * 1000) / (playerState.speed || 1));
+
+          speakScene(cur.narration);
+
+          playerState.sceneTimer = setTimeout(() => {
+            if (!playerState.playing) return;
+            if (playerState.sceneIndex + 1 < scenes.length) {
+              playerState.sceneIndex += 1;
+              renderExplainerTab(currentState.currentDebrief);
+              advanceSceneLoop();
+            } else {
+              stopExplainerPlayback();
+              renderExplainerTab(currentState.currentDebrief);
+            }
+          }, durMs);
+        }
+
+        function startCanvasAnimationLoop() {
+          if (!playerState.playing) return;
+          playerState.tick += 1;
+          drawExplainerFrame();
+          playerState.rafId = requestAnimationFrame(startCanvasAnimationLoop);
+        }
+
         function renderMemoryBank(state) {
           const confirmed = Array.isArray(state.confirmedLessons) ? state.confirmedLessons : [];
           document.getElementById("memoryCountBadge").textContent = String(confirmed.length);
@@ -1249,7 +1950,7 @@
 
           const listEl = document.getElementById("confirmedLessonsBankList");
           if (confirmed.length === 0) {
-            listEl.innerHTML = `<div style="font-size: 12px; color: var(--text-muted);">No lessons confirmed in this workspace yet. Confirm a lesson in the Visual Debrief tab to persist it to ZCode Memory.</div>`;
+            listEl.innerHTML = `<div style="font-size: 12px; color: var(--text-muted);">No lessons confirmed in this workspace yet.</div>`;
             return;
           }
           listEl.innerHTML = confirmed
@@ -1280,10 +1981,13 @@
             .map(
               (h, idx) => `
               <div class="history-item" data-hidx="${idx}">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                  <span class="pill ${h.responseType === "bug" ? "pill-bug" : "pill-impl"}">
-                    ${h.responseType === "bug" ? "🐛 Bug Fix" : "🚀 Implementation"}
-                  </span>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px;">
+                  <div style="display: flex; gap: 5px; align-items: center;">
+                    <span class="pill ${h.responseType === "bug" ? "pill-bug" : "pill-impl"}">
+                      ${h.responseType === "bug" ? "🐛 Bug Fix" : "🚀 Implementation"}
+                    </span>
+                    ${h.complexity?.level === "complex" ? '<span class="pill pill-warning">🧩 Complex</span>' : ""}
+                  </div>
                   <span style="font-size: 10.5px; color: var(--text-muted);">
                     ${h.createdAt ? new Date(h.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
                   </span>
@@ -1295,9 +1999,10 @@
 
           container.querySelectorAll(".history-item").forEach((el) => {
             el.addEventListener("click", () => {
-              const idx = Number(el.getAttribute("data-hidx"));
-              const item = history[idx];
+              const item = history[Number(el.getAttribute("data-hidx"))];
               if (!item || !currentState) return;
+              selectedNodeId = null;
+              stopExplainerPlayback();
               currentState.currentDebrief = item;
               renderPanelState(currentState);
               switchTab("storyboard");
@@ -1306,21 +2011,23 @@
         }
 
         function switchTab(tabId) {
+          if (tabId !== "explainer") stopExplainerPlayback();
           document.querySelectorAll(".tab-btn").forEach((b) => {
             b.classList.toggle("active", b.getAttribute("data-tab") === tabId);
           });
-          ["storyboard", "memory", "history"].forEach((id) => {
+          ["storyboard", "explainer", "memory", "history"].forEach((id) => {
             const sec = document.getElementById("tab-" + id);
             if (sec) sec.style.display = id === tabId ? "block" : "none";
           });
+          if (tabId === "explainer") drawExplainerFrame();
         }
 
-        // Wire Tab buttons
+        // Wire Tabs
         document.querySelectorAll(".tab-btn").forEach((btn) => {
           btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
         });
 
-        // Wire Mode Switcher buttons
+        // Wire Mode Switcher
         document.getElementById("btnModeBug").addEventListener("click", async () => {
           try {
             const res = await callServerTool("vibe_debrief_set_persona", { responseType: "bug" });
@@ -1335,13 +2042,91 @@
           } catch {}
         });
 
-        // Wire Refresh button
+        // Wire STE-80 Toggle
+        document.getElementById("btnToggleSte100").addEventListener("click", async () => {
+          const next = currentState?.ste100Enabled === false;
+          try {
+            const res = await callServerTool("vibe_debrief_set_persona", { ste100Enabled: next });
+            if (res && res.structuredContent) {
+              renderPanelState(res.structuredContent);
+              showToast(next ? "✂️ STE-80 Clarity Filter ON" : "✂️ STE-80 Clarity Filter OFF");
+            }
+          } catch {}
+        });
+
+        // Wire Refresh
         document.getElementById("btnRefresh").addEventListener("click", () => {
           refreshState();
           showToast("🔄 Synced latest Vibe Debrief state");
         });
 
-        // Wire "AI Explain" button to route ELI5 refresh through the selected lightweight Gemini model
+        // Wire Standalone HTML Export
+        document.getElementById("btnExportHtml").addEventListener("click", async () => {
+          try {
+            const res = await callServerTool("vibe_debrief_export_html", {});
+            const art = res?.structuredContent?.exportedArtifact;
+            if (art?.fileName) {
+              showToast(`🌐 Saved ${art.fileName} to .zcode/vibe-debrief-artifacts/`);
+            } else {
+              showToast("🌐 Exported standalone HTML explainer!");
+            }
+          } catch (err) {
+            showToast("⚠️ HTML export failed: " + err.message);
+          }
+        });
+
+        // Wire Explainer Controls
+        document.getElementById("btnExplainerPlay").addEventListener("click", () => {
+          if (playerState.playing) {
+            stopExplainerPlayback();
+          } else {
+            playerState.playing = true;
+            document.getElementById("btnExplainerPlay").textContent = "⏸ Pause";
+            startCanvasAnimationLoop();
+            advanceSceneLoop();
+          }
+        });
+
+        document.getElementById("btnExplainerPrev").addEventListener("click", () => {
+          const scenes = currentState?.currentDebrief?.explainerScenes || [];
+          if (!scenes.length) return;
+          stopExplainerPlayback();
+          playerState.sceneIndex = (playerState.sceneIndex - 1 + scenes.length) % scenes.length;
+          renderExplainerTab(currentState.currentDebrief);
+        });
+
+        document.getElementById("btnExplainerNext").addEventListener("click", () => {
+          const scenes = currentState?.currentDebrief?.explainerScenes || [];
+          if (!scenes.length) return;
+          stopExplainerPlayback();
+          playerState.sceneIndex = (playerState.sceneIndex + 1) % scenes.length;
+          renderExplainerTab(currentState.currentDebrief);
+        });
+
+        document.getElementById("explainerSpeedSelect").addEventListener("change", (e) => {
+          playerState.speed = Number(e.target.value) || 1;
+        });
+
+        document.getElementById("btnExplainerVoice").addEventListener("click", () => {
+          playerState.voiceEnabled = !playerState.voiceEnabled;
+          const btn = document.getElementById("btnExplainerVoice");
+          btn.textContent = playerState.voiceEnabled ? "🔊 Voice On" : "🔇 Voice Off";
+          if (!playerState.voiceEnabled && window.speechSynthesis) {
+            try { window.speechSynthesis.cancel(); } catch {}
+          }
+        });
+
+        document.getElementById("btnCopyScript").addEventListener("click", async () => {
+          const txt = document.getElementById("plainTextScriptBox").textContent || "";
+          try {
+            await navigator.clipboard.writeText(txt);
+            showToast("📋 Narration script copied for verification!");
+          } catch {
+            showToast("⚠️ Clipboard unavailable in this view.");
+          }
+        });
+
+        // Wire "AI Explain" Reading-Boundary Delegation
         document.getElementById("btnAskAiExplain").addEventListener("click", async () => {
           const persona = currentState?.activePersona || "vibe-mentor";
           const mode = currentState?.currentDebrief?.responseType || "implementation";
@@ -1353,9 +2138,11 @@
           const lastAssistSnippet = String(currentState?.lastAssistantMessage || "").slice(0, 2200);
 
           const delegatedPrompt = [
-            `Simplify the following turn for a visual learner and beginner/vibe-coding developer (Persona: \`${persona}\`, Mode: \`${mode}\`) and publish it to the Vibe Debrief panel by calling \`vibe_debrief_publish\` (load via \`LocalToolSearch\` if needed):`,
-            `- If it is a **Bug / Error Message** (\`responseType: "bug"\`): explain (1) What was the cause, (2) Plan to fix it, (3) Whether it succeeded, (4) Consequences of this fix, and (5) Lessons learned.`,
-            `- If it is an **Implementation** (\`responseType: "implementation"\`): explain (1) Purpose/objective, (2) Plan/suggested resolution and WHY, (3) Result, and (4) Consequences & lessons learned.`,
+            `Apply Karpathy's reading-boundary comprehension pass for a visual learner (Persona: \`${persona}\`, Mode: \`${mode}\`) and call \`vibe_debrief_publish\`:`,
+            `- Use 80% ASD-STE100 clarity: short active sentences (<= 22 words), plain verbs, zero fluff.`,
+            `- ALWAYS include \`diagram\` (nodes with real file/component names + numbered edges 1..N).`,
+            `- Include \`proofClaims\` (for Card 3), \`uncertaintyAudit\` (1–3 least-certain areas), and \`verificationChecklist\` (for Card 4).`,
+            `- Provide \`explainerScenes\` ONLY if this is a COMPLEX multi-file or multi-layer workflow; omit for simple turns.`,
             lastUserSnippet ? `\nLast User Prompt:\n${lastUserSnippet}` : "",
             lastAssistSnippet ? `\nLast AI Response:\n${lastAssistSnippet}` : ""
           ]
@@ -1364,10 +2151,9 @@
 
           const prompt = [
             `[Vibe Debrief — Deep Refresh]`,
-            `Cost-Aware Smart Action: Do NOT spend an expensive flagship model on this simple ELI5 simplification task.`,
-            `Recommended Lightweight Gemini Model: \`${chosenGemini}\``,
+            `Cost-Aware Reading-Boundary Action: Delegate this comprehension pass to \`${chosenGemini}\`.`,
             `- If this session is already on a lightweight Gemini model, call \`vibe_debrief_publish\` directly now.`,
-            `- Otherwise, delegate this lightweight debrief task in the background via \`ListProjects\` -> \`CreateSession({ project, model: "${chosenGemini}", prompt: ${JSON.stringify(delegatedPrompt)} })\` (do NOT call \`OpenSession\`, so focus stays here).`
+            `- Otherwise, run \`ListProjects\` -> \`CreateSession({ project, model: "${chosenGemini}", prompt: ${JSON.stringify(delegatedPrompt)} })\` (do NOT call \`OpenSession\`).`
           ].join("\n");
 
           try {
@@ -1375,7 +2161,7 @@
               role: "user",
               content: [{ type: "text", text: prompt }]
             });
-            showToast(`⚡ Requested ELI5 refresh via ${chosenGemini.split("/").pop()}!`);
+            showToast(`⚡ Requested reading-boundary refresh via ${chosenGemini.split("/").pop()}!`);
           } catch {
             showToast("⚠️ Could not send message to chat session.");
           }
@@ -1415,17 +2201,17 @@
               document.getElementById("customLessonSummary").value = "";
               document.getElementById("customLessonWhy").value = "";
               document.getElementById("customLessonHow").value = "";
-              showToast("✅ Custom lesson saved directly to ZCode MEMORY.md!");
+              showToast("✅ Lesson saved directly to ZCode MEMORY.md!");
             }
           } catch (err) {
-            showToast("⚠️ Failed to save custom lesson: " + err.message);
+            showToast("⚠️ Failed to save lesson: " + err.message);
           }
         });
 
         async function initMcpApp() {
           try {
             const res = await sendRpcRequest("ui/initialize", {
-              appInfo: { name: "vibe-debrief", version: "0.1.0" },
+              appInfo: { name: "vibe-debrief", version: "0.2.0" },
               appCapabilities: {
                 availableDisplayModes: ["inline", "fullscreen"]
               },

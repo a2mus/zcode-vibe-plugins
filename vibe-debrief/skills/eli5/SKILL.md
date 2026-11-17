@@ -1,23 +1,16 @@
 ---
 name: eli5
-description: Explain the last AI response using a beginner-friendly, visual-learner ELI5 persona for a multi-project vibe-coder and render it in the right-side Vibe Debrief panel (Bug Fix mode: Cause, Plan, Succeeded, Consequences, Lessons; Implementation mode: Purpose/Objective, Plan & Why, Result, Consequences & Lessons).
+description: Explain the last AI response in the right-side Vibe Debrief panel using 80% STE-100 clarity, an always-on interactive SVG diagram, inline proof & uncertainty checks, and complex-only animated walkthrough scenes.
 ---
 
-# ELI5 for Vibe-Coders (Visual Right-Side Panel)
+# ELI5 for Vibe-Coders (Karpathy 4-Rung Panel)
 
-When invoked, simplify the last AI response (or the topic specified in arguments) for a visual learner and developer working across multiple vibe-coded projects:
+When invoked, translate the last AI response (or the topic in arguments) for a visual learner working across multiple vibe-coded projects:
 
-1. Avoid academic jargon that lacks practical return or perspective.
-2. Classify the response as either:
-   - **`bug`** (Shared Bug or Error Message):
-     - What was the cause
-     - What was the plan to fix it
-     - Whether it succeeded
-     - Consequences of this fix
-     - Lessons learned (save any confirmed lesson to ZCode Memory)
-   - **`implementation`** (Feature / Code Implementation):
-     - Purpose or objective of the implementation
-     - Plan or suggested resolution and **why**
-     - Result of the implementation
-     - Consequences and lessons learned (if any; save confirmed lessons to ZCode Memory)
-3. Publish the breakdown to the right-side **Vibe Debrief (ELI5)** panel using `vibe_debrief_publish`.
+1. **STE-80 Clarity:** Short active sentences (<= 22 words), plain verbs, concrete nouns, zero fluff.
+2. **Always-On Diagram:** Build a `diagram` (`nodes` with real component/file names + numbered `edges`) for every response.
+3. **Fused Bug or Implementation View:**
+   - **`bug`**: Cause → Fix Plan → Did It Succeed? (+ `proofClaims`) → Consequences (+ `uncertaintyAudit` & `verificationChecklist`) → Lessons Learned.
+   - **`implementation`**: Objective → Plan & Why → Result (+ `proofClaims`) → Consequences (+ `uncertaintyAudit` & `verificationChecklist`) → Lessons Learned.
+4. **Complex-Only Animation:** Include `explainerScenes` only for complex multi-file or multi-layer workflows.
+5. Publish to the right-side **Vibe Debrief** panel via `vibe_debrief_publish` and save confirmed lessons via `vibe_debrief_confirm_lesson`.

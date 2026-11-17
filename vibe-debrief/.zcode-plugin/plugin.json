@@ -1,11 +1,11 @@
 {
   "name": "vibe-debrief",
-  "version": "0.1.1",
-  "description": "Visual ELI5 right-side panel for vibe-coders and visual learners: simplifies the last AI response into visual Bug Fix or Implementation cards (Cause/Objective, Plan & Why, Result/Success, Consequences, and Lessons Learned) with persona switching and 1-click saving of confirmed lessons to ZCode Memory.",
+  "version": "0.2.0",
+  "description": "Comprehension-first right-side panel for vibe-coders: fuses 80% STE-100 clarity, always-on interactive SVG diagrams, inline proof & uncertainty checks, standalone HTML export, complex-only 3b1b animated explainers, and 1-click ZCode Memory saving.",
   "description_i18n": {
-    "en": "Visual ELI5 right-side panel for vibe-coders and visual learners: simplifies the last AI response into visual Bug Fix or Implementation cards (Cause/Objective, Plan & Why, Result/Success, Consequences, and Lessons Learned) with persona switching and 1-click saving of confirmed lessons to ZCode Memory.",
-    "fr": "Panneau latéral droit ELI5 visuel pour vibe-coders et apprenants visuels : simplifie la dernière réponse IA en cartes visuelles Bug Fix ou Implémentation (Cause/Objectif, Plan & Pourquoi, Résultat/Succès, Conséquences et Leçons Apprises) avec changement de persona et sauvegarde en 1 clic dans la mémoire ZCode.",
-    "zh-CN": "面向视觉学习者与多项目 Vibe 编程开发者的 ELI5 右侧栏插件：将最新 AI 回复精简为可视化 Bug 修复卡片或功能实现卡片（原因/目标、方案与原因、执行结果、影响与经验教训），支持角色切换并将确认的经验一键写入 ZCode 记忆库。"
+    "en": "Comprehension-first right-side panel for vibe-coders: fuses 80% STE-100 clarity, always-on interactive SVG diagrams, inline proof & uncertainty checks, standalone HTML export, complex-only 3b1b animated explainers, and 1-click ZCode Memory saving.",
+    "fr": "Panneau latéral droit axé sur la compréhension : combine clarté STE-80, diagrammes SVG interactifs systématiques, preuves et audit d'incertitude intégrés, export HTML autonome, lecteur animé pour workflows complexes et sauvegarde 1 clic dans la mémoire ZCode.",
+    "zh-CN": "面向视觉学习者与多项目 Vibe 编程开发者的极简理解面板：融合 STE-80 清晰表达、全回合交互式 SVG 流程图、内置证据与不确定性审计、独立 HTML 导出、仅面向复杂流程的动画解说器以及一键写入 ZCode 记忆库。"
   },
   "author": {
     "name": "Vibe Debrief"

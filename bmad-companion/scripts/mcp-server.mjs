@@ -1,4 +1,5 @@
 import { createInterface } from "node:readline";
+import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,155 @@ const PANEL_HTML_PATH = join(PLUGIN_ROOT, "assets", "panel.html");
 const PANEL_URI = "ui://bmad-companion/panel.html";
 const SURFACE_ID = "bmad-companion";
 const HTML_MIME = "text/html;profile=mcp-app";
+
+function runCommandAsync(command, args, { env = process.env, stdinText = null, timeoutMs = 8000 } = {}) {
+  return new Promise((resolvePromise) => {
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
+    const child = spawn(command, args, {
+      env,
+      windowsHide: true,
+      stdio: [stdinText !== null ? "pipe" : "ignore", "pipe", "pipe"]
+    });
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      try {
+        child.kill();
+      } catch {}
+      resolvePromise({ ok: false, code: null, stdout, stderr: stderr || "timeout" });
+    }, timeoutMs);
+
+    child.stdout?.on("data", (d) => {
+      stdout += d.toString();
+    });
+    child.stderr?.on("data", (d) => {
+      stderr += d.toString();
+    });
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolvePromise({ ok: false, code: null, stdout, stderr: err.message });
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolvePromise({ ok: code === 0, code, stdout, stderr });
+    });
+    if (stdinText !== null && child.stdin) {
+      child.stdin.write(stdinText, "utf8");
+      child.stdin.end();
+    }
+  });
+}
+
+async function openNewConversationWithPrompt(promptText, openDirectly = true) {
+  const text = String(promptText || "");
+  if (!text) {
+    return { copied: false, openedDirectly: false, pasted: false, method: "none", error: "empty_prompt" };
+  }
+
+  if (process.platform === "win32") {
+    const psScript = [
+      "$ErrorActionPreference = 'Stop'",
+      "Add-Type -AssemblyName System.Windows.Forms",
+      "$raw = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:BMAD_PROMPT_B64))",
+      "[System.Windows.Forms.Clipboard]::SetDataObject($raw, $true, 5, 50)",
+      "if ($env:BMAD_OPEN_DIRECTLY -eq '1') {",
+      "  Start-Sleep -Milliseconds 75",
+      "  [System.Windows.Forms.SendKeys]::SendWait('^n')",
+      "  Start-Sleep -Milliseconds 500",
+      "  [System.Windows.Forms.SendKeys]::SendWait('^v')",
+      "}"
+    ].join("; ");
+
+    const res = await runCommandAsync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-STA", "-Command", psScript],
+      {
+        env: {
+          ...process.env,
+          BMAD_PROMPT_B64: Buffer.from(text, "utf8").toString("base64"),
+          BMAD_OPEN_DIRECTLY: openDirectly ? "1" : "0"
+        },
+        timeoutMs: 8000
+      }
+    );
+    if (res.ok) {
+      return {
+        copied: true,
+        openedDirectly: Boolean(openDirectly),
+        pasted: Boolean(openDirectly),
+        method: openDirectly ? "win32-sendkeys-ctrl-n-v" : "win32-clipboard"
+      };
+    }
+    return {
+      copied: false,
+      openedDirectly: false,
+      pasted: false,
+      method: "win32-failed",
+      error: res.stderr.trim() || `exit_${res.code}`
+    };
+  }
+
+  if (process.platform === "darwin") {
+    const copyRes = await runCommandAsync("pbcopy", [], { stdinText: text, timeoutMs: 3000 });
+    if (!copyRes.ok) {
+      return { copied: false, openedDirectly: false, pasted: false, method: "darwin-pbcopy-failed", error: copyRes.stderr.trim() };
+    }
+    if (!openDirectly) {
+      return { copied: true, openedDirectly: false, pasted: false, method: "darwin-clipboard" };
+    }
+    const osaRes = await runCommandAsync(
+      "osascript",
+      [
+        "-e", 'tell application "System Events" to keystroke "n" using command down',
+        "-e", "delay 0.5",
+        "-e", 'tell application "System Events" to keystroke "v" using command down'
+      ],
+      { timeoutMs: 6000 }
+    );
+    return {
+      copied: true,
+      openedDirectly: osaRes.ok,
+      pasted: osaRes.ok,
+      method: osaRes.ok ? "darwin-osascript-cmd-n-v" : "darwin-clipboard-only",
+      ...(osaRes.ok ? {} : { error: osaRes.stderr.trim() })
+    };
+  }
+
+  // Linux best-effort clipboard + xdotool
+  let copied = false;
+  for (const [cmd, args] of [
+    ["wl-copy", []],
+    ["xclip", ["-selection", "clipboard"]],
+    ["xsel", ["--clipboard", "--input"]]
+  ]) {
+    const r = await runCommandAsync(cmd, args, { stdinText: text, timeoutMs: 2500 });
+    if (r.ok) {
+      copied = true;
+      break;
+    }
+  }
+  if (!copied || !openDirectly) {
+    return { copied, openedDirectly: false, pasted: false, method: copied ? "linux-clipboard" : "linux-unsupported" };
+  }
+  const nRes = await runCommandAsync("xdotool", ["key", "--clearmodifiers", "ctrl+n"], { timeoutMs: 2500 });
+  if (!nRes.ok) {
+    return { copied: true, openedDirectly: false, pasted: false, method: "linux-clipboard-only", error: nRes.stderr.trim() };
+  }
+  await new Promise((r) => setTimeout(r, 500));
+  const vRes = await runCommandAsync("xdotool", ["key", "--clearmodifiers", "ctrl+v"], { timeoutMs: 2500 });
+  return {
+    copied: true,
+    openedDirectly: true,
+    pasted: vRes.ok,
+    method: vRes.ok ? "linux-xdotool-ctrl-n-v" : "linux-xdotool-ctrl-n-only"
+  };
+}
 
 function getWorkspaceRoot() {
   return resolve(
@@ -202,23 +352,27 @@ const TOOLS = [
   {
     name: "bmad_prepare_new_session",
     description:
-      "Record a request from the BMAD Companion panel to launch a next BMAD prompt in a new session with its recommended AI model.",
+      "Copy a BMAD prompt to the clipboard and directly open a new ZCode conversation with the prompt pre-pasted in the composer (without running anything in the current session).",
     inputSchema: {
       type: "object",
       properties: {
         prompt: {
           type: "string",
-          description: "The full /bmad-<skill> \"<prompt>\" command to run in the new session."
+          description: "The full /bmad-<skill> \"<prompt>\" command to pre-paste into the new conversation."
         },
         model: {
           type: "string",
-          description: "The recommended model ID (providerId/modelId) for the new session."
+          description: "The recommended model ID (providerId/modelId) for the new conversation."
         },
         skill: {
           type: "string"
         },
         title: {
           type: "string"
+        },
+        openDirectly: {
+          type: "boolean",
+          description: "If true (default), directly trigger New Task (Ctrl/Cmd+N) and paste (Ctrl/Cmd+V) into the new conversation composer."
         }
       },
       required: ["prompt", "model"],
@@ -386,6 +540,7 @@ async function handleToolCall(name, args = {}) {
   }
 
   if (name === "bmad_prepare_new_session") {
+    const openDirectly = args.openDirectly !== false;
     const launchRecord = {
       prompt: String(args.prompt || ""),
       model: String(args.model || ""),
@@ -396,14 +551,22 @@ async function handleToolCall(name, args = {}) {
     savePersistedState(workspaceRoot, {
       lastLaunchedSession: launchRecord
     });
+    const launchStatus = await openNewConversationWithPrompt(launchRecord.prompt, openDirectly);
     return {
       content: [
         {
           type: "text",
-          text: `Prepared new session launch with model ${launchRecord.model} and prompt: ${launchRecord.prompt}`
+          text: launchStatus.openedDirectly && launchStatus.pasted
+            ? `Opened a new conversation with prompt pre-pasted (recommended model: ${launchRecord.model}).`
+            : launchStatus.copied
+              ? `Copied prompt to clipboard (recommended model: ${launchRecord.model}). Press Ctrl+N (or Cmd+N) then paste into the new conversation.`
+              : `Prepared new conversation prompt (recommended model: ${launchRecord.model}).`
         }
       ],
-      structuredContent: launchRecord
+      structuredContent: {
+        ...launchRecord,
+        ...launchStatus
+      }
     };
   }
 
@@ -544,7 +707,7 @@ rl.on("line", async (line) => {
         },
         serverInfo: {
           name: "bmad-companion",
-          version: "0.5.0"
+          version: "0.5.1"
         }
       });
       return;

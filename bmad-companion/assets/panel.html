@@ -734,7 +734,7 @@
       </nav>
 
       <div class="toast-banner" id="toastBanner">
-        <span id="toastText">Launching new session with recommended model…</span>
+        <span id="toastText">Opening a new conversation with your prompt pre-pasted…</span>
       </div>
 
       <main class="main-scroll" id="mainScroll">
@@ -745,19 +745,19 @@
               <div class="section-title">
                 <span>🧠 Post-Prompt AI State & Session Launcher</span>
               </div>
-              <span class="pill pill-purple" id="turnBadge">Auto New-Session</span>
+              <span class="pill pill-purple" id="turnBadge">Direct New-Chat</span>
             </div>
             <div id="providerStateBar" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
             <div class="turn-box">
               <div class="turn-headline" id="turnHeadline">Analyzing workspace state…</div>
               <div class="turn-summary" id="turnSummary">
-                Each recommended prompt below includes an optimal AI model and automatically opens a clean new session when launched.
+                Clicking Launch in New Session opens a brand-new conversation directly with the prompt pre-pasted — without running anything in your current session.
               </div>
             </div>
           </div>
 
           <div class="section-header" style="margin: 8px 2px 6px;">
-            <div class="section-title">🚀 Next BMAD Prompts (Auto-Opens New Session + Recommended Model)</div>
+            <div class="section-title">🚀 Next BMAD Prompts (Opens New Conversation + Pre-Pastes Prompt)</div>
           </div>
           <div id="recommendationsList"></div>
 
@@ -959,7 +959,7 @@
         async function initMcpApp() {
           try {
             const res = await sendRpcRequest("ui/initialize", {
-              appInfo: { name: "bmad-companion", version: "0.5.0" },
+              appInfo: { name: "bmad-companion", version: "0.5.1" },
               appCapabilities: {
                 availableDisplayModes: ["inline", "fullscreen"]
               },
@@ -983,8 +983,8 @@
         }
 
         /**
-         * Launches the next BMAD prompt in a brand-new ZCode session with the dynamically recommended AI model
-         * and immediately switches the UI to that new session via CreateSession + OpenSession.
+         * Opens a brand-new conversation directly in ZCode with the chosen prompt pre-pasted
+         * into the composer, without running anything inside the current session.
          */
         function getFallbackModelId() {
           const models = currentState?.availableModels || [];
@@ -998,47 +998,32 @@
           const chosenModel = rawModel === "host-default" ? "" : rawModel || getFallbackModelId();
           if (!cleanCmd) return;
 
+          const modelShortLabel = chosenModel ? chosenModel.split("/").pop() : "host-default";
+          showToast(`🚀 Opening new conversation [${modelShortLabel}]…`);
+
+          // Best-effort browser-side clipboard copy as immediate fallback
+          copyToClipboard(cleanCmd).catch(() => {});
+
           try {
-            await callServerTool("bmad_prepare_new_session", {
+            const res = await callServerTool("bmad_prepare_new_session", {
               prompt: cleanCmd,
               model: chosenModel || "host-default",
               skill: skillName || "",
-              title: title || ""
+              title: title || "",
+              openDirectly: true
             });
+            const status = res?.structuredContent || {};
+            if (status.openedDirectly && status.pasted) {
+              showToast(`🚀 New conversation opened & prompt pasted (Model: ${modelShortLabel})`);
+              return;
+            }
+            if (status.copied) {
+              showToast(`📋 Prompt copied! Press Ctrl+N then Ctrl+V (Model: ${modelShortLabel})`);
+              return;
+            }
           } catch {}
 
-          const modelLine = chosenModel
-            ? `- Recommended Model: \`${chosenModel}\``
-            : `- Recommended Model: Host default (no specific model override)`;
-          const createSessionStep = chosenModel
-            ? `3. Call \`CreateSession\` with \`project\`, \`model: "${chosenModel}"\`, and \`prompt: ${JSON.stringify(cleanCmd)}\`.`
-            : `3. Call \`CreateSession\` with \`project\` and \`prompt: ${JSON.stringify(cleanCmd)}\` (omit \`model\` to use the configured default).`;
-
-          const autoLaunchDirective = [
-            "[BMAD Companion — Auto-Launch New Session]",
-            `Please immediately create and open a new session for this workspace with the recommended model and initial BMAD prompt below:`,
-            modelLine,
-            `- Initial Prompt to submit in the new session:`,
-            cleanCmd,
-            ``,
-            `Execute these exact tool calls now (do not execute the BMAD skill inside the current session):`,
-            `1. Load \`ListProjects\`, \`CreateSession\`, and \`OpenSession\` via \`LocalToolSearch\` (\`select:ListProjects,CreateSession,OpenSession\`) if not yet loaded.`,
-            `2. Call \`ListProjects\` to get the current workspace's \`project\` object.`,
-            createSessionStep,
-            `4. Call \`OpenSession\` with the returned \`session.sessionId\` so ZCode immediately opens the new session in the UI.`
-          ].join("\n");
-
-          const modelShortLabel = chosenModel ? chosenModel.split("/").pop() : "host-default";
-          try {
-            await sendRpcRequest("ui/message", {
-              role: "user",
-              content: [{ type: "text", text: autoLaunchDirective }]
-            });
-            showToast(`🚀 Opening new session [${modelShortLabel}] → ${cleanCmd.slice(0, 42)}…`);
-          } catch {
-            await copyToClipboard(cleanCmd);
-            showToast(`📋 Copied prompt (Model: ${modelShortLabel})`);
-          }
+          showToast(`📋 Prompt copied! Press Ctrl+N then Ctrl+V (Model: ${modelShortLabel})`);
         }
 
         async function sendPromptToCurrentSession(commandText) {
@@ -1159,7 +1144,7 @@
           }
 
           document.getElementById("projectTitle").textContent =
-            (state.projectName || "Workspace") + " · BMAD Companion v0.5";
+            (state.projectName || "Workspace") + " · BMAD Companion v0.5.1";
           document.getElementById("projectSubtitle").textContent =
             `${state.techStack || "Workspace"} · ${m.totalEpics || 0} Epics · ${m.smartDoneStories || 0}/${m.totalStories || 0} Stories · ${state.git?.branch || "main"}`;
 
@@ -1187,7 +1172,7 @@
 
           const turn = state.turnAnalysis || {};
           document.getElementById("turnBadge").textContent =
-            turn.turnCount > 0 ? `Turn #${turn.turnCount} · Auto New-Session` : "Auto New-Session";
+            turn.turnCount > 0 ? `Turn #${turn.turnCount} · Direct New-Chat` : "Direct New-Chat";
           document.getElementById("turnHeadline").textContent =
             turn.aiSummaryHeadline || "Workspace analyzed — launch any recommended prompt in a new session below.";
           document.getElementById("turnSummary").textContent =
@@ -1248,7 +1233,7 @@
                     <div class="model-reason">${escapeHtml(recModel.reason)}</div>
                   </div>
                   <div class="rec-actions">
-                    <button class="btn btn-primary" data-action="launch-new-rec" data-idx="${idx}" title="Automatically open a new session with the selected recommended model and submit this prompt">
+                    <button class="btn btn-primary" data-action="launch-new-rec" data-idx="${idx}" title="Open a new conversation directly with this prompt pre-pasted (does not run in the current session)">
                       🚀 Launch in New Session
                     </button>
                     <button class="btn" data-action="send-current-rec" data-idx="${idx}" title="Run in the current session instead">

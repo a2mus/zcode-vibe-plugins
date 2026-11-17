@@ -2,8 +2,8 @@
 
 A community ZCode plugin marketplace featuring two workspace-agnostic **right-side panel plugins** designed for visual clarity, high-ROI workflow navigation, and cost-aware AI model routing:
 
-1. **🧭 BMAD Companion (`bmad-companion`)** — Interactive 4-phase BMAD-METHOD lifecycle tracker, smart AI vs. static tracker reconciliation (`sprint-status.yaml` & `tickets.toml`), git diff artifact inspector, contextual `/bmad-*` prompt generator, and cost-aware model router.
-2. **⚡ Vibe Debrief — Visual ELI5 Panel (`vibe-debrief`)** — Translates the last AI turn into scannable visual cards for visual learners and multi-project vibe-coders, with persona switching and 1-click saving of confirmed lessons directly into ZCode's persistent `MEMORY.md`.
+1. **🧭 BMAD Companion (`bmad-companion` · `v0.5.1`)** — Interactive 4-phase BMAD-METHOD lifecycle tracker, smart AI vs. static tracker reconciliation (`sprint-status.yaml` & `tickets.toml`), newest-first git diff artifact inspector, contextual `/bmad-*` prompt generator, and dynamic cost-aware model router.
+2. **⚡ Vibe Debrief — Comprehension-First ELI5 Panel (`vibe-debrief` · `v0.2.0`)** — Translates the last AI turn into scannable visual cards using **80% ASD-STE100 clarity**, always-on **interactive SVG diagrams**, inline **proof & uncertainty checks**, **standalone HTML export**, **complex-only 3b1b animated explainers**, and **1-click saving of confirmed lessons** directly into ZCode's persistent `MEMORY.md`.
 
 ---
 
@@ -22,13 +22,13 @@ A community ZCode plugin marketplace featuring two workspace-agnostic **right-si
 
 ---
 
-## 🧭 1. BMAD Companion (`bmad-companion`)
+## 🧭 1. BMAD Companion (`bmad-companion` · `v0.5.1`)
 
 A global right-side panel for projects using **BMAD-METHOD** (v6 YAML and/or v7 TOML trackers), or any repository initializing structured AI-assisted planning:
 
 - **Smart AI vs. Static Progress**: Cross-checks `sprint-status.yaml` and `tickets.toml` against story plans, retrospectives, and implementation reports.
 - **Two-Way Tracker Reconciliation (`bmad_reconcile_trackers`)**: Preview diffs and sync verified story statuses back to static tracker files with automatic `.bak` backups.
-- **Contextual Prompts + Auto New-Session Launch**: Generates editable `/bmad-* "..."` commands tailored to your project and opens a clean new ZCode session with an appropriately sized model.
+- **Contextual Prompts + Auto New-Session Launch**: Generates editable `/bmad-* "..."` commands tailored to your project and opens a clean new ZCode session with an appropriately sized model (respecting active `ListModels` / subscription & provider state).
 - **Cost-Aware Dynamic Model Routing**:
   - **Lightweight / Fast tasks** (`/bmad-help`, `/bmad-sprint-planning`, `/bmad-walkthrough`, `/bmad-project-context`) → routes to fast, cost-effective **Gemini Argon / Flash** models.
   - **UX & Visual Systems** (`/bmad-ux`, `/bmad-brainstorming`) → routes to **Gemini Hydrogen**.
@@ -41,25 +41,29 @@ A global right-side panel for projects using **BMAD-METHOD** (v6 YAML and/or v7 
 
 ---
 
-## ⚡ 2. Vibe Debrief — Visual ELI5 Panel (`vibe-debrief`)
+## ⚡ 2. Vibe Debrief — Comprehension-First ELI5 Panel (`vibe-debrief` · `v0.2.0`)
 
 Built for **visual learners** and **vibe-coders juggling multiple projects** who want clear perspective without reading walls of compiler or framework jargon:
 
+- **80% ASD-STE100 Clarity (`STE-80` Toggle & Readability Meter)**: Keeps sentences short, active, and plain-verb at the human-reading boundary (`📖 ~30s · STE-80`) without constraining the coding agent mid-task.
+- **Always-On Interactive SVG Diagram & Risk File Legend**: Every turn renders a clickable node-and-arrow SVG architecture/flow diagram using real component & file names, numbered edges (`① → ② → ③`), and a Node Inspector.
 - **Adaptive Visual Storyboard**:
   - **🐛 Bug / Error Fix Mode**:
     1. 🔴 **What Was the Cause?**
     2. 🛠️ **What Was the Plan to Fix It?**
-    3. ✅ **Did It Succeed?** *(YES / PARTIAL / NOT YET visual banner)*
-    4. 🌊 **Consequences of This Fix**
+    3. ✅ **Did It Succeed?** *(YES / PARTIAL / NOT YET banner + inline `proofClaims`)*
+    4. 🌊 **Consequences & What to Double-Check** *(Least-Certain Audit + interactive Verification Checklist)*
     5. 🧠 **Lessons Learned**
   - **🚀 Implementation Mode**:
     1. 🎯 **Purpose / Objective of the Implementation**
     2. 🧭 **Plan / Suggested Resolution & Why**
-    3. 🏆 **Result of the Implementation** *(with role-tagged touched file badges)*
-    4. 🌊 **Consequences & 🧠 Lessons Learned**
-- **4-Step Visual Cause-to-Outcome Map** & **💡 Picture It Like This** real-world analogy box.
+    3. 🏆 **Result of the Implementation** *(role-tagged file badges + inline `proofClaims`)*
+    4. 🌊 **Consequences & What to Double-Check** *(Least-Certain Audit + interactive Verification Checklist)*
+    5. 🧠 **Lessons Learned**
+- **On-Demand Standalone HTML Export (`🌐 HTML` / `vibe_debrief_export_html`)**: Generates a self-contained, zero-dependency HTML explainer page under `.zcode/vibe-debrief-artifacts/`.
+- **Complex-Only 3b1b Animated Explainer (`🎬 Explainer` / `vibe_debrief_generate_explainer`)**: Automatically unlocks on multi-file / multi-layer workflows with a Canvas blueprint player, optional Web Speech voiceover, and plain-text narration script.
 - **4 Explainer Personas**: `🧑‍💻 Vibe Mentor`, `🎨 Visual Mapper`, `⚡ Indie Founder`, and `🧸 Pure ELI5`.
-- **1-Click ZCode Memory Persistence**: Click **`📌 Confirm & Save to ZCode Memory`** on any lesson (or add your own) to write `<slug>.md` and update your workspace's `MEMORY.md` index automatically.
+- **1-Click ZCode Memory Persistence**: Confirm any Lesson Learned (or promote a Card 4 check) in 1 click to write `<slug>.md` and update your workspace's `MEMORY.md` index automatically.
 - **Cost-Aware Gemini Smart Refresh**: Includes a lightweight **⚡ Gemini Model Picker** (e.g., `gemini-4-argon` / `gemini-3.8-flash`) that delegates `✨ AI Explain` refreshes to a background Gemini session without burning expensive flagship tokens.
 
 ### Slash Commands & Skills

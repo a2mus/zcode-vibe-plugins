@@ -90,8 +90,7 @@ async function main() {
       `Active Providers & Models: ${scan.availableModels.length} enabled models across ${(scan.providerState?.activeProviders || []).map((p) => `${p.providerName} (${p.modelCount})`).join(", ") || "host defaults"}.`,
       `Recommended Next BMAD Prompts & Models:\n${topRecs}`,
       `Companion Guidance:`,
-      `1. Whenever advising the user on BMAD-METHOD or after completing a meaningful task, always provide concrete contextual prompts (e.g., \`/bmad-ux "Enhance the UI/UX of ..."\`, never a bare \`/bmad-ux\`) along with a dynamically chosen model from \`ListModels\` (respecting active provider state & subscription), and call \`bmad_update_advisor\` (passing \`hostModels\` when \`ListModels\` is inspected) or \`bmad_open_companion\` when updating the right-side BMAD Companion panel.`,
-      `2. When you receive a \`[BMAD Companion — Auto-Launch New Session]\` request from the right-side panel, immediately load \`ListProjects\`, \`CreateSession\`, and \`OpenSession\` via \`LocalToolSearch\` (\`select:ListProjects,CreateSession,OpenSession\`), call \`ListProjects\`, call \`CreateSession({ project, model, prompt })\` (omitting \`model\` if host-default), and then call \`OpenSession({ sessionId })\` so ZCode automatically opens the new session running that prompt on the recommended model.`
+      `1. Whenever advising the user on BMAD-METHOD or after completing a meaningful task, always provide concrete contextual prompts (e.g., \`/bmad-ux "Enhance the UI/UX of ..."\`, never a bare \`/bmad-ux\`) along with a dynamically chosen model from \`ListModels\` (respecting active provider state & subscription), and call \`bmad_update_advisor\` (passing \`hostModels\` when \`ListModels\` is inspected) or \`bmad_open_companion\` when updating the right-side BMAD Companion panel.`
     ].join("\n");
 
     process.stdout.write(JSON.stringify({ additionalContext }) + "\n");
@@ -112,20 +111,6 @@ async function main() {
       lastUserPromptAt: new Date().toISOString(),
       recentTouchedFiles: []
     });
-    if (String(promptText || "").includes("[BMAD Companion — Auto-Launch New Session]")) {
-      const additionalContext = [
-        "MANDATORY ACTION FOR [BMAD Companion — Auto-Launch New Session]:",
-        "The user clicked 'Launch in New Task' in the right-side BMAD Companion panel.",
-        "Do NOT run the /bmad-* skill inside this current task.",
-        "Instead, immediately execute these tool calls in order:",
-        "1. Call LocalToolSearch({ query: \"select:ListProjects,CreateSession,OpenSession\", max_results: 5 }) if those tools are not loaded yet.",
-        "2. Call ListProjects({}) to get the current workspace's project object.",
-        "3. Call CreateSession({ project, model, prompt }) passing the exact Recommended Model ID and Initial Prompt from the message.",
-        "4. Call OpenSession({ sessionId }) with the returned session.sessionId so ZCode immediately opens and focuses the new task in the same workspace."
-      ].join("\n");
-      process.stdout.write(JSON.stringify({ additionalContext }) + "\n");
-      return;
-    }
     process.stdout.write("{}\n");
     return;
   }

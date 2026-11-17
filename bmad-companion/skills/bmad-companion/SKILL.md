@@ -16,13 +16,9 @@ The **BMAD Companion** plugin provides a live right-side panel (`ui://bmad-compa
      - `/bmad-code-review "Review the recent implementation changes in <module> for edge cases, architectural boundaries, and test coverage"` — pick the highest-ranked deep-reasoning enabled model
      - `/bmad-build "Implement and verify story <id> (<title>) with unit and integration tests"` — pick the highest-ranked coding/tool-capable enabled model
    - Whenever you inspect `ListModels`, pass the live `models` array in `bmad_update_advisor({ ..., hostModels: models })` so the companion panel stays synchronized with the host's live provider and subscription state.
-2. **Automatic New-Session Launch with Recommended Model**:
-   - In BMAD-METHOD, each workflow step runs best in a **fresh session** using its recommended model.
-   - When the user clicks **🚀 Launch in New Session** in the BMAD Companion panel (which sends `[BMAD Companion — Auto-Launch New Session]`), immediately execute:
-     1. Load `ListProjects`, `CreateSession`, and `OpenSession` via `LocalToolSearch` (`select:ListProjects,CreateSession,OpenSession`).
-     2. Call `ListProjects` to obtain the current workspace's `project` descriptor (`{ kind: "app", projectId, sourceServerId }`).
-     3. Call `CreateSession({ project, model: "<recommendedModelId>", prompt: "<fullCommand>" })`.
-     4. Call `OpenSession({ sessionId: createdSession.session.sessionId })` so ZCode Desktop immediately opens the newly created session in the UI.
+2. **Direct New-Conversation Launch with Pre-Pasted Prompt**:
+   - In BMAD-METHOD, each workflow step runs best in a **fresh conversation**.
+   - Clicking **🚀 Launch in New Session** in the BMAD Companion panel directly opens a new ZCode conversation (`Ctrl/Cmd+N`) and pre-pastes the chosen `/bmad-<skill> "<prompt>"` into the composer without executing anything inside the current session.
 3. **Smart Artifact + AI Progress Verification & Tracker Reconciliation**:
    - Always report both **Static Tracker Progress** and **Smart AI-Reconciled Progress**, explaining the evidence behind each reconciled story or epic.
    - When the static tracking files (v6 `sprint-status.yaml` or v7 `tickets.toml`) lag behind the verified code/artifact reality, invoke `bmad_reconcile_trackers` (or guide the user to click **⚡ Reconcile Trackers with Reality** in the panel).

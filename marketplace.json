@@ -4,7 +4,7 @@
     {
       "name": "bmad-companion",
       "source": "./bmad-companion",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "description": "Global right-side panel BMAD-METHOD companion for any workspace: analyzes project state after each prompt result to recommend contextual /bmad-* skills with tailored prompts and recommended AI models, auto-launches next prompts in a new session, reconciles v6 YAML and v7 TOML trackers with code reality, and visualizes phase, epic, and story progress.",
       "displayName": "BMAD Companion",
       "displayName_i18n": {
@@ -17,14 +17,14 @@
     {
       "name": "vibe-debrief",
       "source": "./vibe-debrief",
-      "version": "0.1.1",
-      "description": "Visual ELI5 right-side panel for vibe-coders and visual learners: simplifies the last AI response into visual Bug Fix or Implementation cards (Cause/Objective, Plan & Why, Result/Success, Consequences, and Lessons Learned) with persona switching and 1-click saving of confirmed lessons to ZCode Memory.",
+      "version": "0.2.0",
+      "description": "Comprehension-first right-side panel for vibe-coders: fuses 80% STE-100 clarity, always-on interactive SVG diagrams, inline proof & uncertainty checks, standalone HTML export, complex-only 3b1b animated explainers, and 1-click ZCode Memory saving.",
       "displayName": "Vibe Debrief (Visual ELI5 Panel)",
       "displayName_i18n": {
         "zh-CN": "Vibe 极简视觉解读 (ELI5)"
       },
       "description_i18n": {
-        "zh-CN": "面向视觉学习者与多项目 Vibe 编程开发者的右侧栏插件：将 AI 回复精简为 Bug 修复或功能实现视觉卡片，并支持将确认的经验教训一键写入 ZCode 记忆库。"
+        "zh-CN": "面向视觉学习者与多项目 Vibe 编程开发者的右侧栏插件：融合 STE-80 清晰表达、全回合交互式 SVG 流程图、证据与不确定性审计、独立 HTML 导出、复杂流程动画解说及一键写入 ZCode 记忆库。"
       }
     }
   ]
