@@ -892,6 +892,70 @@
         let initialPhasesExpanded = false;
         const expandedEpics = new Set();
         let initialEpicsExpanded = false;
+        const userSelectedModels = new Map();
+        const userEditedPrompts = new Map();
+        const lastSectionSignatures = {
+          providerBar: "",
+          recommendations: "",
+          insights: "",
+          phases: "",
+          epics: "",
+          skillsCatalog: "",
+          agentsCatalog: "",
+          artifacts: ""
+        };
+        let selectOpenUntil = 0;
+        let pendingWorkspaceState = null;
+        let isRefreshing = false;
+
+        function isUserInteractingWithForm() {
+          if (Date.now() < selectOpenUntil) return true;
+          const active = document.activeElement;
+          if (!active) return false;
+          const tag = active.tagName;
+          return tag === "TEXTAREA" || tag === "INPUT";
+        }
+
+        function flushPendingState() {
+          if (!pendingWorkspaceState || isUserInteractingWithForm()) return;
+          const next = pendingWorkspaceState;
+          pendingWorkspaceState = null;
+          renderWorkspaceState(next);
+        }
+
+        document.addEventListener("pointerdown", (e) => {
+          if (e.target && e.target.closest && e.target.closest("select")) {
+            selectOpenUntil = Date.now() + 15000;
+          }
+        }, true);
+
+        document.addEventListener("keydown", (e) => {
+          const active = document.activeElement;
+          if (active && active.tagName === "SELECT") {
+            if (e.key === "Escape" || e.key === "Tab") {
+              selectOpenUntil = 0;
+              setTimeout(flushPendingState, 0);
+            } else if (e.key === " " || e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+              selectOpenUntil = Date.now() + 15000;
+            }
+          }
+        }, true);
+
+        document.addEventListener("change", (e) => {
+          if (e.target && e.target.tagName === "SELECT") {
+            selectOpenUntil = 0;
+            setTimeout(flushPendingState, 0);
+          }
+        }, true);
+
+        document.addEventListener("focusout", (e) => {
+          if (e.target && (e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT")) {
+            if (e.target.tagName === "SELECT") {
+              selectOpenUntil = 0;
+            }
+            setTimeout(flushPendingState, 50);
+          }
+        }, true);
 
         function sendRpcRequest(method, params) {
           return new Promise((resolve, reject) => {
@@ -949,9 +1013,13 @@
 
           if (data.method === "ui/notifications/tool-result") {
             if (data.params && data.params.structuredContent && data.params.structuredContent.metrics) {
-              renderWorkspaceState(data.params.structuredContent);
+              if (isUserInteractingWithForm()) {
+                pendingWorkspaceState = data.params.structuredContent;
+              } else {
+                renderWorkspaceState(data.params.structuredContent);
+              }
             } else {
-              refreshState();
+              refreshState({ isBackground: true });
             }
           }
         });
@@ -1094,7 +1162,37 @@
             .replace(/"/g, "&quot;");
         }
 
-        function buildModelSelectOptions(selectedModelId) {
+        function getRecOverrideKey(r, idx) {
+          return `rec:${r.skill || idx}:${r.title || idx}`;
+        }
+
+        function getSkillOverrideKey(s) {
+          return `skill:${s.skill}`;
+        }
+
+        function resolveUserPrompt(key, serverCmd) {
+          const entry = userEditedPrompts.get(key);
+          if (entry && entry.base === serverCmd) return entry.value;
+          if (entry && entry.base !== serverCmd) userEditedPrompts.delete(key);
+          return serverCmd;
+        }
+
+        function resolveUserModel(key, serverModelId) {
+          const entry = userSelectedModels.get(key);
+          if (!entry) return serverModelId;
+          if (entry.base !== serverModelId) {
+            userSelectedModels.delete(key);
+            return serverModelId;
+          }
+          const models = currentState?.availableModels || [];
+          if (!entry.value || models.some((m) => m.id === entry.value)) {
+            return entry.value;
+          }
+          return serverModelId;
+        }
+
+        function buildModelSelectOptions(selectedModelId, recommendedModelId) {
+          const recId = recommendedModelId !== undefined ? recommendedModelId : selectedModelId;
           const models = currentState?.availableModels || [];
           if (!models.length && !selectedModelId) {
             return `<option value="">🤖 Host Default Model</option>`;
@@ -1107,21 +1205,31 @@
             .map((m) => {
               const ctxTag = m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k` : "";
               const provTag = m.providerName ? ` (${m.providerName})` : "";
-              const recTag = m.id === selectedModelId ? " ★ Recommended" : "";
-              return `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? "selected" : ""}>🤖 ${escapeHtml(m.modelId || m.label || m.id)}${escapeHtml(provTag)}${escapeHtml(ctxTag)}${recTag}</option>`;
+              const recTag = m.id === recId ? " ★ Recommended" : "";
+              return `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? "selected" : ""}>🤖 ${escapeHtml(m.modelId || m.label || m.id)}${escapeHtml(provTag)}${escapeHtml(ctxTag)}${escapeHtml(recTag)}</option>`;
             })
             .join("");
         }
 
-        async function refreshState() {
+        async function refreshState(options = {}) {
+          const { isBackground = false } = options;
+          if (isRefreshing) return;
+          if (isBackground && isUserInteractingWithForm()) return;
+          isRefreshing = true;
           try {
             const result = await callServerTool("bmad_get_state", { refresh: true });
             if (result && result.structuredContent) {
-              renderWorkspaceState(result.structuredContent);
+              if (isBackground && isUserInteractingWithForm()) {
+                pendingWorkspaceState = result.structuredContent;
+              } else {
+                renderWorkspaceState(result.structuredContent);
+              }
             }
           } catch {
             document.getElementById("projectSubtitle").textContent =
               "Ready · Click Sync or run bmad_open_companion";
+          } finally {
+            isRefreshing = false;
           }
         }
 
@@ -1151,17 +1259,21 @@
           const provBar = document.getElementById("providerStateBar");
           if (provBar) {
             const pState = state.providerState || {};
-            const activeProvs = pState.activeProviders || [];
-            const subBadges = Object.entries(pState.subscriptionSelections || {}).map(
-              ([fam, sel]) => `<span class="pill pill-accent" title="Active Subscription Selection">🔑 ${escapeHtml(fam)}: ${escapeHtml(sel?.kind || "active")}</span>`
-            );
-            const provBadges = activeProvs.map(
-              (p) => `<span class="pill pill-success" title="Active Provider (${escapeHtml(p.kind)} / ${escapeHtml(p.plan || "")})">⚡ ${escapeHtml(p.providerName)} (${p.modelCount})</span>`
-            );
-            const syncPill = pState.syncedFromRuntime
-              ? `<span class="pill pill-purple">✓ Runtime Catalog Synced</span>`
-              : `<span class="pill pill-purple">↻ Dynamic Config + Capabilities</span>`;
-            provBar.innerHTML = [...provBadges, ...subBadges, syncPill].join("");
+            const provSig = JSON.stringify(pState);
+            if (lastSectionSignatures.providerBar !== provSig) {
+              lastSectionSignatures.providerBar = provSig;
+              const activeProvs = pState.activeProviders || [];
+              const subBadges = Object.entries(pState.subscriptionSelections || {}).map(
+                ([fam, sel]) => `<span class="pill pill-accent" title="Active Subscription Selection">🔑 ${escapeHtml(fam)}: ${escapeHtml(sel?.kind || "active")}</span>`
+              );
+              const provBadges = activeProvs.map(
+                (p) => `<span class="pill pill-success" title="Active Provider (${escapeHtml(p.kind)} / ${escapeHtml(p.plan || "")})">⚡ ${escapeHtml(p.providerName)} (${p.modelCount})</span>`
+              );
+              const syncPill = pState.syncedFromRuntime
+                ? `<span class="pill pill-purple">✓ Runtime Catalog Synced</span>`
+                : `<span class="pill pill-purple">↻ Dynamic Config + Capabilities</span>`;
+              provBar.innerHTML = [...provBadges, ...subBadges, syncPill].join("");
+            }
           }
 
           document.getElementById("progressHeadline").textContent =
@@ -1186,7 +1298,16 @@
           renderArtifactsDirectory(state.phases || []);
         }
 
-        function renderRecommendations(recs) {
+        function renderRecommendations(recs, force = false) {
+          const recSig = JSON.stringify({
+            recs,
+            models: currentState?.availableModels || []
+          });
+          if (!force && lastSectionSignatures.recommendations === recSig) {
+            return;
+          }
+          lastSectionSignatures.recommendations = recSig;
+
           const container = document.getElementById("recommendationsList");
           if (!recs.length) {
             container.innerHTML = `<div class="section-card">No recommendations yet. Click Sync to analyze workspace.</div>`;
@@ -1206,6 +1327,11 @@
                 tier: "🤖 Dynamic Fit",
                 reason: "Dynamically resolved from active provider & subscription state."
               };
+              const recKey = getRecOverrideKey(r, idx);
+              const serverCmd = r.fullCommand || "";
+              const displayCmd = resolveUserPrompt(recKey, serverCmd);
+              const serverModelId = recModel.modelId || "";
+              const displayModelId = resolveUserModel(recKey, serverModelId);
               return `
                 <div class="rec-card">
                   <div class="rec-top">
@@ -1221,13 +1347,13 @@
                       <span>Contextual BMAD Skill + Prompt (Editable)</span>
                       <span>${escapeHtml(r.skill)}</span>
                     </div>
-                    <textarea class="cmd-textarea" id="rec-cmd-${idx}" rows="2">${escapeHtml(r.fullCommand)}</textarea>
+                    <textarea class="cmd-textarea" id="rec-cmd-${idx}" rows="2">${escapeHtml(displayCmd)}</textarea>
                   </div>
                   <div class="model-bar">
                     <div class="model-bar-top">
                       <span class="pill pill-purple">${escapeHtml(recModel.tier)}</span>
                       <select class="model-select" id="rec-model-${idx}" title="Recommended model for the new session">
-                        ${buildModelSelectOptions(recModel.modelId)}
+                        ${buildModelSelectOptions(displayModelId, serverModelId)}
                       </select>
                     </div>
                     <div class="model-reason">${escapeHtml(recModel.reason)}</div>
@@ -1250,6 +1376,24 @@
               `;
             })
             .join("");
+
+          recs.forEach((r, idx) => {
+            const recKey = getRecOverrideKey(r, idx);
+            const serverCmd = r.fullCommand || "";
+            const serverModelId = r.recommendedModel?.modelId || getFallbackModelId() || "";
+            const ta = document.getElementById(`rec-cmd-${idx}`);
+            const modelSel = document.getElementById(`rec-model-${idx}`);
+            if (ta) {
+              ta.addEventListener("input", () => {
+                userEditedPrompts.set(recKey, { base: serverCmd, value: ta.value });
+              });
+            }
+            if (modelSel) {
+              modelSel.addEventListener("change", () => {
+                userSelectedModels.set(recKey, { base: serverModelId, value: modelSel.value });
+              });
+            }
+          });
 
           container.querySelectorAll("button[data-action]").forEach((btn) => {
             btn.addEventListener("click", async () => {
@@ -1275,6 +1419,10 @@
         }
 
         function renderInsights(insights) {
+          const insSig = JSON.stringify(insights);
+          if (lastSectionSignatures.insights === insSig) return;
+          lastSectionSignatures.insights = insSig;
+
           const list = document.getElementById("insightsList");
           if (!insights.length) {
             list.innerHTML = `<div class="insight-item"><div class="insight-detail">All trackers and artifacts are synchronized.</div></div>`;
@@ -1353,6 +1501,24 @@
         function renderPhases(phases) {
           if (!currentState) return;
           const m = currentState.metrics || {};
+          const phaseSig = JSON.stringify({
+            phases,
+            expanded: [...expandedPhases],
+            metrics: {
+              reconciledStoriesCount: m.reconciledStoriesCount,
+              smartDoneStories: m.smartDoneStories,
+              reviewStories: m.reviewStories,
+              inProgressStories: m.inProgressStories,
+              backlogStories: m.backlogStories,
+              declaredDoneStories: m.declaredDoneStories,
+              totalStories: m.totalStories,
+              declaredOverallPct: m.declaredOverallPct,
+              smartOverallPct: m.smartOverallPct
+            }
+          });
+          if (lastSectionSignatures.phases === phaseSig) return;
+          lastSectionSignatures.phases = phaseSig;
+
           document.getElementById("reconciledBadge").textContent =
             `${m.reconciledStoriesCount || 0} Stories AI-Reconciled`;
           document.getElementById("metricsBreakdown").innerHTML = `
@@ -1454,6 +1620,15 @@
           const query = (document.getElementById("storySearch").value || "").toLowerCase().trim();
           const statusFilter = document.getElementById("storyStatusFilter").value;
           const epics = currentState.epics || [];
+          const epicSig = JSON.stringify({
+            query,
+            statusFilter,
+            expanded: [...expandedEpics],
+            epics
+          });
+          if (lastSectionSignatures.epics === epicSig) return;
+          lastSectionSignatures.epics = epicSig;
+
           const container = document.getElementById("epicsList");
 
           const htmlParts = [];
@@ -1571,111 +1746,151 @@
             return hay.includes(query);
           });
 
-          const skillsEl = document.getElementById("skillsCatalogList");
-          skillsEl.innerHTML = skills
-            .map((s, idx) => {
-              const flow = [
-                ...(s.precededBy || []).map((p) => `← ${p}`),
-                ...(s.followedBy || []).map((f) => `→ ${f}`)
-              ].join(" · ");
-              const sModel = s.recommendedModel || {
-                modelId: getFallbackModelId(),
-                tier: "🤖 Dynamic Fit",
-                reason: "Dynamically resolved from active provider & subscription state."
-              };
-              return `
-                <div class="rec-card">
-                  <div class="rec-top">
-                    <span class="rec-title">${escapeHtml(s.displayName)}</span>
-                    <div style="display:flex;gap:4px;">
-                      <span class="pill pill-accent">/${escapeHtml(s.skill)}</span>
-                      <span class="pill pill-purple">${escapeHtml(s.phase)}</span>
+          const skillsSig = JSON.stringify({
+            query,
+            phaseFilter,
+            skills,
+            models: currentState.availableModels || []
+          });
+          if (lastSectionSignatures.skillsCatalog !== skillsSig) {
+            lastSectionSignatures.skillsCatalog = skillsSig;
+            const skillsEl = document.getElementById("skillsCatalogList");
+            skillsEl.innerHTML = skills
+              .map((s, idx) => {
+                const flow = [
+                  ...(s.precededBy || []).map((p) => `← ${p}`),
+                  ...(s.followedBy || []).map((f) => `→ ${f}`)
+                ].join(" · ");
+                const sModel = s.recommendedModel || {
+                  modelId: getFallbackModelId(),
+                  tier: "🤖 Dynamic Fit",
+                  reason: "Dynamically resolved from active provider & subscription state."
+                };
+                const skillKey = getSkillOverrideKey(s);
+                const serverCmd = s.contextualCommand || "";
+                const displayCmd = resolveUserPrompt(skillKey, serverCmd);
+                const serverModelId = sModel.modelId || "";
+                const displayModelId = resolveUserModel(skillKey, serverModelId);
+                return `
+                  <div class="rec-card">
+                    <div class="rec-top">
+                      <span class="rec-title">${escapeHtml(s.displayName)}</span>
+                      <div style="display:flex;gap:4px;">
+                        <span class="pill pill-accent">/${escapeHtml(s.skill)}</span>
+                        <span class="pill pill-purple">${escapeHtml(s.phase)}</span>
+                      </div>
+                    </div>
+                    <div class="rec-rationale">${escapeHtml(s.description)}</div>
+                    ${flow ? `<div style="font-size:10.5px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono);">${escapeHtml(flow)}</div>` : ""}
+                    <div class="cmd-editor-wrap">
+                      <textarea class="cmd-textarea" id="cat-cmd-${idx}" rows="2">${escapeHtml(displayCmd)}</textarea>
+                    </div>
+                    <div class="model-bar">
+                      <div class="model-bar-top">
+                        <span class="pill pill-purple">${escapeHtml(sModel.tier)}</span>
+                        <select class="model-select" id="cat-model-${idx}">
+                          ${buildModelSelectOptions(displayModelId, serverModelId)}
+                        </select>
+                      </div>
+                    </div>
+                    <div class="rec-actions">
+                      <button class="btn btn-primary" data-cat-launch="${idx}">🚀 Launch in New Session</button>
+                      <button class="btn" data-cat-send="${idx}">💬 Run Here</button>
+                      <button class="btn" data-cat-copy="${idx}">📋 Copy</button>
                     </div>
                   </div>
-                  <div class="rec-rationale">${escapeHtml(s.description)}</div>
-                  ${flow ? `<div style="font-size:10.5px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono);">${escapeHtml(flow)}</div>` : ""}
-                  <div class="cmd-editor-wrap">
-                    <textarea class="cmd-textarea" id="cat-cmd-${idx}" rows="2">${escapeHtml(s.contextualCommand)}</textarea>
-                  </div>
-                  <div class="model-bar">
-                    <div class="model-bar-top">
-                      <span class="pill pill-purple">${escapeHtml(sModel.tier)}</span>
-                      <select class="model-select" id="cat-model-${idx}">
-                        ${buildModelSelectOptions(sModel.modelId)}
-                      </select>
-                    </div>
-                  </div>
-                  <div class="rec-actions">
-                    <button class="btn btn-primary" data-cat-launch="${idx}">🚀 Launch in New Session</button>
-                    <button class="btn" data-cat-send="${idx}">💬 Run Here</button>
-                    <button class="btn" data-cat-copy="${idx}">📋 Copy</button>
-                  </div>
-                </div>
-              `;
-            })
-            .join("");
+                `;
+              })
+              .join("");
 
-          skillsEl.querySelectorAll("[data-cat-launch]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              const idx = Number(btn.getAttribute("data-cat-launch"));
+            skills.forEach((s, idx) => {
+              const skillKey = getSkillOverrideKey(s);
+              const serverCmd = s.contextualCommand || "";
+              const serverModelId = s.recommendedModel?.modelId || getFallbackModelId() || "";
               const ta = document.getElementById(`cat-cmd-${idx}`);
               const sel = document.getElementById(`cat-model-${idx}`);
-              const cmd = ta ? ta.value : skills[idx].contextualCommand;
-              const model = sel ? sel.value : skills[idx].recommendedModel?.modelId;
-              await launchPromptInNewSession(cmd, model, skills[idx].skill, skills[idx].displayName);
+              if (ta) {
+                ta.addEventListener("input", () => {
+                  userEditedPrompts.set(skillKey, { base: serverCmd, value: ta.value });
+                });
+              }
+              if (sel) {
+                sel.addEventListener("change", () => {
+                  userSelectedModels.set(skillKey, { base: serverModelId, value: sel.value });
+                });
+              }
             });
-          });
 
-          skillsEl.querySelectorAll("[data-cat-send]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              const idx = Number(btn.getAttribute("data-cat-send"));
-              const ta = document.getElementById(`cat-cmd-${idx}`);
-              await sendPromptToCurrentSession(ta ? ta.value : skills[idx].contextualCommand);
+            skillsEl.querySelectorAll("[data-cat-launch]").forEach((btn) => {
+              btn.addEventListener("click", async () => {
+                const idx = Number(btn.getAttribute("data-cat-launch"));
+                const ta = document.getElementById(`cat-cmd-${idx}`);
+                const sel = document.getElementById(`cat-model-${idx}`);
+                const cmd = ta ? ta.value : skills[idx].contextualCommand;
+                const model = sel ? sel.value : skills[idx].recommendedModel?.modelId;
+                await launchPromptInNewSession(cmd, model, skills[idx].skill, skills[idx].displayName);
+              });
             });
-          });
 
-          skillsEl.querySelectorAll("[data-cat-copy]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              const idx = Number(btn.getAttribute("data-cat-copy"));
-              const ta = document.getElementById(`cat-cmd-${idx}`);
-              const cmd = ta ? ta.value : skills[idx].contextualCommand;
-              await copyToClipboard(cmd);
-              showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
+            skillsEl.querySelectorAll("[data-cat-send]").forEach((btn) => {
+              btn.addEventListener("click", async () => {
+                const idx = Number(btn.getAttribute("data-cat-send"));
+                const ta = document.getElementById(`cat-cmd-${idx}`);
+                await sendPromptToCurrentSession(ta ? ta.value : skills[idx].contextualCommand);
+              });
             });
-          });
+
+            skillsEl.querySelectorAll("[data-cat-copy]").forEach((btn) => {
+              btn.addEventListener("click", async () => {
+                const idx = Number(btn.getAttribute("data-cat-copy"));
+                const ta = document.getElementById(`cat-cmd-${idx}`);
+                const cmd = ta ? ta.value : skills[idx].contextualCommand;
+                await copyToClipboard(cmd);
+                showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
+              });
+            });
+          }
 
           const agents = currentState.agentsCatalog || [];
-          const agentsEl = document.getElementById("agentsCatalogList");
-          agentsEl.innerHTML = agents
-            .map((a) => {
-              const agentCmd = `/${a.skill} "Hi ${a.name} (${a.title}), review our current ${currentState.projectName} state and advise on ${a.focus}"`;
-              const aModel = a.recommendedModel?.modelId || getFallbackModelId();
-              const aShort = a.recommendedModel?.shortName || (aModel ? aModel.split("/").pop() : "host-default");
-              return `
-                <div class="phase-card" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                  <div>
-                    <div style="font-weight:700;">${escapeHtml(a.icon)} ${escapeHtml(a.name)} — ${escapeHtml(a.title)}</div>
-                    <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(a.focus)}</div>
-                    <div style="margin-top:3px;"><span class="pill pill-purple">🤖 ${escapeHtml(aShort)}</span></div>
-                  </div>
-                  <button class="btn btn-primary" data-agent-cmd="${escapeHtml(agentCmd)}" data-agent-model="${escapeHtml(aModel)}" data-agent-name="${escapeHtml(a.name)}">
-                    🚀 New Session
-                  </button>
-                </div>
-              `;
-            })
-            .join("");
-
-          agentsEl.querySelectorAll("[data-agent-cmd]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
-              await launchPromptInNewSession(
-                btn.getAttribute("data-agent-cmd"),
-                btn.getAttribute("data-agent-model"),
-                "",
-                btn.getAttribute("data-agent-name")
-              );
-            });
+          const agentsSig = JSON.stringify({
+            agents,
+            projectName: currentState.projectName,
+            fallbackModel: getFallbackModelId()
           });
+          if (lastSectionSignatures.agentsCatalog !== agentsSig) {
+            lastSectionSignatures.agentsCatalog = agentsSig;
+            const agentsEl = document.getElementById("agentsCatalogList");
+            agentsEl.innerHTML = agents
+              .map((a) => {
+                const agentCmd = `/${a.skill} "Hi ${a.name} (${a.title}), review our current ${currentState.projectName} state and advise on ${a.focus}"`;
+                const aModel = a.recommendedModel?.modelId || getFallbackModelId();
+                const aShort = a.recommendedModel?.shortName || (aModel ? aModel.split("/").pop() : "host-default");
+                return `
+                  <div class="phase-card" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                    <div>
+                      <div style="font-weight:700;">${escapeHtml(a.icon)} ${escapeHtml(a.name)} — ${escapeHtml(a.title)}</div>
+                      <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(a.focus)}</div>
+                      <div style="margin-top:3px;"><span class="pill pill-purple">🤖 ${escapeHtml(aShort)}</span></div>
+                    </div>
+                    <button class="btn btn-primary" data-agent-cmd="${escapeHtml(agentCmd)}" data-agent-model="${escapeHtml(aModel)}" data-agent-name="${escapeHtml(a.name)}">
+                      🚀 New Session
+                    </button>
+                  </div>
+                `;
+              })
+              .join("");
+
+            agentsEl.querySelectorAll("[data-agent-cmd]").forEach((btn) => {
+              btn.addEventListener("click", async () => {
+                await launchPromptInNewSession(
+                  btn.getAttribute("data-agent-cmd"),
+                  btn.getAttribute("data-agent-model"),
+                  "",
+                  btn.getAttribute("data-agent-name")
+                );
+              });
+            });
+          }
         }
 
         function renderArtifactsDirectory() {
@@ -1690,6 +1905,10 @@
               const hay = `${a.relPath} ${a.name} ${a.kind} ${a.phaseName} ${a.gitStatus}`.toLowerCase();
               return hay.includes(query);
             });
+
+          const artsSig = JSON.stringify({ query, sortedArts });
+          if (lastSectionSignatures.artifacts === artsSig) return;
+          lastSectionSignatures.artifacts = artsSig;
 
           document.getElementById("artifactCountBadge").textContent = `${sortedArts.length} files`;
           const list = document.getElementById("artifactsDirectoryList");
@@ -1904,7 +2123,7 @@
 
         setInterval(() => {
           if (!document.hidden) {
-            refreshState();
+            refreshState({ isBackground: true });
           }
         }, 5000);
 
