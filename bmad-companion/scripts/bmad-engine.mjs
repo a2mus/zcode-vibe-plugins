@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, extname, join, relative, resolve } from "node:path";
+import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 
 export const BMAD_PHASES = [
@@ -2194,7 +2194,8 @@ export function inspectWorkspaceArtifact(workspaceRoot, relPath) {
   const cleanRel = String(relPath || "").replace(/^[/\\]+/, "").replace(/\\/g, "/");
   const full = resolve(workspaceRoot, cleanRel);
   const rootResolved = resolve(workspaceRoot);
-  if (!full.startsWith(rootResolved)) {
+  const rootWithSep = rootResolved.endsWith(sep) ? rootResolved : rootResolved + sep;
+  if (full !== rootResolved && !full.startsWith(rootWithSep)) {
     throw new Error("Artifact path must stay within the workspace root.");
   }
   if (!existsSync(full)) {
@@ -2275,7 +2276,8 @@ export function openWorkspaceArtifactExternally(workspaceRoot, relPath) {
   const cleanRel = String(relPath || "").replace(/^[/\\]+/, "").replace(/\\/g, "/");
   const full = resolve(workspaceRoot, cleanRel);
   const rootResolved = resolve(workspaceRoot);
-  if (!full.startsWith(rootResolved)) {
+  const rootWithSep = rootResolved.endsWith(sep) ? rootResolved : rootResolved + sep;
+  if (full !== rootResolved && !full.startsWith(rootWithSep)) {
     throw new Error("Artifact path must stay within the workspace root.");
   }
   if (!existsSync(full)) {

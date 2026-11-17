@@ -1,7 +1,7 @@
 ---
 type: ux
 title: vibe-debrief UX Specifications
-status: draft
+status: final
 updated: 2026-11-17
 ---
 
