@@ -1,0 +1,2529 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-xray="plain">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vibe Debrief — Cockpit HUD &amp; Plugin Orchestra Brainstorm Keepsake</title>
+<style>
+  :root {
+    --bg-canvas: #070b12;
+    --bg-panel: #0e1420;
+    --bg-elevated: #141d2e;
+    --bg-card: #111827;
+    --bg-inset: #090e17;
+    --border-subtle: rgba(148, 163, 184, 0.16);
+    --border-strong: rgba(148, 163, 184, 0.32);
+    --text-primary: #eef2ff;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --accent-cyan: #22d3ee;
+    --accent-emerald: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-violet: #a78bfa;
+    --accent-coral: #f43f5e;
+    --accent-sky: #38bdf8;
+    --accent-brass: #d97706;
+    --grid-line: rgba(34, 211, 238, 0.045);
+    --shadow-card: 0 14px 36px rgba(0, 0, 0, 0.45);
+    --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --radius-lg: 16px;
+    --radius-md: 11px;
+    --radius-sm: 7px;
+  }
+
+  html[data-theme="light"] {
+    --bg-canvas: #f4efe4;
+    --bg-panel: #fbf8f1;
+    --bg-elevated: #ffffff;
+    --bg-card: #fffdf8;
+    --bg-inset: #efe8d8;
+    --border-subtle: rgba(71, 85, 105, 0.16);
+    --border-strong: rgba(71, 85, 105, 0.34);
+    --text-primary: #172030;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --accent-cyan: #0284c7;
+    --accent-emerald: #059669;
+    --accent-amber: #b45309;
+    --accent-violet: #6d28d9;
+    --accent-coral: #be123c;
+    --accent-sky: #0369a1;
+    --accent-brass: #92400e;
+    --grid-line: rgba(2, 132, 199, 0.06);
+    --shadow-card: 0 10px 28px rgba(30, 41, 59, 0.09);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background-color: var(--bg-canvas);
+    background-image:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px),
+      radial-gradient(900px 520px at 15% -5%, rgba(34, 211, 238, 0.11), transparent 65%),
+      radial-gradient(850px 520px at 90% 10%, rgba(167, 139, 250, 0.11), transparent 65%);
+    background-size: 36px 36px, 36px 36px, 100% 100%, 100% 100%;
+    color: var(--text-primary);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent-cyan); text-decoration: none; }
+  button, input { font-family: inherit; }
+
+  .container {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 0 22px 84px;
+  }
+
+  /* Sticky Cockpit Telemetry HUD */
+  .hud-bar {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    background: color-mix(in srgb, var(--bg-panel) 84%, transparent);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .hud-inner {
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 10px 22px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .hud-brand {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+  }
+
+  .hud-logo {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.18), rgba(167, 139, 250, 0.2));
+    border: 1px solid var(--border-strong);
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  .hud-title-wrap {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+  }
+
+  .hud-kicker {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+  }
+
+  .hud-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .hud-nav {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .hud-link {
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: 1px solid transparent;
+    transition: 0.18s ease;
+  }
+
+  .hud-link:hover {
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border-color: var(--border-subtle);
+  }
+
+  .hud-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+    transition: transform 0.14s ease, border-color 0.16s ease, background 0.16s ease;
+  }
+
+  .pill-btn:hover {
+    transform: translateY(-1px);
+    border-color: var(--accent-cyan);
+  }
+
+  .pill-btn.active {
+    background: color-mix(in srgb, var(--accent-cyan) 18%, var(--bg-elevated));
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+  }
+
+  .kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+  }
+
+  /* Hero Cockpit Header */
+  .hero {
+    margin-top: 26px;
+    padding: 28px;
+    border-radius: 22px;
+    background:
+      linear-gradient(145deg, color-mix(in srgb, var(--bg-elevated) 92%, var(--accent-cyan) 8%), var(--bg-panel));
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-card);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(500px 240px at 88% 15%, rgba(34, 211, 238, 0.12), transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1.35fr 0.95fr;
+    gap: 24px;
+    align-items: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-badge-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-inset);
+    color: var(--text-secondary);
+  }
+
+  .status-chip.live {
+    border-color: rgba(16, 185, 129, 0.45);
+    color: var(--accent-emerald);
+    background: rgba(16, 185, 129, 0.1);
+  }
+
+  .dot-pulse {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulseGlow 2.2s infinite ease-in-out;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.45; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.2); }
+  }
+
+  .hero h1 {
+    margin: 0 0 12px;
+    font-size: clamp(26px, 3.6vw, 40px);
+    line-height: 1.12;
+    letter-spacing: -0.025em;
+  }
+
+  .hero-lead {
+    margin: 0 0 18px;
+    color: var(--text-secondary);
+    font-size: 15px;
+    max-width: 66ch;
+  }
+
+  .xray-swap {
+    display: inline;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: color-mix(in srgb, var(--accent-violet) 14%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--accent-violet) 45%, transparent);
+    color: var(--text-primary);
+  }
+
+  .telemetry-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metric-box {
+    padding: 12px 13px;
+    border-radius: var(--radius-md);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .metric-val {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-lbl {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .hero-radar-card {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .radar-caption {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+
+  /* Section Headings */
+  .section-head {
+    margin: 44px 0 18px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .section-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-cyan);
+    margin-bottom: 4px;
+  }
+
+  .section-title {
+    margin: 0;
+    font-size: clamp(20px, 2.4vw, 27px);
+    letter-spacing: -0.02em;
+  }
+
+  .section-sub {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    max-width: 68ch;
+  }
+
+  /* Studio Lab Grid */
+  .studio-tabs {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+
+  .studio-tab {
+    padding: 9px 15px;
+    border-radius: 11px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-panel);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.16s ease;
+  }
+
+  .studio-tab:hover {
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+  }
+
+  .studio-tab.active {
+    background: color-mix(in srgb, var(--accent-cyan) 15%, var(--bg-elevated));
+    border-color: var(--accent-cyan);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+  }
+
+  .studio-stage {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 20px;
+    padding: 22px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .sim-pane { display: none; }
+  .sim-pane.active { display: block; animation: fadeRise 0.22s ease; }
+
+  @keyframes fadeRise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Simulator 1: Zoom Ladder + Canvas Player */
+  .ladder-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-subtle);
+    margin-bottom: 18px;
+  }
+
+  .segmented {
+    display: inline-flex;
+    padding: 4px;
+    border-radius: 11px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .seg-btn {
+    padding: 7px 13px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.15s ease;
+  }
+
+  .seg-btn.active {
+    background: var(--bg-elevated);
+    color: var(--accent-cyan);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  }
+
+  .confidence-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    overflow: hidden;
+    margin: 10px 0 14px;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    width: 92%;
+    border-radius: 999px;
+    transition: width 0.35s ease, background 0.25s ease;
+    background: linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan));
+  }
+
+  .confidence-fill.partial {
+    width: 64%;
+    background: linear-gradient(90deg, var(--accent-amber), #fbbf24);
+  }
+
+  .confidence-fill.assumption {
+    width: 32%;
+    background: linear-gradient(90deg, var(--accent-coral), var(--accent-amber));
+  }
+
+  .ladder-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .plaque-box {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .verdict-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+
+  .verdict-pill {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    background: rgba(16, 185, 129, 0.16);
+    color: var(--accent-emerald);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+  }
+
+  .takeaway-chips {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .t-chip {
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    font-size: 12px;
+  }
+
+  .t-chip strong {
+    display: block;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--accent-cyan);
+    margin-bottom: 3px;
+  }
+
+  .canvas-stage {
+    background: #060a12;
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    padding: 12px;
+    color: #e2e8f0;
+  }
+
+  .canvas-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+
+  #explainerCanvas {
+    width: 100%;
+    height: 220px;
+    display: block;
+    border-radius: 10px;
+    background: radial-gradient(circle at 50% 45%, #111b2e, #060a12);
+  }
+
+  .node-drawer {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    font-size: 13px;
+  }
+
+  /* Simulator 2: Plugin Orchestra */
+  .orchestra-layout {
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .plugin-inspector {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .code-snippet {
+    margin-top: 10px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    background: #05080f;
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* Simulator 3: 320px Zero-Scroll Viewport */
+  .viewport-compare {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .panel-320-shell {
+    width: 320px;
+    margin: 0 auto;
+    border-radius: 18px;
+    background: var(--bg-inset);
+    border: 2px solid var(--border-strong);
+    box-shadow: 0 20px 44px rgba(0, 0, 0, 0.4);
+    overflow: hidden;
+  }
+
+  .panel-320-chrome {
+    height: 36px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  .panel-320-body {
+    padding: 10px;
+    min-height: 410px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .stepper-strip {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .step-pill {
+    padding: 5px 2px;
+    border-radius: 7px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+  }
+
+  .step-pill.active {
+    background: color-mix(in srgb, var(--accent-cyan) 18%, var(--bg-elevated));
+    border-color: var(--accent-cyan);
+    color: var(--accent-cyan);
+  }
+
+  .step-pill.warn { border-color: rgba(245, 158, 11, 0.55); color: var(--accent-amber); }
+  .step-pill.ok { border-color: rgba(16, 185, 129, 0.5); color: var(--accent-emerald); }
+
+  .old-bloat-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 8px;
+    background: rgba(244, 63, 94, 0.08);
+    border: 1px dashed rgba(244, 63, 94, 0.35);
+    font-size: 9.5px;
+    color: var(--accent-coral);
+  }
+
+  .old-bloat-pill {
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: rgba(244, 63, 94, 0.14);
+  }
+
+  /* Simulator 4: Multi-Grammar SVG Diorama */
+  .grammar-stage {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-strong);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  /* Techniques Atlas */
+  .filter-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+
+  .filter-pills {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+
+  .filter-chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-panel);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.15s ease;
+  }
+
+  .filter-chip:hover { color: var(--text-primary); border-color: var(--border-strong); }
+  .filter-chip.active {
+    background: var(--accent-cyan);
+    color: #06101c;
+    border-color: var(--accent-cyan);
+  }
+
+  .search-input {
+    min-width: 240px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid var(--border-strong);
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+  }
+
+  .search-input:focus { border-color: var(--accent-cyan); }
+
+  .techniques-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 16px;
+  }
+
+  .tech-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-subtle);
+    border-top: 3px solid var(--tech-accent, var(--accent-cyan));
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: var(--shadow-card);
+    transition: transform 0.16s ease, border-color 0.16s ease;
+  }
+
+  .tech-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+
+  .tech-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .tech-cat {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--tech-accent, var(--accent-cyan)) 14%, transparent);
+    color: var(--tech-accent, var(--accent-cyan));
+    border: 1px solid color-mix(in srgb, var(--tech-accent, var(--accent-cyan)) 35%, transparent);
+    display: inline-block;
+    margin-bottom: 5px;
+  }
+
+  .tech-title {
+    margin: 0;
+    font-size: 16.5px;
+    letter-spacing: -0.01em;
+  }
+
+  .tech-mini-svg {
+    width: 64px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 9px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    padding: 4px;
+  }
+
+  .tech-ideas-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .idea-row {
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    font-size: 12.6px;
+    line-height: 1.45;
+  }
+
+  .idea-tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 5px;
+    margin-right: 6px;
+    background: color-mix(in srgb, var(--tech-accent, var(--accent-cyan)) 18%, transparent);
+    color: var(--tech-accent, var(--accent-cyan));
+  }
+
+  .flip-anti { color: var(--accent-coral); font-weight: 600; }
+  .flip-inv { color: var(--accent-emerald); font-weight: 600; }
+
+  .disney-tabs {
+    display: flex;
+    gap: 5px;
+  }
+
+  .disney-pill {
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .disney-pill.active {
+    background: var(--tech-accent);
+    color: #071019;
+    border-color: var(--tech-accent);
+  }
+
+  /* Filterable Full Idea Stream */
+  .stream-shell {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: 18px;
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .stream-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 10px;
+    max-height: 540px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  .stream-item {
+    padding: 11px 12px;
+    border-radius: 11px;
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12.8px;
+  }
+
+  .stream-item.starred {
+    border-color: var(--accent-amber);
+    background: color-mix(in srgb, var(--accent-amber) 7%, var(--bg-inset));
+  }
+
+  .stream-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+  }
+
+  .star-btn {
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+
+  .star-btn.on {
+    border-color: var(--accent-amber);
+    color: var(--accent-amber);
+    background: rgba(245, 158, 11, 0.14);
+  }
+
+  /* Climax: 3 Core Breakthroughs */
+  .climax-section {
+    margin-top: 48px;
+    padding: 28px;
+    border-radius: 24px;
+    background:
+      radial-gradient(700px 280px at 10% 0%, rgba(16, 185, 129, 0.14), transparent 70%),
+      radial-gradient(640px 280px at 90% 100%, rgba(34, 211, 238, 0.14), transparent 70%),
+      var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    box-shadow: var(--shadow-card);
+  }
+
+  .climax-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 18px;
+  }
+
+  .breakthrough-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-strong);
+    border-radius: 16px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 12px;
+    position: relative;
+  }
+
+  .bt-num {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--accent-emerald);
+  }
+
+  .bt-title {
+    margin: 4px 0 8px;
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  .bt-body {
+    margin: 0;
+    font-size: 13.5px;
+    color: var(--text-secondary);
+  }
+
+  .bt-xray-note {
+    padding: 9px 10px;
+    border-radius: 9px;
+    background: var(--bg-inset);
+    border: 1px dashed var(--border-strong);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-primary);
+  }
+
+  /* SVG kinetic edge animation */
+  .flow-edge {
+    stroke-dasharray: 7 5;
+    animation: dashFlow 1.4s linear infinite;
+  }
+
+  @keyframes dashFlow {
+    to { stroke-dashoffset: -24; }
+  }
+
+  .clickable-node { cursor: pointer; transition: opacity 0.15s ease; }
+  .clickable-node:hover { opacity: 0.88; }
+
+  .footer {
+    margin-top: 40px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 980px) {
+    .hero-grid, .ladder-grid, .orchestra-layout, .viewport-compare, .climax-grid {
+      grid-template-columns: 1fr;
+    }
+    .telemetry-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .techniques-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hud-bar">
+  <div class="hud-inner">
+    <div class="hud-brand">
+      <div class="hud-logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9" stroke="#22d3ee" stroke-width="1.6" stroke-dasharray="4 3"/>
+          <polygon points="12,5 18,16 12,13 6,16" fill="#10b981"/>
+          <circle cx="12" cy="12" r="2" fill="#f59e0b"/>
+        </svg>
+      </div>
+      <div class="hud-title-wrap">
+        <span class="hud-kicker">COCKPIT HUD // FIELD DESK KEEPSAKE</span>
+        <span class="hud-title">Vibe Debrief UI/UX &amp; Plugin Orchestra</span>
+      </div>
+    </div>
+
+    <nav class="hud-nav" aria-label="Section navigation">
+      <a class="hud-link" href="#studio-lab">Studio Lab</a>
+      <a class="hud-link" href="#techniques-atlas">16 Techniques</a>
+      <a class="hud-link" href="#idea-stream">Idea Stream</a>
+      <a class="hud-link" href="#climax">3 Breakthroughs</a>
+    </nav>
+
+    <div class="hud-controls">
+      <button id="xrayBtn" class="pill-btn" type="button" title="Toggle Plain English vs Code Reality (D)">
+        <span>X-Ray: <strong id="xrayLabel">Plain English</strong></span>
+        <span class="kbd">D</span>
+      </button>
+      <button id="themeBtn" class="pill-btn" type="button" title="Toggle Cockpit Dark vs Field Desk Light (T)">
+        <span id="themeLabel">Cockpit HUD</span>
+        <span class="kbd">T</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <!-- HERO COCKPIT -->
+  <section class="hero" aria-labelledby="hero-heading">
+    <div class="hero-grid">
+      <div>
+        <div class="hero-badge-row">
+          <span class="status-chip live"><span class="dot-pulse"></span> AUTONOMOUS SYNTHESIS COMPLETE</span>
+          <span class="status-chip">2026-11-17T22:55</span>
+          <span class="status-chip">ZERO-DEP MCP APP</span>
+        </div>
+        <h1 id="hero-heading">From 4-Row Clutter to a Living Cockpit &amp; Plugin Orchestra</h1>
+        <p class="hero-lead" id="heroLead">
+          This interactive keepsake distills an entire 16-technique design expedition: replacing cramped prose walls in the Vibe Debrief sidebar with a <span class="xray-swap" data-plain="10-second Glance HUD + living SVG map" data-code="36px toolbar + multi-grammar SVG + 5-step pill stepper">10-second Glance HUD + living SVG map</span>, while orchestrating <span class="xray-swap" data-plain="external ZCode visual superpowers on click" data-code="excalidraw:create_diagram + visualize ui/message + presentations">external ZCode visual superpowers on click</span>.
+        </p>
+
+        <div class="telemetry-strip">
+          <div class="metric-box">
+            <div class="metric-val" id="statTechniques" style="color:var(--accent-cyan)">16</div>
+            <div class="metric-lbl">Techniques Run</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val" id="statIdeas" style="color:var(--accent-emerald)">115</div>
+            <div class="metric-lbl">Raw Ideas Forged</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val" style="color:var(--accent-amber)">3</div>
+            <div class="metric-lbl">Core Breakthroughs</div>
+          </div>
+          <div class="metric-box">
+            <div class="metric-val" style="color:var(--accent-violet)">6</div>
+            <div class="metric-lbl">Visual Engines</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mini Constellation SVG -->
+      <div class="hero-radar-card">
+        <div class="radar-caption">
+          <span>SYSTEM TOPOLOGY // CLICK ANY RING OR JUMP BELOW</span>
+          <span style="color:var(--accent-emerald)">PASS // 0 DEPS</span>
+        </div>
+        <svg viewBox="0 0 380 230" width="100%" height="210" role="img" aria-label="Vibe Debrief Cockpit and Plugin Orchestra radar">
+          <defs>
+            <radialGradient id="radGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#22d3ee" stop-opacity="0.22"/>
+              <stop offset="100%" stop-color="#22d3ee" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <circle cx="190" cy="115" r="98" fill="url(#radGlow)" stroke="rgba(148,163,184,0.22)" stroke-dasharray="3 4"/>
+          <circle cx="190" cy="115" r="64" fill="none" stroke="rgba(148,163,184,0.2)" stroke-dasharray="4 4"/>
+          <line x1="190" y1="115" x2="72" y2="48" stroke="#22d3ee" stroke-width="1.6" class="flow-edge"/>
+          <line x1="190" y1="115" x2="310" y2="52" stroke="#10b981" stroke-width="1.6" class="flow-edge"/>
+          <line x1="190" y1="115" x2="68" y2="178" stroke="#f59e0b" stroke-width="1.6" class="flow-edge"/>
+          <line x1="190" y1="115" x2="312" y2="178" stroke="#a78bfa" stroke-width="1.6" class="flow-edge"/>
+
+          <!-- Center Hub -->
+          <g>
+            <rect x="132" y="91" width="116" height="48" rx="12" fill="#0e1726" stroke="#22d3ee" stroke-width="2"/>
+            <text x="190" y="112" text-anchor="middle" fill="#eef2ff" font-size="11.5" font-weight="700">Vibe Debrief HUD</text>
+            <text x="190" y="128" text-anchor="middle" fill="#22d3ee" font-size="9.5" font-family="monospace">320px Index + SVG</text>
+          </g>
+
+          <!-- Satellites -->
+          <g>
+            <rect x="16" y="24" width="104" height="38" rx="9" fill="#111b2e" stroke="#22d3ee" stroke-width="1.2"/>
+            <text x="68" y="41" text-anchor="middle" fill="#eef2ff" font-size="10.5" font-weight="700">Excalidraw</text>
+            <text x="68" y="54" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="monospace">Whiteboard</text>
+          </g>
+          <g>
+            <rect x="260" y="24" width="106" height="38" rx="9" fill="#111b2e" stroke="#10b981" stroke-width="1.2"/>
+            <text x="313" y="41" text-anchor="middle" fill="#eef2ff" font-size="10.5" font-weight="700">Visualize Gen UI</text>
+            <text x="313" y="54" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="monospace">Live Sim Widget</text>
+          </g>
+          <g>
+            <rect x="16" y="164" width="104" height="38" rx="9" fill="#111b2e" stroke="#f59e0b" stroke-width="1.2"/>
+            <text x="68" y="181" text-anchor="middle" fill="#eef2ff" font-size="10.5" font-weight="700">Presentations</text>
+            <text x="68" y="194" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="monospace">Sprint Reel Deck</text>
+          </g>
+          <g>
+            <rect x="260" y="164" width="106" height="38" rx="9" fill="#111b2e" stroke="#a78bfa" stroke-width="1.2"/>
+            <text x="313" y="181" text-anchor="middle" fill="#eef2ff" font-size="10.5" font-weight="700">Canvas + Design</text>
+            <text x="313" y="194" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="monospace">Curator Tour / 3D</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTERACTIVE STUDIO LAB -->
+  <section id="studio-lab">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">INTERACTIVE STUDIO LAB</div>
+        <h2 class="section-title">Playable Prototypes Forged from the Session</h2>
+        <p class="section-sub">Test the four flagship concepts directly: climb the Zoom Ladder, conduct the Plugin Orchestra, compare the 320px Zero-Scroll Viewport, and tour all 5 Diagram Grammars.</p>
+      </div>
+    </div>
+
+    <div class="studio-tabs" role="tablist">
+      <button class="studio-tab active" data-sim="zoom" type="button">1. 3s / 30s / 3m Zoom Ladder + Canvas</button>
+      <button class="studio-tab" data-sim="orchestra" type="button">2. Plugin Orchestra Conductor</button>
+      <button class="studio-tab" data-sim="viewport" type="button">3. 320px Zero-Scroll Viewport</button>
+      <button class="studio-tab" data-sim="grammars" type="button">4. Multi-Grammar SVG Diorama</button>
+    </div>
+
+    <div class="studio-stage">
+      <!-- SIM 1: ZOOM LADDER + PLAYABLE ARCHITECTURE CANVAS -->
+      <div class="sim-pane active" id="sim-zoom">
+        <div class="ladder-controls">
+          <div class="segmented" aria-label="Zoom Ladder altitude">
+            <button class="seg-btn active" data-tier="3s" type="button">3s Glance (Verdict)</button>
+            <button class="seg-btn" data-tier="30s" type="button">30s Scan (Diagram + Proof)</button>
+            <button class="seg-btn" data-tier="3m" type="button">3m Deep Dive (Animate + Plugins)</button>
+          </div>
+          <div class="segmented" aria-label="Confidence meter state">
+            <button class="seg-btn active" data-conf="verified" type="button">Verified (Tests Pass)</button>
+            <button class="seg-btn" data-conf="partial" type="button">Partial (1 Check Skipped)</button>
+            <button class="seg-btn" data-conf="assumption" type="button">Assumption (Untested)</button>
+          </div>
+        </div>
+
+        <div class="ladder-grid">
+          <div class="plaque-box">
+            <div class="verdict-row">
+              <span class="verdict-pill" id="ladderVerdict">SOLVED // VERIFIED</span>
+              <span class="status-chip" id="ladderTierTag">ALTITUDE: 3-SECOND GLANCE</span>
+            </div>
+            <h3 id="ladderHeadline" style="margin:0 0 6px; font-size:18px;">
+              Panel now routes heavy visuals out to Excalidraw &amp; Gen UI while keeping a 50ms SVG preview.
+            </h3>
+            <div class="confidence-bar"><div class="confidence-fill" id="confFill"></div></div>
+            <div style="font-size:12px; color:var(--text-secondary);" id="confCaption">
+              Confidence 92% — Syntax check, MCP handshake, and hook runner verified.
+            </div>
+
+            <div class="takeaway-chips">
+              <div class="t-chip"><strong>1. CAUSE</strong><span class="xray-swap" data-plain="460px sidebar choked complex boards" data-code="panel.html iframe CSP + 360px cap">460px sidebar choked complex boards</span></div>
+              <div class="t-chip"><strong>2. FIX</strong><span class="xray-swap" data-plain="Native SVG preview + 1-click Pop Out" data-code="DiagramSpec -> ui/message bridge">Native SVG preview + 1-click Pop Out</span></div>
+              <div class="t-chip"><strong>3. CATCH</strong><span class="xray-swap" data-plain="External plugins add 5-15s only on click" data-code="Gated by user click / score >= 4">External plugins add 5-15s only on click</span></div>
+            </div>
+
+            <div id="tier30Box" style="margin-top:14px; display:none;">
+              <div style="font-family:var(--font-mono); font-size:11px; color:var(--accent-cyan); margin-bottom:6px;">
+                30s SCAN // CLICK ANY NODE TO INSPECT EVIDENCE
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;" id="tierNodeButtons">
+                <button class="pill-btn active" data-node="0" type="button">1. Hook Extract (&lt;20ms)</button>
+                <button class="pill-btn" data-node="1" type="button">2. Diagram Spec</button>
+                <button class="pill-btn" data-node="2" type="button">3. SVG Preview</button>
+                <button class="pill-btn" data-node="3" type="button">4. Plugin Dock</button>
+              </div>
+              <div class="node-drawer" id="tierNodeDrawer"></div>
+            </div>
+
+            <div id="tier3mBox" style="margin-top:14px; display:none;">
+              <div style="font-family:var(--font-mono); font-size:11px; color:var(--accent-violet); margin-bottom:6px;">
+                3m DEEP DIVE // ON-DEMAND PLUGIN LAUNCHERS
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <span class="status-chip">Edit in Excalidraw (excalidraw:create_diagram)</span>
+                <span class="status-chip">Interactive Gen UI (visualize)</span>
+                <span class="status-chip">Export Exhibit HTML</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Playable Architecture Canvas -->
+          <div class="canvas-stage">
+            <div class="canvas-bar">
+              <span>PLAYABLE ARCHITECTURE // <strong id="canvasModeLabel" style="color:#10b981">HAPPY PATH</strong></span>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="disney-pill active" id="pathHappyBtn" type="button">Happy Path</button>
+                <button class="disney-pill" id="pathFailBtn" type="button">Failure Path</button>
+                <button class="disney-pill active" id="canvasPlayBtn" type="button">Pause</button>
+              </div>
+            </div>
+            <canvas id="explainerCanvas" width="520" height="220"></canvas>
+            <div style="margin-top:8px; font-size:12px; color:#94a3b8; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+              <span id="canvasCaption">Beat 1: Hook extracts structural skeleton in &lt;20ms with zero token burn.</span>
+              <span style="font-family:var(--font-mono); color:#22d3ee;" id="canvasStepCounter">Step 1/4</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIM 2: PLUGIN ORCHESTRA CONDUCTOR -->
+      <div class="sim-pane" id="sim-orchestra">
+        <div class="ladder-controls">
+          <div>
+            <span style="font-family:var(--font-mono); font-size:11px; color:var(--accent-cyan);">RESPONSE LENS:</span>
+            <div class="segmented" style="margin-left:6px;">
+              <button class="seg-btn active" data-lens="debug" type="button">Debug</button>
+              <button class="seg-btn" data-lens="build" type="button">Build</button>
+              <button class="seg-btn" data-lens="concept" type="button">Concept</button>
+              <button class="seg-btn" data-lens="compare" type="button">Comparison</button>
+              <button class="seg-btn" data-lens="plan" type="button">Plan</button>
+            </div>
+          </div>
+          <button id="complexityToggle" class="pill-btn" type="button">Complexity: <strong id="complexityLbl">Complex (Score 5)</strong></button>
+        </div>
+
+        <div class="orchestra-layout">
+          <div class="grammar-stage">
+            <svg id="orchestraSvg" viewBox="0 0 640 280" width="100%" height="270" role="img" aria-label="Plugin Orchestra Routing Map"></svg>
+          </div>
+          <div class="plugin-inspector">
+            <div style="font-family:var(--font-mono); font-size:11px; color:var(--accent-emerald);">CONDUCTOR RECIPE BRIDGE</div>
+            <h3 id="orchPluginTitle" style="margin:4px 0 8px;">Native SVG + Visualize Gen UI</h3>
+            <p id="orchPluginDesc" style="margin:0; font-size:13px; color:var(--text-secondary);">
+              Instant 50ms SVG preview renders in the sidebar, while complex debugging flows unlock an interactive step-through widget via ZCode's visualize skill.
+            </p>
+            <div class="code-snippet" id="orchRecipeCode"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIM 3: 320px ZERO-SCROLL VIEWPORT -->
+      <div class="sim-pane" id="sim-viewport">
+        <div class="ladder-controls">
+          <div class="segmented">
+            <button class="seg-btn active" data-vp="after" type="button">After: 320px Zero-Scroll HUD</button>
+            <button class="seg-btn" data-vp="before" type="button">Before: Cluttered 4-Row Wall</button>
+          </div>
+          <span style="font-family:var(--font-mono); font-size:12px; color:var(--text-secondary);">
+            Keys <span class="kbd">1</span>–<span class="kbd">5</span> switch steps inside the 320px frame
+          </span>
+        </div>
+
+        <div class="viewport-compare">
+          <div class="panel-320-shell">
+            <div class="panel-320-chrome">
+              <span>Vibe Debrief</span>
+              <button id="vpLensBtn" type="button" style="font-size:10px; padding:3px 7px; border-radius:999px; border:1px solid var(--border-strong); background:var(--bg-inset); color:var(--accent-cyan); cursor:pointer;">Lens: Mentor · STE-80</button>
+            </div>
+            <div class="panel-320-body" id="vp320Body"></div>
+          </div>
+
+          <div class="plaque-box">
+            <h3 style="margin:0 0 8px;">Pixel Budget Breakdown (Above the Fold at 320px)</h3>
+            <p style="margin:0 0 12px; font-size:13.5px; color:var(--text-secondary);">
+              Technique #16 enforces strict spatial discipline inside ZCode's narrow right-hand sidebar: no endless vertical stacking of Card 1 + Card 2 + Card 3 + Card 4 + Section 5.
+            </p>
+            <div style="display:grid; gap:9px;">
+              <div class="idea-row"><span class="idea-tag">36px</span> Compact Toolbar: Title + <code>Distill Last Answer</code> CTA + single Lens/Gear popover.</div>
+              <div class="idea-row"><span class="idea-tag">90px</span> TL;DR Verdict Pill Card + Confidence Bar + 3 scannable chips.</div>
+              <div class="idea-row"><span class="idea-tag">220px</span> Hero Interactive SVG Diagram with inline <code>Play 12s</code> and <code>Pop Out</code> dock.</div>
+              <div class="idea-row"><span class="idea-tag">34px</span> Horizontal Stepper: <code>1.Why</code> <code>2.Plan</code> <code>3.Proof ✓3</code> <code>4.Risks !2</code> <code>5.Learn</code> — problems scream via badge counters without vertical bloat.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SIM 4: MULTI-GRAMMAR SVG DIORAMA -->
+      <div class="sim-pane" id="sim-grammars">
+        <div class="ladder-controls">
+          <div class="segmented" id="grammarBtns">
+            <button class="seg-btn active" data-gram="subway" type="button">Subway Layer Map</button>
+            <button class="seg-btn" data-gram="flowdiff" type="button">FlowDiff</button>
+            <button class="seg-btn" data-gram="split" type="button">Before / After Split</button>
+            <button class="seg-btn" data-gram="sequence" type="button">Sequence Swimlanes</button>
+            <button class="seg-btn" data-gram="tree" type="button">Decision Tree</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="pill-btn" id="tourNextBtn" type="button">Curator Tour: Stop <strong id="tourStopNum">1</strong>/4</button>
+          </div>
+        </div>
+        <div class="grammar-stage">
+          <svg id="grammarSvg" viewBox="0 0 760 270" width="100%" height="260" role="img" aria-label="Multi-grammar interactive SVG diagram"></svg>
+          <div class="node-drawer" id="grammarCaption">
+            Curator Stop 1: Every file lives on its architectural layer line (UI, MCP, or Engine).
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 16 TECHNIQUES ATLAS -->
+  <section id="techniques-atlas">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">16 BRAINSTORMING TECHNIQUES // COMPLETE ARCHIVE</div>
+        <h2 class="section-title">Every Technique with Its Own Visual Treatment</h2>
+        <p class="section-sub">Filter by methodology category. Each card renders all ideas from that technique in its native structure (Anti-Pattern Flips, Disney Roles, TRIZ Contradictions, Blends, Metaphors, and Constraints).</p>
+      </div>
+    </div>
+
+    <div class="filter-toolbar">
+      <div class="filter-pills" id="techCatFilters">
+        <button class="filter-chip active" data-cat="All" type="button">All (16)</button>
+        <button class="filter-chip" data-cat="Structured" type="button">Structured (4)</button>
+        <button class="filter-chip" data-cat="Creative" type="button">Creative (5)</button>
+        <button class="filter-chip" data-cat="Constraint" type="button">Constraint (2)</button>
+        <button class="filter-chip" data-cat="Deep" type="button">Deep / TRIZ (1)</button>
+        <button class="filter-chip" data-cat="Invented" type="button">Invented (4)</button>
+      </div>
+    </div>
+
+    <div class="techniques-grid" id="techniquesGrid"></div>
+  </section>
+
+  <!-- FILTERABLE FULL IDEA STREAM -->
+  <section id="idea-stream">
+    <div class="section-head">
+      <div>
+        <div class="section-eyebrow">SEARCHABLE IDEA STREAM // ALL 115 RAW ENTRIES</div>
+        <h2 class="section-title">Inspect, Search &amp; Shortlist Any Idea</h2>
+        <p class="section-sub">Filter across all 115 ideas by keyword, thematic cluster, or your personal shortlist stars.</p>
+      </div>
+    </div>
+
+    <div class="stream-shell">
+      <div class="filter-toolbar">
+        <div class="filter-pills" id="streamThemeFilters">
+          <button class="filter-chip active" data-theme-filter="all" type="button">All Ideas</button>
+          <button class="filter-chip" data-theme-filter="plugins" type="button">Cross-Plugin</button>
+          <button class="filter-chip" data-theme-filter="diagrams" type="button">Diagrams &amp; Grammars</button>
+          <button class="filter-chip" data-theme-filter="animation" type="button">Animation &amp; Canvas</button>
+          <button class="filter-chip" data-theme-filter="viewport" type="button">320px UI &amp; Clarity</button>
+          <button class="filter-chip" data-theme-filter="trust" type="button">Proof &amp; Trust</button>
+          <button class="filter-chip" data-theme-filter="starred" type="button">Shortlisted (<span id="starCount">0</span>)</button>
+        </div>
+        <input id="ideaSearch" class="search-input" type="search" placeholder="Search ideas, plugins, TRIZ, 320px..." aria-label="Search ideas">
+      </div>
+      <div class="stream-list" id="streamList"></div>
+    </div>
+  </section>
+
+  <!-- CLIMAX: 3 CORE BREAKTHROUGHS -->
+  <section id="climax" class="climax-section" aria-labelledby="climax-heading">
+    <div class="section-eyebrow" style="color:var(--accent-emerald);">SYNTHESIS CLIMAX // THE NORTH STAR ARCHITECTURE</div>
+    <h2 id="climax-heading" class="section-title">Three Core Breakthroughs</h2>
+    <p class="section-sub">Where all 16 techniques converged at the close of the session.</p>
+
+    <div class="climax-grid">
+      <article class="breakthrough-card">
+        <div>
+          <div class="bt-num">Breakthrough 01</div>
+          <h3 class="bt-title">Spatial Separation &amp; Plugin Orchestra</h3>
+          <p class="bt-body">
+            Stop forcing Vibe Debrief's 360px iframe to be both text summarizer and full diagram editor; keep <code>panel.html</code> as the crisp Cockpit HUD + fast native multi-grammar SVG preview, and delegate heavy editable boards (Excalidraw), interactive simulations (Visualize Gen UI), and decks (Presentations / Deckcraft) via a unified Diagram Spec + Plugin Visual Dock.
+          </p>
+        </div>
+        <div>
+          <div class="bt-xray-note">
+            <span class="xray-swap" data-plain="Plain Rule: Side panel stays fast &amp; light; heavy canvases open in the big stage on click." data-code="Spec JSON -> SVG (50ms) | excalidraw:create_diagram | visualize ui/message | unsafeEval:false">Plain Rule: Side panel stays fast &amp; light; heavy canvases open in the big stage on click.</span>
+          </div>
+          <button class="pill-btn" style="margin-top:10px;" data-jump-sim="orchestra" type="button">Open Orchestra Studio</button>
+        </div>
+      </article>
+
+      <article class="breakthrough-card">
+        <div>
+          <div class="bt-num">Breakthrough 02</div>
+          <h3 class="bt-title">Zero-Scroll Progressive Disclosure</h3>
+          <p class="bt-body">
+            Replace the 4-row header and endlessly scrolling 4-card wall with a 1-strip compact header, a 3-Second / 30-Second / 3-Minute Zoom Ladder, a horizontal 5-step pill stepper (<code>1.Why</code> <code>2.Plan</code> <code>3.Proof</code> <code>4.Risks</code> <code>5.Learn</code>) with live verification/risk badge counters, and X-Ray toggle (Plain English &lt;-&gt; Exact Code).
+          </p>
+        </div>
+        <div>
+          <div class="bt-xray-note">
+            <span class="xray-swap" data-plain="Plain Rule: Grasp truth in 3s, inspect proof in 30s, dive deep only when you ask." data-code="36px Chrome + 90px TL;DR + 220px SVG + 5-tab stepper + D shortcut X-Ray">Plain Rule: Grasp truth in 3s, inspect proof in 30s, dive deep only when you ask.</span>
+          </div>
+          <button class="pill-btn" style="margin-top:10px;" data-jump-sim="viewport" type="button">Inspect 320px Viewport</button>
+        </div>
+      </article>
+
+      <article class="breakthrough-card">
+        <div>
+          <div class="bt-num">Breakthrough 03</div>
+          <h3 class="bt-title">Adaptive Response Lenses + Anytime Micro-Animation</h3>
+          <p class="bt-body">
+            Auto-detect response shape (Debug, Build, Concept, Comparison, Plan) and diagram grammar (Sequence, FlowDiff, Subway Layer Map, Before/After Split, Decision Tree) while unlocking inline kinetic SVG flow + on-demand Canvas Curator Tour for every diagram.
+          </p>
+        </div>
+        <div>
+          <div class="bt-xray-note">
+            <span class="xray-swap" data-plain="Plain Rule: Diagrams morph to fit the answer's shape, and any diagram can animate on click." data-code="Auto-classify ResponseLens -> Grammar(5) + Anytime Canvas Curator Tour">Plain Rule: Diagrams morph to fit the answer's shape, and any diagram can animate on click.</span>
+          </div>
+          <button class="pill-btn" style="margin-top:10px;" data-jump-sim="grammars" type="button">Explore 5 Diagram Grammars</button>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span>SOURCE // _bmad-output/initiative-vibe-debrief/brainstorm-ui-ux-diagram-plugins/.memlog.md</span>
+    <span>SELF-CONTAINED ARTIFACT // ZERO EXTERNAL DEPENDENCIES // 2026-11-17</span>
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  const TECHNIQUES = [
+    {
+      id: "worst-possible-idea",
+      name: "Worst Possible Idea",
+      category: "Structured",
+      treatment: "flip",
+      accent: "#f43f5e",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><path d="M10 26 C16 10, 44 10, 50 26" stroke="#f43f5e" stroke-width="2" fill="none"/><path d="M50 14 C44 30, 16 30, 10 14" stroke="#10b981" stroke-width="2" fill="none"/></svg>`,
+      ideas: [
+        { tag: "Flip 1", text: "Anti-pattern: Dump the entire raw AI response into tiny 10px cards with 4 header rows of pills -> Inversion: Collapse header to 1 compact command strip and hide prose behind expandable Why drawers." },
+        { tag: "Flip 2", text: "Anti-pattern: Force every turn into Bug or Implementation even for architecture Q&A or explanations -> Inversion: Auto-detect Response Lens (Concept, Comparison, Debug, Build, Plan) so cards and diagrams match the answer's real shape." },
+        { tag: "Flip 3", text: "Anti-pattern: Render every diagram as the same 6-box serpentine grid regardless of topic -> Inversion: Match diagram grammar to content (sequence swimlanes, before/after split, decision tree, state machine, or data flow)." },
+        { tag: "Flip 4", text: "Anti-pattern: Auto-launch 3 heavy external plugins on every trivial typo fix -> Inversion: Smart Visual Router scores complexity and invokes external plugins only on demand via a 'Visualize Deeper' dock." },
+        { tag: "Flip 5", text: "Anti-pattern: Show unverified animated eye-candy that hides what actually changed -> Inversion: Lock every visual node and animation step to a real file path, symbol, or proof pill so visuals never mask uncertainty." },
+        { tag: "Flip 6", text: "Anti-pattern: Bury the 'Simplify this response' action behind an obscure MCP command -> Inversion: Place a 1-click 'Distill Last Answer' hero button at the top of the panel that works on ANY chat reply." },
+        { tag: "Flip 7", text: "Anti-pattern: Trap diagrams inside a tiny 460px non-zoomable box -> Inversion: Give every diagram an inline preview plus 1-click Pop Out to ZCode Gen UI (visualize), Excalidraw board, or full-width HTML." }
+      ]
+    },
+    {
+      id: "disney-method",
+      name: "Disney Method",
+      category: "Structured",
+      treatment: "disney",
+      accent: "#38bdf8",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><circle cx="15" cy="20" r="8" fill="none" stroke="#38bdf8" stroke-width="2"/><circle cx="30" cy="20" r="8" fill="none" stroke="#10b981" stroke-width="2"/><circle cx="45" cy="20" r="8" fill="none" stroke="#f59e0b" stroke-width="2"/></svg>`,
+      ideas: [
+        { tag: "Dreamer", text: "[Dreamer] Every AI response gets an instant visual Storyboard showing Before -> Action -> After with animated data packets flowing between real files." },
+        { tag: "Dreamer", text: "[Dreamer] A Visual Studio bar inside Vibe Debrief lets the user pick a visual output with one click: Quick SVG, Excalidraw Whiteboard, Interactive Gen UI Sim, Animated Canvas, or Slide Summary." },
+        { tag: "Dreamer", text: "[Dreamer] Interactive 'Scrub the Diff' timeline slider: drag left-to-right to watch files, modules, and state mutate step-by-step like a video replay." },
+        { tag: "Realist", text: "[Realist] Reuse ZCode's already-installed plugins via ui/message or tool delegation: send structured specs to excalidraw:create_diagram, interactive HTML widgets to visualize, or decks to presentations/deckcraft." },
+        { tag: "Realist", text: "[Realist] Keep a fast zero-dep native SVG renderer for 50ms instant previews in panel.html, and add 'Send to Excalidraw' / 'Launch Interactive Sim' buttons that trigger heavy plugins only when clicked." },
+        { tag: "Realist", text: "[Realist] Replace the 4-row top header in panel.html with a 2-zone header: Title + 1-click Simplify CTA on top, compact segmented tab bar (Overview | Visual | Animate | Memory) below." },
+        { tag: "Critic", text: "[Critic] CSP unsafeEval:false and iframe isolation mean panel.html cannot call another plugin's MCP server directly — cross-plugin diagramming must route through ui/message delegation or a workspace spec file." },
+        { tag: "Critic", text: "[Critic] Invoking external visual plugins automatically adds 5-15s latency and token burn; keep external plugin handoffs strictly user-triggered or gated to complex multi-layer turns." },
+        { tag: "Critic", text: "[Critic] Squeezing an Excalidraw editor inside a 360px right-side panel destroys usability; external diagrams should open in Excalidraw's canvas or ZCode's inline Gen UI stream while Vibe Debrief stays the compact index." }
+      ]
+    },
+    {
+      id: "job-to-be-done",
+      name: "Job to Be Done",
+      category: "Structured",
+      treatment: "standard",
+      accent: "#22d3ee",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><rect x="8" y="8" width="18" height="24" rx="4" fill="none" stroke="#22d3ee" stroke-width="1.8"/><path d="M32 20 H52 M46 14 L52 20 L46 26" stroke="#10b981" stroke-width="2" fill="none"/></svg>`,
+      ideas: [
+        { tag: "Core JTBD", text: "Core JTBD: Grasp the truth of a dense 600-word AI response in 10 seconds -> Build a '10-Second Scan Card' with 1-sentence verdict, 3 scannable bullet pills, and 1 visual." },
+        { tag: "JTBD #2", text: "JTBD #2: Verify the AI did not hallucinate or skip risky checks -> Elevate a Confidence Meter and Unverified Warning strip directly under the TL;DR instead of burying them in Card 3 & 4." },
+        { tag: "JTBD #3", text: "JTBD #3: Explain a tricky architecture or bug to a teammate or future self -> One-click 'Export Visual Explainer' to Excalidraw, standalone animated HTML, or visualize interactive widget." },
+        { tag: "JTBD #4", text: "JTBD #4: Compare trade-offs when the AI proposes multiple options -> Auto-render a Decision Matrix / Trade-off Bars visual instead of forcing an Implementation card." },
+        { tag: "JTBD #5", text: "JTBD #5: Remember why a decision was made next week -> Turn any diagram node or takeaway chip into a 1-click ZCode Memory rule with a mini diagram snapshot attached." },
+        { tag: "JTBD #6", text: "JTBD #6: Understand non-code answers (research, plans, BMAD specs, CLI errors) -> Support general Concept Map, Comparison, and Step-by-Step Recipe debrief modes." },
+        { tag: "JTBD #7", text: "JTBD #7: Control reading depth on demand -> Add a 3-step Depth Dial (Glance | Standard | Deep Visual) replacing the binary STE-80 toggle." }
+      ]
+    },
+    {
+      id: "what-if-scenarios",
+      name: "What If Scenarios",
+      category: "Creative",
+      treatment: "standard",
+      accent: "#a78bfa",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><polygon points="30,5 52,20 30,35 8,20" fill="none" stroke="#a78bfa" stroke-width="1.8"/><circle cx="30" cy="20" r="4" fill="#a78bfa"/></svg>`,
+      ideas: [
+        { tag: "What If 1", text: "What if Vibe Debrief had ZERO prose paragraphs? -> Every response becomes a pure Visual Storyboard: annotated nodes, callout badges (+added, !risk, ok-tested), and 5-word captions." },
+        { tag: "What If 2", text: "What if every diagram node was live-clickable to inspect exact code diffs, command outputs, or plain-English symbol summaries inline inside the panel?" },
+        { tag: "What If 3", text: "What if Vibe Debrief auto-discovered installed ZCode visual plugins (excalidraw, visualize, designcraft, presentations, blender) and rendered a dynamic 'Draw With...' plugin launcher?" },
+        { tag: "What If 4", text: "What if animations showed real semantic behavior instead of generic glowing dots: request packets bouncing, locks acquiring/releasing, or state trees morphing Before -> After?" },
+        { tag: "What If 5", text: "What if users could click a diagram node, edit or flag a wrong assumption, and click 'Correct AI' so diagrams become two-way steering controls?" },
+        { tag: "What If 6", text: "What if every AI answer got a 'Signal vs Noise' bar highlighting which 20% of the response holds 80% of the actionable facts or risk?" },
+        { tag: "What If 7", text: "What if Vibe Debrief paired with the visualize Gen UI skill to spawn interactive 'What-If Sliders' or step-through state sandboxes right inside the conversation?" }
+      ]
+    },
+    {
+      id: "forced-relationships",
+      name: "Forced Relationships",
+      category: "Creative",
+      treatment: "standard",
+      accent: "#fb923c",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><rect x="7" y="10" width="18" height="20" rx="3" stroke="#fb923c" fill="none" stroke-width="1.8"/><rect x="35" y="10" width="18" height="20" rx="3" stroke="#22d3ee" fill="none" stroke-width="1.8"/><path d="M25 20 H35" stroke="#eef2ff" stroke-width="2"/></svg>`,
+      ideas: [
+        { tag: "Airport Board", text: "Airport Departure Board x Vibe Debrief -> High-contrast top status ticker showing Verdict (PASS/PARTIAL/UNVERIFIED), Files Touched, Complexity Tier, and Read Time in one glance." },
+        { tag: "IKEA Manual", text: "IKEA Wordless Manual x Vibe Debrief -> Visual Step Strip (Step 1 -> Step 2 -> Step 3) using tiny SVG mini-icons per step (wrench=edit, terminal=bash, shield=test) and minimal labels." },
+        { tag: "Telestrator", text: "Sports Broadcast Telestrator x Vibe Debrief -> 'Replay & Annotate' mode on any SVG/Canvas diagram where numbered callout rings (1, 2, 3) animate curved paths showing execution order." },
+        { tag: "Subway Map", text: "Subway Transit Map x Vibe Debrief -> Replace box grids with color-coded horizontal layer lines (UI Line, MCP Line, State Line) where files are stations and cross-layer calls are transfer hubs." },
+        { tag: "YT Chapters", text: "YouTube Video Chapters x Vibe Debrief -> Clickable horizontal chapter pills above the Canvas/SVG stage (1. Context, 2. Root Cause, 3. Fix, 4. Ripple) for instant scrubbing." },
+        { tag: "Dash Lights", text: "Car Dashboard Warning Lights x Vibe Debrief -> Keep the main panel calm and quiet, lighting up glowing amber/red indicator chips ONLY on unverified claims, skipped tests, or high-risk files." },
+        { tag: "Comic Split", text: "Comic Book Split Panel x Vibe Debrief -> Dual-frame Before vs. After SVG split showing the broken flow on the left and the repaired flow on the right." }
+      ]
+    },
+    {
+      id: "concept-blending",
+      name: "Concept Blending",
+      category: "Creative",
+      treatment: "standard",
+      accent: "#e879f9",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><circle cx="24" cy="20" r="11" fill="rgba(232,121,249,0.22)" stroke="#e879f9" stroke-width="1.6"/><circle cx="36" cy="20" r="11" fill="rgba(34,211,238,0.22)" stroke="#22d3ee" stroke-width="1.6"/></svg>`,
+      ideas: [
+        { tag: "SketchBrief", text: "Blend: ELI5 Summarizer + Excalidraw Whiteboard = 'SketchBrief' -> Vibe Debrief distills the response into a 4-6 node topology, then offers 1-click 'Open in Excalidraw' via excalidraw:create_diagram." },
+        { tag: "Living Explainer", text: "Blend: Comprehension Panel + ZCode Gen UI (visualize) = 'Living Explainer' -> For complex algorithms or flows, Vibe Debrief hands a blueprint to visualize to render an interactive HTML widget inline in chat." },
+        { tag: "FlowDiff", text: "Blend: SVG Diagram + Diff Viewer = 'FlowDiff' -> Nodes glow green (created), amber (modified), or red (error source), and edges animate only along the changed execution path." },
+        { tag: "Micro-Docent", text: "Blend: Voiceover + Code Walkthrough = 'Micro-Docent' -> A 20-second captioned tour where each spoken/written beat highlights the matching diagram node and file badge in sync." },
+        { tag: "Sprint Reel", text: "Blend: Slide Deck + Turn History = 'Sprint Reel' -> Stitch the last 5-10 Vibe Debrief turns into a visual storybook or presentations/deckcraft deck summarizing a full work session." },
+        { tag: "Playable Arch", text: "Blend: 3b1b Canvas + State Simulator = 'Playable Architecture' -> Users toggle 'Happy Path' vs 'Failure Path' inside the explainer canvas and watch packets route differently." },
+        { tag: "Visual Memory", text: "Blend: Debrief Card + ZCode Memory = 'Visual Memory Bank' -> Confirmed lessons store a compact SVG thumbnail alongside their rule so browsing Memory recalls the visual pattern immediately." }
+      ]
+    },
+    {
+      id: "kill-the-crown-jewel",
+      name: "Kill the Crown Jewel",
+      category: "Constraint",
+      treatment: "standard",
+      accent: "#fb7185",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><polygon points="14,28 18,12 30,20 42,12 46,28" fill="none" stroke="#fb7185" stroke-width="1.8"/><line x1="10" y1="8" x2="50" y2="32" stroke="#f43f5e" stroke-width="2"/></svg>`,
+      ideas: [
+        { tag: "Kill 4-Cards", text: "Delete the 4-card story template (Bug/Implementation cards) -> Make the Interactive Diagram the primary UI, where clicking any node opens its concise 2-sentence explanation and proof right beside it." },
+        { tag: "3 Atomic Blocks", text: "Without Card 1-4 prose walls, simplify any response into 3 universal atomic blocks: The Verdict (1 line), The Map (1 visual), and The Catch (1 risk/check list)." },
+        { tag: "Fact Chips", text: "Replace static card headings with Smart Fact Chips: clickable tags like [Cause], [Trade-off], [Proof], [Next Check] that reveal details in a single shared drawer." },
+        { tag: "Visual Tables", text: "Instead of forcing prose rewriting via STE-80 everywhere, compress information into structured Key-Value Visual Tables (Before | After | Why | Verified)." },
+        { tag: "Kill Tab 2", text: "Kill the separate Explainer tab -> Put an inline 'Play 12s Animation' toggle directly inside the main Diagram header so animation feels native, not hidden in Tab 2." },
+        { tag: "Kill Persona Row", text: "Kill the static 4-persona chip row -> Auto-pick clarity style from a compact settings popover, freeing 45px of precious vertical viewport space." },
+        { tag: "Explain Anything", text: "Without the fixed Bug/Implementation binary, support 'Explain Anything' turns: Paste or select any dense AI message and generate a Concept Tree or Sequence Map." }
+      ]
+    },
+    {
+      id: "1000x-budget",
+      name: "1000x Budget",
+      category: "Constraint",
+      treatment: "standard",
+      accent: "#fbbf24",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><path d="M10 30 L24 18 L34 23 L50 9" fill="none" stroke="#fbbf24" stroke-width="2.2"/><polygon points="50,9 43,10 49,16" fill="#fbbf24"/></svg>`,
+      ideas: [
+        { tag: "3D -> Swimlane", text: "1000x Dream: Real-time 60fps interactive 3D architecture walkthroughs with live AST call-graphs -> Stealable idea: Layered SVG swimlanes with CSS kinetic dash-offset flow animations and hover-highlighted call chains (0 dependencies)." },
+        { tag: "5 Micro-Templates", text: "1000x Dream: Dedicated motion designer animating every response -> Stealable idea: Ship 5 reusable animated micro-templates in Canvas/SVG (Pipeline Flow, Before/After Morph, Branching Decision, Loop/Retry, Sequence Ping-Pong)." },
+        { tag: "3-Layer JSON", text: "1000x Dream: Dedicated AI tutor rewriting every sentence at 3 reading levels -> Stealable idea: Pre-generate 3 structured layers in one JSON publish call (Headline, 3 Bullets, Deep Notes) and let the UI toggle layers instantaneously." },
+        { tag: "Hand-off Edit", text: "1000x Dream: Full Figma-grade diagramming suite inside the side panel -> Stealable idea: Keep Vibe Debrief ultra-lightweight and hand off full diagram editing to ZCode's native excalidraw or designcraft plugins." },
+        { tag: "Diagram Spec", text: "1000x Dream: Live multi-plugin studio automatically rendering diagrams, slides, and 3D scenes -> Stealable idea: Build a declarative 'Diagram Spec' JSON schema inside debrief-engine.mjs that compiles cleanly to SVG, Canvas, Excalidraw elements, or visualize prompts." },
+        { tag: "Synced Audio", text: "1000x Dream: Full audio-visual explainer studio -> Stealable idea: Synchronized subtitle captions + node spotlighting in Canvas + optional Web Speech voiceover with pause-on-hover." },
+        { tag: "Code DVR", text: "1000x Dream: Instant code replay DVR -> Stealable idea: Record PostToolUse file touches in chronological order and animate the diagram nodes lighting up in the exact order files were edited." }
+      ]
+    },
+    {
+      id: "metaphor-mapping",
+      name: "Metaphor Mapping",
+      category: "Creative",
+      treatment: "standard",
+      accent: "#d97706",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><circle cx="30" cy="20" r="13" fill="none" stroke="#d97706" stroke-width="1.8"/><path d="M30 10 L34 20 L30 30 L26 20 Z" fill="#f59e0b"/></svg>`,
+      ideas: [
+        { tag: "Cockpit HUD", text: "Metaphor: Vibe Debrief is an Aircraft Cockpit HUD -> Pilot (developer) needs altitude/heading/warnings immediately, never a 4-page flight manual; map TL;DR=horizon, Proof=green instruments, Uncertainty=amber master caution." },
+        { tag: "85% Windshield", text: "Metaphor: Cockpit HUD -> Keep secondary controls (Persona, Model, STE-80, HTML Export) tucked in a clean top-right Settings gear/drawer so the windshield stays 85% pure signal." },
+        { tag: "Field Desk", text: "Metaphor: Cartographer's Field Desk -> Native SVG is the pocket field sketch; Excalidraw is the drafting table; visualize Gen UI is the interactive relief model; Memory is the permanent atlas." },
+        { tag: "Scale Switcher", text: "Metaphor: Field Desk -> Add a 'Scale Switcher' on diagrams (Overview 10,000ft vs Module Detail 100ft) using collapsible node groups instead of hard-capping at 6 flat boxes." },
+        { tag: "Tasting Menu", text: "Metaphor: Michelin Tasting Menu -> Never serve a whole raw steak of AI text; serve 3 bite-sized courses (1-line Amuse-Bouche TL;DR, Visual Main Diagram, 2-item Digestif Checklist)." },
+        { tag: "Control Tower", text: "Metaphor: Traffic Control Tower -> Animate concurrent processes or async hooks as timed lanes with collision/dependency markers rather than static boxes." },
+        { tag: "Microscope", text: "Metaphor: Microscope Lens -> Hovering or clicking any simplified bullet zooms smoothly into the exact raw AI quote or file line that backs it up (zero-trust-gap drilldown)." }
+      ]
+    },
+    {
+      id: "scamper-method",
+      name: "SCAMPER Method",
+      category: "Structured",
+      treatment: "standard",
+      accent: "#818cf8",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><rect x="9" y="10" width="12" height="20" rx="2" fill="#818cf8" opacity="0.7"/><rect x="24" y="6" width="12" height="28" rx="2" fill="#22d3ee" opacity="0.8"/><rect x="39" y="13" width="12" height="17" rx="2" fill="#10b981" opacity="0.8"/></svg>`,
+      ideas: [
+        { tag: "Substitute", text: "[Substitute] Replace the 6-box serpentine SVG grid with a multi-grammar SVG engine supporting Sequence, Flowchart, Before/After Split, and Mind-Map layouts." },
+        { tag: "Combine", text: "[Combine] Merge Card 3 (Result) and Card 4 (Consequences) proof/risk indicators into visual badges directly on the diagram nodes and edges, cutting scroll height by 40%." },
+        { tag: "Adapt", text: "[Adapt] Borrow progressive-disclosure accordions from modern API docs: every card shows a 1-sentence bold summary by default and expands to full detail on click." },
+        { tag: "Modify", text: "[Modify] Magnify the Diagram Card from a small middle section into the hero centerpiece right beneath a single-line TL;DR banner." },
+        { tag: "Put to Use", text: "[Put to other use] Reuse Vibe Debrief's diagram & summary engine as a 'Explain Any Selection / Last Message' lens even during pure Q&A, research, or BMAD planning sessions." },
+        { tag: "Eliminate", text: "[Eliminate] Eliminate the cluttered multi-row header pills (Persona chips, Mode switcher, STE toggle) from always-on display -> Move to a sleek single compact toolbar + overflow popover." },
+        { tag: "Reverse", text: "[Reverse] Reverse the flow: instead of writing cards then generating a diagram, generate the structured Diagram Graph first and derive every simplified bullet directly from its nodes and edges." }
+      ]
+    },
+    {
+      id: "first-principles",
+      name: "First Principles Thinking",
+      category: "Creative",
+      treatment: "standard",
+      accent: "#34d399",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><polygon points="30,6 50,33 10,33" fill="none" stroke="#34d399" stroke-width="2"/><line x1="18" y1="22" x2="42" y2="22" stroke="#34d399" stroke-width="1.5"/></svg>`,
+      ideas: [
+        { tag: "FP 1", text: "First Principle 1: Working memory holds ~4 chunks -> Cap top-level visible cards/takeaways to 3-4 scannable chunks before any scroll." },
+        { tag: "FP 2", text: "First Principle 2: Spatial topology beats linear prose for relationships -> Whenever a response mentions >2 components, files, or steps, default to a directional diagram instead of bullets." },
+        { tag: "FP 3", text: "First Principle 3: Motion clarifies causality when sequence matters -> Use animation specifically for temporal flows (requests, bugs, state transitions), not decorative shimmer." },
+        { tag: "FP 4", text: "First Principle 4: Simplification fails if it hides nuance -> Pair every simplified headline with a 1-click 'Source / Nuance' toggle so users can verify without losing trust." },
+        { tag: "FP 5", text: "First Principle 5: Narrow sidebars excel at navigation & summaries, wide canvases excel at diagrams -> Let Vibe Debrief act as the Command & Summary sidebar that launches rich diagrams into Excalidraw or visualize Gen UI." },
+        { tag: "FP 6", text: "First Principle 6: Different questions have different cognitive shapes -> Classify responses into Debug, Build, Architecture, Comparison, or How-To and pick the matching visual layout automatically." },
+        { tag: "FP 7", text: "First Principle 7: Zero-friction invocation drives habit -> Automatically show a subtle '1-click Visual Summary ready' state after long responses (>250 words) even if the user didn't run /eli5." }
+      ]
+    },
+    {
+      id: "triz-contradiction",
+      name: "TRIZ Contradiction",
+      category: "Deep",
+      treatment: "standard",
+      accent: "#10b981",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><rect x="8" y="8" width="18" height="24" rx="4" fill="none" stroke="#f43f5e" stroke-width="1.6"/><rect x="34" y="8" width="18" height="24" rx="4" fill="none" stroke="#10b981" stroke-width="1.6"/><path d="M26 20 H34" stroke="#f59e0b" stroke-width="2"/></svg>`,
+      ideas: [
+        { tag: "Space Sep", text: "Contradiction: We want rich diagrams/animations WITHOUT bloating the zero-dep 360px MCP panel -> TRIZ Separation in Space: Keep instant lightweight SVG/Canvas inside panel.html, and delegate heavy interactive canvases to installed ZCode plugins (excalidraw, visualize) on the main stage." },
+        { tag: "Matryoshka", text: "Contradiction: We want maximum information simplification WITHOUT losing critical technical proof -> TRIZ Nesting (Matryoshka): Layer 1 = 1-line TL;DR + visual; Layer 2 = expandable Proof & Risk chips; Layer 3 = exact file/command evidence." },
+        { tag: "Prelim Action", text: "Contradiction: We want every turn summarized automatically WITHOUT burning flagship tokens or slowing turns -> TRIZ Preliminary Action: Hook extracts structural skeleton (files, commands, headings) in <20ms for free, and only invokes lightweight Gemini Argon when user hits 'Deep Visual' or 'AI Explain'." },
+        { tag: "Dynamicity", text: "Contradiction: We want cross-plugin diagrams WITHOUT hard coupling to plugins a user might not have installed -> TRIZ Dynamicity: Probe/check available plugins or surface graceful plugin recipes (Excalidraw JSON, Mermaid/SVG fallback, Gen UI prompt) with automatic fallback to native SVG." },
+        { tag: "Self-Service", text: "Contradiction: Animations help understanding BUT can feel gimmicky or slow down quick checks -> TRIZ Self-Service: Play a subtle 3-second kinetic pulse on key edges right in the inline SVG, and reserve full multi-scene Canvas narration for explicit Play clicks." },
+        { tag: "Consolidate", text: "Contradiction: Users want customization (persona, STE-80, model, mode) WITHOUT a noisy 4-row header -> TRIZ Merging/Consolidation: Replace 10 header buttons/chips with 1 compact Segmented View Switcher + 1 Gear Popover." },
+        { tag: "Dual-Coding", text: "Contradiction: High-density code diffs need exact names while ELI5 needs plain words -> TRIZ Dual-Coding: Show plain-English action label prominently on the node, with exact filename/symbol in a subtle monospace subtitle badge." }
+      ]
+    },
+    {
+      id: "plugin-orchestra-conductor",
+      name: "Plugin Orchestra Conductor",
+      category: "Invented",
+      treatment: "standard",
+      accent: "#06b6d4",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><circle cx="14" cy="20" r="5" fill="#06b6d4"/><circle cx="46" cy="10" r="4" fill="#10b981"/><circle cx="46" cy="20" r="4" fill="#f59e0b"/><circle cx="46" cy="30" r="4" fill="#a78bfa"/><path d="M19 20 L42 10 M19 20 H42 M19 20 L42 30" stroke="#94a3b8" stroke-width="1.4"/></svg>`,
+      ideas: [
+        { tag: "Conductor", text: "Build a 'Visual Conductor' capability detector in debrief-engine/skill that maps response intent to the best ZCode plugin: Whiteboard/Editable Architecture -> Excalidraw; Interactive Sim/Chart/Algorithm -> Visualize (Gen UI); Executive Deck -> Presentations/Deckcraft; Quick Glance -> Native SVG." },
+        { tag: "Recipe Bridge", text: "Add a 'Diagram Recipe Bridge' inside Vibe Debrief: compile the debrief's unified graph model (nodes, edges, groups, annotations) into `excalidraw:create_diagram` operations JSON in one click." },
+        { tag: "Gen UI Sim", text: "Add a 'Launch Interactive Widget' button in the Diagram toolbar that sends a curated prompt via `ui/message` instructing ZCode's `visualize` skill to render an inline interactive HTML explainer (step-through debugger, live toggleable states, animated SVG)." },
+        { tag: "Briefing Deck", text: "Add a 'Create Presentation / Briefing' action in History tab: select 1-5 past debrief turns and delegate to `presentations` or `deckcraft` to generate a polished walkthrough deck." },
+        { tag: "Style Upgrade", text: "Support 'Style Upgrade' handoff to `designcraft`: export a polished visual architecture poster or printable system sheet from any complex debrief." },
+        { tag: "3D Spatial", text: "Introduce a '3D / Spatial Scene' experimental bridge for `blender` when explaining spatial/pipeline/data-flow topologies or hardware/game dev projects." },
+        { tag: "Visual Dock", text: "Show a compact 'Plugin Visual Dock' strip right under the native SVG diagram: `[SVG Preview]` `[Edit in Excalidraw]` `[Interactive Gen UI]` `[Animate]` so users see all visual superpowers without clutter." },
+        { tag: "Artifact Cache", text: "Cache generated cross-plugin artifacts (Excalidraw `.excalidraw` paths, Gen UI visualization links, HTML exports) right inside the History item so users can reopen any external diagram from Vibe Debrief." }
+      ]
+    },
+    {
+      id: "zoom-ladder",
+      name: "3-Second / 30-Second / 3-Minute Zoom Ladder",
+      category: "Invented",
+      treatment: "standard",
+      accent: "#14b8a6",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><rect x="8" y="25" width="12" height="9" rx="2" fill="#10b981"/><rect x="24" y="17" width="12" height="17" rx="2" fill="#22d3ee"/><rect x="40" y="7" width="12" height="27" rx="2" fill="#a78bfa"/></svg>`,
+      ideas: [
+        { tag: "3s Glance", text: "3-Second Tier (Glance): Top hero strip shows 1 crisp Verdict Pill (Solved / Built / Explained / Blocked), 1 plain-English 14-word headline, and 3 icon-tagged takeaway chips." },
+        { tag: "Confidence Bar", text: "3-Second Tier (Glance): Color-coded Confidence Bar right under the headline (Green = Verified by tests, Amber = Partially verified, Red = Assumption/Untested) so trust is instant." },
+        { tag: "30s Scan", text: "30-Second Tier (Scan): Auto-selected SVG Diagram (Sequence, Flow, Tree, or Before/After) with clickable nodes that reveal concise 2-line Node Cards + Proof badges." },
+        { tag: "Accordions", text: "30-Second Tier (Scan): Collapsed-by-default 'Details & Trade-offs' accordion cards so users only expand the exact section they question." },
+        { tag: "3m Deep", text: "3-Minute Tier (Deep Dive): Inline 'Animate Walkthrough' mode (Canvas 3b1b scenes + step captions + optional Web Speech) unlocked for ANY diagram on click, not locked behind complexity score >= 4." },
+        { tag: "Full Visual", text: "3-Minute Tier (Deep Dive): 'Open Full Visual' triggers Excalidraw or `visualize` Gen UI for interactive exploration, sliders, or collaborative editing." },
+        { tag: "Zoom Sync", text: "Zoom Sync: Switching tiers keeps scroll position anchored and remembers the user's preferred default tier (Glance vs Scan) across sessions." }
+      ]
+    },
+    {
+      id: "museum-plaque-diorama",
+      name: "Museum Plaque & Diorama",
+      category: "Invented",
+      treatment: "standard",
+      accent: "#eab308",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><rect x="8" y="6" width="44" height="28" rx="4" fill="none" stroke="#eab308" stroke-width="1.8"/><rect x="14" y="11" width="32" height="14" rx="2" fill="rgba(234,179,8,0.16)"/><line x1="18" y1="29" x2="42" y2="29" stroke="#eab308" stroke-width="2"/></svg>`,
+      ideas: [
+        { tag: "Exhibit", text: "Treat every AI response as a Museum Exhibit: Top = small brass Plaque (Title + Analogy + 3 facts); Center = living Glass Diorama (animated SVG/Canvas where parts gently breathe and pulse)." },
+        { tag: "Curator Tour", text: "Add 'Curator Tour' mode: numbered hotspots (1, 2, 3, 4) sit directly on the diagram; clicking 'Next Stop' pans/highlights smoothly from hotspot to hotspot with a 1-sentence caption." },
+        { tag: "X-Ray Glass", text: "Add 'X-Ray Glass' toggle on the Diorama: flip between 'Plain English Labels' (what it does) and 'Code Reality' (exact file paths, functions, and line ranges)." },
+        { tag: "Behind Scenes", text: "Add 'Behind the Scenes' drawer on the Plaque: shows the exact proof commands, test outputs, and uncertainty warnings that back up the exhibit." },
+        { tag: "Souvenir", text: "Add 'Take a Souvenir' export button: saves either a standalone interactive HTML exhibit, an Excalidraw sketch, or a ZCode Memory postcard." },
+        { tag: "Compare", text: "Create a 'Compare Exhibits' mini-diff mode in History: pick two turns to see what changed in the system diagram between Turn A and Turn B." },
+        { tag: "Editorial", text: "Use warm editorial micro-typography and generous breathing room inside cards so reading feels like scanning a curated exhibit rather than debugging a log file." }
+      ]
+    },
+    {
+      id: "320px-zero-scroll-viewport",
+      name: "The 320px Zero-Scroll Viewport",
+      category: "Invented",
+      treatment: "standard",
+      accent: "#2dd4bf",
+      svg: `<svg viewBox="0 0 60 40" width="100%" height="100%"><rect x="18" y="4" width="24" height="32" rx="3" fill="none" stroke="#2dd4bf" stroke-width="1.8"/><line x1="22" y1="10" x2="38" y2="10" stroke="#2dd4bf" stroke-width="1.6"/><rect x="22" y="14" width="16" height="12" rx="2" fill="rgba(45,212,191,0.2)"/><line x1="22" y1="30" x2="38" y2="30" stroke="#2dd4bf" stroke-width="1.6"/></svg>`,
+      ideas: [
+        { tag: "Above Fold", text: "Force the default 'Above the Fold' view inside a 320px-wide panel to show: Compact Toolbar (36px) + TL;DR Pill Card (90px) + Interactive SVG Diagram (220px) + 3-Tab Pill Switcher (Summary | Proofs & Risks | Animate/Plugins)." },
+        { tag: "Lens Popover", text: "Collapse the 4 persona chips, mode switcher, model selector, and STE-80 toggle into a single clean 'Lens: Vibe Mentor · STE-80' pill that opens an inline popover only when clicked." },
+        { tag: "5-Step Strip", text: "Replace vertical stacking of Card 1 + Card 2 + Card 3 + Card 4 + Section 5 with a sleek horizontal Stepper / Segmented Pill strip (`1.Why` `2.Plan` `3.Proof` `4.Risks` `5.Learn`) so the panel never turns into an endless scroll." },
+        { tag: "Badge Counters", text: "Move 'Proof & Claims' and 'Uncertainty Audit' into badge counters directly on the segmented tabs (`3.Proof ✓3` / `4.Risks !2`) so problems scream for attention without taking vertical pixels." },
+        { tag: "Sticky Footer", text: "Put the Quick Verify Checklist and Lesson Confirm button into sticky micro-footers or compact swipeable cards inside Tab 4 & 5." },
+        { tag: "Expand Modal", text: "Provide a 1-click 'Expand Diagram' modal/overlay inside panel.html (pure CSS fullscreen within iframe) plus a 'Pop Out to Visualize/Excalidraw' link for tight 320px sidebars." },
+        { tag: "Shortcuts", text: "Add keyboard shortcuts (`1-5` for step cards, `Space` for play/pause animation, `D` for X-ray code/ELI5 toggle, `E` for export) for effortless zero-scroll navigation." }
+      ]
+    }
+  ];
+
+  // State
+  let xrayMode = "plain";
+  let themeMode = "dark";
+  let currentTier = "3s";
+  let currentConf = "verified";
+  let currentNodeIdx = 0;
+  let canvasPath = "happy";
+  let canvasPlaying = true;
+  let canvasStep = 0;
+  let orchLens = "debug";
+  let orchComplex = true;
+  let vpMode = "after";
+  let vpStep = 1;
+  let vpPopoverOpen = false;
+  let currentGrammar = "subway";
+  let tourStop = 1;
+  let activeTechCat = "All";
+  let disneyFilter = "All";
+  let streamTheme = "all";
+  let streamQuery = "";
+  const starredSet = new Set();
+
+  try {
+    const savedStars = JSON.parse(localStorage.getItem("vd_brainstorm_stars") || "[]");
+    if (Array.isArray(savedStars)) savedStars.forEach(s => starredSet.add(s));
+  } catch (_) {}
+
+  function saveStars() {
+    try { localStorage.setItem("vd_brainstorm_stars", JSON.stringify([...starredSet])); } catch (_) {}
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // X-Ray & Theme
+  function applyXRay() {
+    document.documentElement.setAttribute("data-xray", xrayMode);
+    document.getElementById("xrayLabel").textContent = xrayMode === "plain" ? "Plain English" : "Code Reality";
+    document.getElementById("xrayBtn").classList.toggle("active", xrayMode === "code");
+    document.querySelectorAll(".xray-swap").forEach(el => {
+      el.textContent = xrayMode === "plain" ? el.dataset.plain : el.dataset.code;
+    });
+    renderNodeDrawer();
+    renderGrammar();
+  }
+
+  function applyTheme() {
+    document.documentElement.setAttribute("data-theme", themeMode);
+    document.getElementById("themeLabel").textContent = themeMode === "dark" ? "Cockpit HUD" : "Field Desk";
+    document.getElementById("themeBtn").classList.toggle("active", themeMode === "light");
+  }
+
+  document.getElementById("xrayBtn").addEventListener("click", () => {
+    xrayMode = xrayMode === "plain" ? "code" : "plain";
+    applyXRay();
+  });
+
+  document.getElementById("themeBtn").addEventListener("click", () => {
+    themeMode = themeMode === "dark" ? "light" : "dark";
+    applyTheme();
+  });
+
+  // Studio Tabs
+  function switchSim(simId) {
+    document.querySelectorAll(".studio-tab").forEach(t => t.classList.toggle("active", t.dataset.sim === simId));
+    document.querySelectorAll(".sim-pane").forEach(p => p.classList.toggle("active", p.id === "sim-" + simId));
+  }
+
+  document.querySelectorAll(".studio-tab").forEach(btn => {
+    btn.addEventListener("click", () => switchSim(btn.dataset.sim));
+  });
+
+  document.querySelectorAll("[data-jump-sim]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      switchSim(btn.dataset.jumpSim);
+      document.getElementById("studio-lab").scrollIntoView({ behavior: "smooth" });
+    });
+  });
+
+  // Sim 1: Zoom Ladder
+  const NODE_DETAILS = [
+    {
+      plain: "Hook Skeleton (<20ms): Reads which files were edited without spending AI tokens.",
+      code: "scripts/hook-runner.mjs (PostToolUse) -> extracts touched files & headings in <20ms."
+    },
+    {
+      plain: "Unified Diagram Blueprint: Builds one clean map of boxes, arrows, and risk flags.",
+      code: "scripts/debrief-engine.mjs -> DiagramSpec JSON (nodes <= 6, edges, risk badges)."
+    },
+    {
+      plain: "Instant Sidebar Preview: Draws a crisp SVG in 50ms with zero external libraries.",
+      code: "assets/panel.html -> native multi-grammar SVG renderer (unsafeEval:false safe)."
+    },
+    {
+      plain: "Plugin Visual Dock: Opens full Excalidraw boards or interactive widgets only on click.",
+      code: "ui/message delegation -> excalidraw:create_diagram | visualize | presentations."
+    }
+  ];
+
+  function renderNodeDrawer() {
+    const item = NODE_DETAILS[currentNodeIdx] || NODE_DETAILS[0];
+    document.getElementById("tierNodeDrawer").textContent = xrayMode === "plain" ? item.plain : item.code;
+  }
+
+  document.querySelectorAll("[data-tier]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentTier = btn.dataset.tier;
+      document.querySelectorAll("[data-tier]").forEach(b => b.classList.toggle("active", b === btn));
+      const tagMap = { "3s": "ALTITUDE: 3-SECOND GLANCE", "30s": "ALTITUDE: 30-SECOND SCAN", "3m": "ALTITUDE: 3-MINUTE DEEP DIVE" };
+      document.getElementById("ladderTierTag").textContent = tagMap[currentTier];
+      document.getElementById("tier30Box").style.display = (currentTier === "30s" || currentTier === "3m") ? "block" : "none";
+      document.getElementById("tier3mBox").style.display = currentTier === "3m" ? "block" : "none";
+    });
+  });
+
+  document.querySelectorAll("[data-conf]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentConf = btn.dataset.conf;
+      document.querySelectorAll("[data-conf]").forEach(b => b.classList.toggle("active", b === btn));
+      const fill = document.getElementById("confFill");
+      const verdict = document.getElementById("ladderVerdict");
+      const cap = document.getElementById("confCaption");
+      fill.className = "confidence-fill";
+      if (currentConf === "verified") {
+        verdict.textContent = "SOLVED // VERIFIED";
+        verdict.style.color = "var(--accent-emerald)";
+        cap.textContent = "Confidence 92% — Syntax check, MCP handshake, and hook runner verified.";
+      } else if (currentConf === "partial") {
+        fill.classList.add("partial");
+        verdict.textContent = "PARTIAL // 1 CHECK SKIPPED";
+        verdict.style.color = "var(--accent-amber)";
+        cap.textContent = "Confidence 64% — Native SVG verified; external Excalidraw round-trip pending.";
+      } else {
+        fill.classList.add("assumption");
+        verdict.textContent = "ASSUMPTION // UNTESTED";
+        verdict.style.color = "var(--accent-coral)";
+        cap.textContent = "Confidence 32% — Warning: Proposed layout not yet tested at 320px sidebar width.";
+      }
+    });
+  });
+
+  document.querySelectorAll("#tierNodeButtons button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentNodeIdx = Number(btn.dataset.node);
+      document.querySelectorAll("#tierNodeButtons button").forEach(b => b.classList.toggle("active", b === btn));
+      renderNodeDrawer();
+    });
+  });
+
+  // Canvas Playable Architecture
+  const canvas = document.getElementById("explainerCanvas");
+  const ctx = canvas.getContext("2d");
+  let animTick = 0;
+
+  document.getElementById("pathHappyBtn").addEventListener("click", () => {
+    canvasPath = "happy";
+    document.getElementById("pathHappyBtn").classList.add("active");
+    document.getElementById("pathFailBtn").classList.remove("active");
+    document.getElementById("canvasModeLabel").textContent = "HAPPY PATH";
+    document.getElementById("canvasModeLabel").style.color = "#10b981";
+  });
+
+  document.getElementById("pathFailBtn").addEventListener("click", () => {
+    canvasPath = "fail";
+    document.getElementById("pathFailBtn").classList.add("active");
+    document.getElementById("pathHappyBtn").classList.remove("active");
+    document.getElementById("canvasModeLabel").textContent = "FAILURE PATH (CSP GUARD)";
+    document.getElementById("canvasModeLabel").style.color = "#f43f5e";
+  });
+
+  document.getElementById("canvasPlayBtn").addEventListener("click", () => {
+    canvasPlaying = !canvasPlaying;
+    document.getElementById("canvasPlayBtn").textContent = canvasPlaying ? "Pause" : "Play";
+  });
+
+  function drawCanvasFrame() {
+    if (canvasPlaying) animTick += 0.018;
+    const progress = animTick % 4;
+    canvasStep = Math.floor(progress);
+    const localT = progress - canvasStep;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const nodes = canvasPath === "happy"
+      ? [
+          { x: 65, y: 110, label: "Hook", sub: "<20ms", color: "#22d3ee" },
+          { x: 195, y: 110, label: "Spec", sub: "JSON", color: "#10b981" },
+          { x: 325, y: 110, label: "SVG HUD", sub: "50ms", color: "#38bdf8" },
+          { x: 455, y: 110, label: "Excalidraw", sub: "On Click", color: "#a78bfa" }
+        ]
+      : [
+          { x: 65, y: 110, label: "Panel", sub: "iframe", color: "#22d3ee" },
+          { x: 195, y: 65, label: "Direct MCP", sub: "Blocked", color: "#f43f5e" },
+          { x: 195, y: 162, label: "ui/message", sub: "Safe Bridge", color: "#10b981" },
+          { x: 435, y: 162, label: "Visualize", sub: "Gen UI", color: "#f59e0b" }
+        ];
+
+    // Edges
+    ctx.lineWidth = 2;
+    if (canvasPath === "happy") {
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = i === canvasStep ? nodes[i].color : "rgba(148,163,184,0.28)";
+        ctx.beginPath();
+        ctx.moveTo(nodes[i].x + 36, nodes[i].y);
+        ctx.lineTo(nodes[i + 1].x - 36, nodes[i + 1].y);
+        ctx.stroke();
+      }
+    } else {
+      ctx.strokeStyle = "rgba(244,63,94,0.45)";
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.moveTo(95, 98); ctx.lineTo(155, 72); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = "#10b981";
+      ctx.beginPath(); ctx.moveTo(95, 122); ctx.lineTo(155, 155); ctx.lineTo(395, 162); ctx.stroke();
+    }
+
+    // Draw nodes
+    nodes.forEach((n, idx) => {
+      const active = idx === canvasStep || (canvasPath === "happy" && idx === canvasStep + 1);
+      ctx.fillStyle = active ? "rgba(30,41,59,0.96)" : "rgba(15,23,42,0.9)";
+      ctx.strokeStyle = active ? n.color : "rgba(148,163,184,0.35)";
+      ctx.lineWidth = active ? 2.4 : 1.2;
+      ctx.beginPath();
+      ctx.roundRect(n.x - 40, n.y - 24, 80, 48, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#eef2ff";
+      ctx.font = "bold 11.5px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(n.label, n.x, n.y - 2);
+      ctx.fillStyle = n.color;
+      ctx.font = "10px monospace";
+      ctx.fillText(n.sub, n.x, n.y + 13);
+    });
+
+    // Moving Packet
+    let px = 65, py = 110, pColor = "#22d3ee";
+    if (canvasPath === "happy") {
+      const a = nodes[Math.min(canvasStep, 2)];
+      const b = nodes[Math.min(canvasStep + 1, 3)];
+      px = a.x + (b.x - a.x) * localT;
+      py = a.y;
+      pColor = a.color;
+    } else {
+      if (canvasStep === 0) {
+        px = 65 + (195 - 65) * localT;
+        py = 110 + (65 - 110) * localT;
+        pColor = "#f43f5e";
+      } else if (canvasStep === 1) {
+        px = 195; py = 65 + (162 - 65) * localT; pColor = "#f59e0b";
+      } else {
+        px = 195 + (435 - 195) * localT; py = 162; pColor = "#10b981";
+      }
+    }
+    ctx.fillStyle = pColor;
+    ctx.beginPath();
+    ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    const happyCaptions = [
+      "Beat 1: Hook extracts structural skeleton in <20ms with zero token burn.",
+      "Beat 2: Engine builds a unified Diagram Spec JSON (nodes, edges, risk badges).",
+      "Beat 3: Panel renders an instant 50ms SVG preview inside the 320px HUD.",
+      "Beat 4: On click, Visual Dock pops out the full board to Excalidraw."
+    ];
+    const failCaptions = [
+      "Beat 1: Panel iframe attempts direct cross-plugin call — blocked by unsafeEval:false.",
+      "Beat 2: Critic guard catches sandbox boundary and reroutes cleanly.",
+      "Beat 3: Spec travels via ui/message bridge into host orchestration.",
+      "Beat 4: Visualize Gen UI renders interactive sandbox safely in chat."
+    ];
+    document.getElementById("canvasCaption").textContent = (canvasPath === "happy" ? happyCaptions : failCaptions)[canvasStep];
+    document.getElementById("canvasStepCounter").textContent = "Step " + (canvasStep + 1) + "/4";
+
+    requestAnimationFrame(drawCanvasFrame);
+  }
+
+  // Sim 2: Plugin Orchestra
+  const ORCH_LENSES = {
+    debug: {
+      title: "FlowDiff SVG + Visualize Gen UI",
+      desc: "Highlights broken/error nodes in coral, edited files in amber, and launches an interactive step-through debugger widget via ui/message when complex.",
+      target: "visualize",
+      recipe: `{
+  "lens": "debug",
+  "inlineGrammar": "flowdiff-svg",
+  "delegatePlugin": "visualize",
+  "trigger": "on_click_or_complex",
+  "uiMessage": "Render step-through FlowDiff widget for hook -> engine -> panel"
+}`
+    },
+    build: {
+      title: "Subway Layer Map + Excalidraw SketchBrief",
+      desc: "Maps UI, MCP, and State lines in the sidebar, with 1-click compile to excalidraw:create_diagram for editable whiteboard exploration.",
+      target: "excalidraw",
+      recipe: `{
+  "lens": "build",
+  "inlineGrammar": "subway-transit-map",
+  "delegateTool": "excalidraw:create_diagram",
+  "elements": ["UI Line", "MCP Line", "State Line"],
+  "syncHistoryArtifact": true
+}`
+    },
+    concept: {
+      title: "Concept Tree SVG + Living Explainer",
+      desc: "Transforms non-code Q&A or BMAD specs into a clean tree diagram, delegating interactive sliders or mental-model sandboxes to Visualize Gen UI.",
+      target: "visualize",
+      recipe: `{
+  "lens": "concept",
+  "inlineGrammar": "concept-tree",
+  "delegatePlugin": "visualize",
+  "whatIfSliders": true
+}`
+    },
+    compare: {
+      title: "Decision Matrix + Designcraft Poster",
+      desc: "Replaces Bug/Implementation cards with a Trade-off Bars visual and offers a Style Upgrade architecture sheet via Designcraft.",
+      target: "designcraft",
+      recipe: `{
+  "lens": "comparison",
+  "inlineGrammar": "decision-matrix",
+  "delegatePlugin": "designcraft",
+  "artifact": "tradeoff-comparison-sheet"
+}`
+    },
+    plan: {
+      title: "Timeline Strip + Presentations Sprint Reel",
+      desc: "Stitches multi-turn plans and history items into a visual storyboard or executive walkthrough deck via Presentations / Deckcraft.",
+      target: "presentations",
+      recipe: `{
+  "lens": "plan",
+  "inlineGrammar": "step-strip",
+  "delegatePlugin": "presentations / deckcraft",
+  "turnsBundled": 5
+}`
+    }
+  };
+
+  function renderOrchestra() {
+    const data = ORCH_LENSES[orchLens];
+    document.getElementById("orchPluginTitle").textContent = orchComplex ? data.title : "Native 50ms SVG Only (Fast Path)";
+    document.getElementById("orchPluginDesc").textContent = orchComplex
+      ? data.desc
+      : "TRIZ Preliminary Action: Complexity is simple, so external plugins stay asleep (0s latency, 0 extra tokens). Native SVG handles the full explanation.";
+    document.getElementById("orchRecipeCode").textContent = orchComplex
+      ? data.recipe
+      : `{\n  "complexity": "simple",\n  "route": "native-svg-only",\n  "externalPluginBurn": 0,\n  "renderTimeMs": 18\n}`;
+
+    const svg = document.getElementById("orchestraSvg");
+    const plugins = [
+      { id: "svg", label: "Native SVG", sub: "50ms Always-On", y: 42, color: "#22d3ee", active: true },
+      { id: "excalidraw", label: "Excalidraw", sub: "Editable Board", y: 98, color: "#10b981", active: orchComplex && data.target === "excalidraw" },
+      { id: "visualize", label: "Visualize Gen UI", sub: "Interactive Sim", y: 154, color: "#a78bfa", active: orchComplex && data.target === "visualize" },
+      { id: "presentations", label: "Presentations", sub: "Sprint Reel Deck", y: 210, color: "#f59e0b", active: orchComplex && data.target === "presentations" },
+      { id: "designcraft", label: "Designcraft / 3D", sub: "Poster & Blender", y: 254, color: "#f43f5e", active: orchComplex && data.target === "designcraft" }
+    ];
+
+    let out = `
+      <rect x="24" y="96" width="146" height="82" rx="14" fill="#111b2e" stroke="#22d3ee" stroke-width="2"/>
+      <text x="97" y="128" text-anchor="middle" fill="#eef2ff" font-size="13" font-weight="700">Visual Conductor</text>
+      <text x="97" y="147" text-anchor="middle" fill="#22d3ee" font-size="10.5" font-family="monospace">Lens: ${orchLens.toUpperCase()}</text>
+      <text x="97" y="164" text-anchor="middle" fill="#94a3b8" font-size="9.5" font-family="monospace">${orchComplex ? "Complex (Score 5)" : "Simple (Score 1)"}</text>
+
+      <rect x="224" y="114" width="136" height="48" rx="11" fill="#0b1220" stroke="#94a3b8" stroke-width="1.3"/>
+      <text x="292" y="135" text-anchor="middle" fill="#eef2ff" font-size="11.5" font-weight="700">Diagram Spec JSON</text>
+      <text x="292" y="151" text-anchor="middle" fill="#10b981" font-size="9.5" font-family="monospace">ui/message safe</text>
+      <line x1="170" y1="138" x2="224" y2="138" stroke="#22d3ee" stroke-width="2" class="flow-edge"/>
+    `;
+
+    plugins.forEach(p => {
+      const stroke = p.active ? p.color : "rgba(148,163,184,0.24)";
+      const width = p.active ? 2.4 : 1;
+      const cls = p.active ? 'class="flow-edge"' : "";
+      out += `
+        <path d="M360,138 C405,138 405,${p.y} 448,${p.y}" fill="none" stroke="${stroke}" stroke-width="${width}" ${cls}/>
+        <rect x="448" y="${p.y - 20}" width="168" height="38" rx="9" fill="${p.active ? "#152136" : "#0b111d"}" stroke="${stroke}" stroke-width="${width}"/>
+        <text x="532" y="${p.y - 3}" text-anchor="middle" fill="${p.active ? "#eef2ff" : "#64748b"}" font-size="11.5" font-weight="700">${p.label}</text>
+        <text x="532" y="${p.y + 11}" text-anchor="middle" fill="${p.active ? p.color : "#475569"}" font-size="9.5" font-family="monospace">${p.sub}</text>
+      `;
+    });
+
+    svg.innerHTML = out;
+  }
+
+  document.querySelectorAll("[data-lens]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      orchLens = btn.dataset.lens;
+      document.querySelectorAll("[data-lens]").forEach(b => b.classList.toggle("active", b === btn));
+      renderOrchestra();
+    });
+  });
+
+  document.getElementById("complexityToggle").addEventListener("click", () => {
+    orchComplex = !orchComplex;
+    document.getElementById("complexityLbl").textContent = orchComplex ? "Complex (Score 5)" : "Simple (Score 1)";
+    renderOrchestra();
+  });
+
+  // Sim 3: 320px Zero-Scroll Viewport
+  const VP_STEP_CONTENT = {
+    1: { title: "1. Why (Root Cause)", text: "The 360px iframe ran 4 header rows and stacked 4 prose cards, forcing heavy scrolling." },
+    2: { title: "2. Plan (Topology)", text: "Distill into Verdict + SVG Map + 5-step horizontal stepper; pop out heavy boards on click." },
+    3: { title: "3. Proof (3 Verified)", text: "[OK] node --check passed. [OK] MCP tools/list verified. [OK] Hook session-start verified." },
+    4: { title: "4. Risks (2 Flagged)", text: "[!] unsafeEval:false blocks direct MCP calls. [!] Auto-running plugins adds 5-15s latency." },
+    5: { title: "5. Learn (Save Rule)", text: "1-Click Memory Rule: 'Route Excalidraw & Gen UI via ui/message, keep SVG inline'." }
+  };
+
+  function renderViewport320() {
+    const body = document.getElementById("vp320Body");
+    if (vpMode === "before") {
+      body.innerHTML = `
+        <div class="old-bloat-row">
+          <span class="old-bloat-pill">Persona: Mentor</span>
+          <span class="old-bloat-pill">Tutor</span>
+          <span class="old-bloat-pill">Architect</span>
+          <span class="old-bloat-pill">Speed</span>
+          <span class="old-bloat-pill">STE-80: ON</span>
+          <span class="old-bloat-pill">Bug / Impl</span>
+          <span class="old-bloat-pill">Model: Gemini</span>
+        </div>
+        <div class="idea-row" style="font-size:11px; color:var(--accent-coral);">Card 1: Raw Problem Prose Wall (140px)...</div>
+        <div class="idea-row" style="font-size:11px; color:var(--text-muted);">Card 2: Long Fix Explanation (130px)...</div>
+        <div class="idea-row" style="font-size:11px; color:var(--text-muted);">460px static 6-box serpentine grid pushed below the fold...</div>
+        <div class="idea-row" style="font-size:11px; color:var(--text-muted);">Card 3 &amp; 4: Proof &amp; Risks buried 620px down scroll...</div>
+      `;
+      return;
+    }
+
+    const stepData = VP_STEP_CONTENT[vpStep];
+    body.innerHTML = `
+      ${vpPopoverOpen ? `<div class="idea-row" style="border-color:var(--accent-cyan); font-size:11px;"><strong>Settings Popover:</strong> Persona [Mentor] · STE-80 [80%] · Export [HTML]</div>` : ""}
+      <div class="idea-row" style="border-color:var(--accent-emerald);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <span class="verdict-pill" style="font-size:9.5px;">SOLVED</span>
+          <span style="font-family:var(--font-mono); font-size:9.5px; color:var(--accent-cyan);">Distill Last Answer</span>
+        </div>
+        <div style="font-size:11.5px; font-weight:700;">Zero-scroll HUD + On-Demand Plugin Dock.</div>
+        <div class="confidence-bar" style="margin:6px 0 0; height:5px;"><div class="confidence-fill"></div></div>
+      </div>
+
+      <div style="background:#070c16; border:1px solid var(--border-strong); border-radius:10px; padding:8px;">
+        <svg viewBox="0 0 280 120" width="100%" height="120">
+          <rect x="8" y="40" width="66" height="36" rx="7" fill="#132036" stroke="#22d3ee"/>
+          <text x="41" y="61" text-anchor="middle" fill="#eef2ff" font-size="10">Hook</text>
+          <line x1="74" y1="58" x2="104" y2="58" stroke="#10b981" stroke-width="2" class="flow-edge"/>
+          <rect x="104" y="40" width="72" height="36" rx="7" fill="#132036" stroke="#10b981"/>
+          <text x="140" y="61" text-anchor="middle" fill="#eef2ff" font-size="10">SVG Map</text>
+          <line x1="176" y1="58" x2="206" y2="58" stroke="#a78bfa" stroke-width="2" class="flow-edge"/>
+          <rect x="206" y="40" width="66" height="36" rx="7" fill="#132036" stroke="#a78bfa"/>
+          <text x="239" y="61" text-anchor="middle" fill="#eef2ff" font-size="10">Plugins</text>
+          <text x="140" y="106" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="monospace">[SVG] [Excalidraw] [Gen UI] [Play 12s]</text>
+        </svg>
+      </div>
+
+      <div class="stepper-strip">
+        <button class="step-pill ${vpStep===1?"active":""}" data-vp-step="1" type="button">1.Why</button>
+        <button class="step-pill ${vpStep===2?"active":""}" data-vp-step="2" type="button">2.Plan</button>
+        <button class="step-pill ok ${vpStep===3?"active":""}" data-vp-step="3" type="button">3.Proof ✓3</button>
+        <button class="step-pill warn ${vpStep===4?"active":""}" data-vp-step="4" type="button">4.Risk !2</button>
+        <button class="step-pill ${vpStep===5?"active":""}" data-vp-step="5" type="button">5.Learn</button>
+      </div>
+
+      <div class="idea-row" style="flex:1;">
+        <div style="font-weight:700; font-size:11.5px; color:var(--accent-cyan); margin-bottom:3px;">${stepData.title}</div>
+        <div style="font-size:11.5px; color:var(--text-secondary);">${stepData.text}</div>
+      </div>
+    `;
+
+    body.querySelectorAll("[data-vp-step]").forEach(b => {
+      b.addEventListener("click", () => {
+        vpStep = Number(b.dataset.vpStep);
+        renderViewport320();
+      });
+    });
+  }
+
+  document.getElementById("vpLensBtn").addEventListener("click", () => {
+    vpPopoverOpen = !vpPopoverOpen;
+    renderViewport320();
+  });
+
+  document.querySelectorAll("[data-vp]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      vpMode = btn.dataset.vp;
+      document.querySelectorAll("[data-vp]").forEach(b => b.classList.toggle("active", b === btn));
+      renderViewport320();
+    });
+  });
+
+  // Sim 4: Multi-Grammar SVG Diorama
+  const GRAMMAR_TOURS = {
+    subway: [
+      "Stop 1 (UI Line): panel.html renders the 320px HUD and sends user actions up the transfer hub.",
+      "Stop 2 (MCP Line): mcp-server.mjs routes tool calls cleanly over JSON-RPC stdio.",
+      "Stop 3 (Engine Line): debrief-engine.mjs compiles the Diagram Spec JSON with zero dependencies.",
+      "Stop 4 (Transfer Hub): Cross-layer calls light up transfer stations so readers see boundaries instantly."
+    ],
+    flowdiff: [
+      "Stop 1 (Error Source): Red node pinpoints the old 4-row header overflow.",
+      "Stop 2 (Modified): Amber node shows debrief-engine.mjs adding multi-grammar routing.",
+      "Stop 3 (Created): Green node highlights the new Plugin Visual Dock.",
+      "Stop 4 (Kinetic Path): Edges animate ONLY along the changed execution path."
+    ],
+    split: [
+      "Stop 1 (Before Left): 4-row pill header + scrolling wall traps diagrams in 460px.",
+      "Stop 2 (Broken Arrow): Direct plugin calls hit CSP unsafeEval:false wall.",
+      "Stop 3 (After Right): 1-strip HUD + 50ms SVG preview + ui/message bridge.",
+      "Stop 4 (Result): Zero-scroll sidebar launches rich canvases onto the main stage."
+    ],
+    sequence: [
+      "Stop 1 (User): Clicks 'Distill Last Answer' or finishes turn.",
+      "Stop 2 (Hook): Extracts touched files and commands in <20ms.",
+      "Stop 3 (Engine): Builds Diagram Spec and evaluates complexity gate.",
+      "Stop 4 (Panel / Plugin): Renders SVG immediately; invokes Excalidraw only on click."
+    ],
+    tree: [
+      "Stop 1 (Root Classifier): Reads response shape automatically.",
+      "Stop 2 (Simple Branch): Pure Q&A or small edit -> Native SVG only.",
+      "Stop 3 (Complex Topology): Multi-layer architecture -> Excalidraw SketchBrief.",
+      "Stop 4 (Interactive Algorithm): State transitions -> Visualize Gen UI widget."
+    ]
+  };
+
+  function renderGrammar() {
+    const svg = document.getElementById("grammarSvg");
+    const isCode = xrayMode === "code";
+    const s = tourStop;
+    document.getElementById("tourStopNum").textContent = String(s);
+    document.getElementById("grammarCaption").textContent = GRAMMAR_TOURS[currentGrammar][s - 1];
+
+    const ring = (x, y, num) => s === num
+      ? `<circle cx="${x}" cy="${y}" r="14" fill="none" stroke="#f59e0b" stroke-width="2.5"/><circle cx="${x}" cy="${y}" r="9" fill="#f59e0b"/><text x="${x}" y="${y+3.5}" text-anchor="middle" fill="#071019" font-size="10" font-weight="800">${num}</text>`
+      : `<circle cx="${x}" cy="${y}" r="9" fill="#1e293b" stroke="#64748b"/><text x="${x}" y="${y+3.5}" text-anchor="middle" fill="#cbd5e1" font-size="9.5" font-weight="700">${num}</text>`;
+
+    if (currentGrammar === "subway") {
+      svg.innerHTML = `
+        <line x1="60" y1="58" x2="700" y2="58" stroke="#22d3ee" stroke-width="6" stroke-linecap="round"/>
+        <line x1="60" y1="135" x2="700" y2="135" stroke="#10b981" stroke-width="6" stroke-linecap="round"/>
+        <line x1="60" y1="212" x2="700" y2="212" stroke="#a78bfa" stroke-width="6" stroke-linecap="round"/>
+        <line x1="420" y1="58" x2="420" y2="212" stroke="#eef2ff" stroke-width="3" stroke-dasharray="4 4"/>
+        <text x="64" y="42" fill="#22d3ee" font-size="11" font-family="monospace">${isCode ? "UI LINE // assets/panel.html" : "UI LINE // Side Panel HUD"}</text>
+        <text x="64" y="119" fill="#10b981" font-size="11" font-family="monospace">${isCode ? "MCP LINE // scripts/mcp-server.mjs" : "MCP LINE // Tool Bridge"}</text>
+        <text x="64" y="196" fill="#a78bfa" font-size="11" font-family="monospace">${isCode ? "ENGINE LINE // scripts/debrief-engine.mjs" : "ENGINE LINE // Diagram Spec"}</text>
+        ${ring(210, 58, 1)} ${ring(360, 135, 2)} ${ring(540, 212, 3)} ${ring(420, 135, 4)}
+      `;
+    } else if (currentGrammar === "flowdiff") {
+      svg.innerHTML = `
+        <rect x="44" y="95" width="138" height="62" rx="11" fill="#1f1218" stroke="#f43f5e" stroke-width="2"/>
+        <text x="113" y="122" text-anchor="middle" fill="#fecdd3" font-size="12" font-weight="700">${isCode ? "4-Row Header" : "Old Clutter"}</text>
+        <text x="113" y="140" text-anchor="middle" fill="#f43f5e" font-size="10" font-family="monospace">ERROR SOURCE</text>
+        <line x1="182" y1="126" x2="292" y2="126" stroke="#f59e0b" stroke-width="2.5" class="flow-edge"/>
+        <rect x="292" y="95" width="158" height="62" rx="11" fill="#1d180d" stroke="#f59e0b" stroke-width="2"/>
+        <text x="371" y="122" text-anchor="middle" fill="#fde68a" font-size="12" font-weight="700">${isCode ? "debrief-engine.mjs" : "Smart Engine"}</text>
+        <text x="371" y="140" text-anchor="middle" fill="#f59e0b" font-size="10" font-family="monospace">MODIFIED</text>
+        <line x1="450" y1="126" x2="555" y2="126" stroke="#10b981" stroke-width="2.5" class="flow-edge"/>
+        <rect x="555" y="95" width="160" height="62" rx="11" fill="#0d1f18" stroke="#10b981" stroke-width="2"/>
+        <text x="635" y="122" text-anchor="middle" fill="#a7f3d0" font-size="12" font-weight="700">${isCode ? "PluginDock + Stepper" : "Visual Dock"}</text>
+        <text x="635" y="140" text-anchor="middle" fill="#10b981" font-size="10" font-family="monospace">CREATED</text>
+        ${ring(113, 82, 1)} ${ring(371, 82, 2)} ${ring(635, 82, 3)} ${ring(498, 126, 4)}
+      `;
+    } else if (currentGrammar === "split") {
+      svg.innerHTML = `
+        <rect x="24" y="24" width="335" height="220" rx="14" fill="#171019" stroke="#f43f5e" stroke-width="1.6"/>
+        <text x="190" y="52" text-anchor="middle" fill="#f43f5e" font-size="13" font-weight="700">BEFORE // CRAMPED &amp; BLOCKED</text>
+        <rect x="64" y="84" width="250" height="44" rx="8" fill="#26141d" stroke="#f43f5e"/>
+        <text x="189" y="110" text-anchor="middle" fill="#fecdd3" font-size="11">${isCode ? "4-Row Pills + Prose Wall" : "Too many buttons + long text"}</text>
+        <rect x="64" y="156" width="250" height="44" rx="8" fill="#26141d" stroke="#f43f5e" stroke-dasharray="4 4"/>
+        <text x="189" y="182" text-anchor="middle" fill="#fda4af" font-size="11">${isCode ? "CSP unsafeEval:false Blocks Direct Call" : "Heavy plugins stuck in 360px"}</text>
+
+        <rect x="401" y="24" width="335" height="220" rx="14" fill="#0d1a24" stroke="#10b981" stroke-width="1.6"/>
+        <text x="568" y="52" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700">AFTER // COCKPIT + ORCHESTRA</text>
+        <rect x="442" y="84" width="250" height="44" rx="8" fill="#102534" stroke="#22d3ee"/>
+        <text x="567" y="110" text-anchor="middle" fill="#e0f2fe" font-size="11">${isCode ? "1-Strip HUD + 50ms SVG" : "1-line Verdict + Instant Map"}</text>
+        <rect x="442" y="156" width="250" height="44" rx="8" fill="#0d261f" stroke="#10b981"/>
+        <text x="567" y="182" text-anchor="middle" fill="#a7f3d0" font-size="11">${isCode ? "ui/message -> Excalidraw / Visualize" : "1-Click Pop Out to Big Stage"}</text>
+        ${ring(64, 84, 1)} ${ring(64, 156, 2)} ${ring(442, 84, 3)} ${ring(442, 156, 4)}
+      `;
+    } else if (currentGrammar === "sequence") {
+      svg.innerHTML = `
+        ${[110, 290, 470, 650].map((x, i) => {
+          const names = isCode ? ["User", "hook-runner.mjs", "debrief-engine", "panel / plugins"] : ["User", "Hook", "Engine", "Visual Stage"];
+          return `<rect x="${x-58}" y="22" width="116" height="34" rx="8" fill="#111b2e" stroke="#22d3ee"/><text x="${x}" y="43" text-anchor="middle" fill="#eef2ff" font-size="11" font-weight="700">${names[i]}</text><line x1="${x}" y1="56" x2="${x}" y2="245" stroke="rgba(148,163,184,0.35)" stroke-dasharray="4 4"/>`;
+        }).join("")}
+        <line x1="110" y1="95" x2="290" y2="95" stroke="#22d3ee" stroke-width="2" class="flow-edge"/>
+        <text x="200" y="88" text-anchor="middle" fill="#22d3ee" font-size="10">1. Turn / Distill</text>
+        <line x1="290" y1="138" x2="470" y2="138" stroke="#10b981" stroke-width="2" class="flow-edge"/>
+        <text x="380" y="131" text-anchor="middle" fill="#10b981" font-size="10">2. Skeleton (&lt;20ms)</text>
+        <line x1="470" y1="181" x2="650" y2="181" stroke="#a78bfa" stroke-width="2" class="flow-edge"/>
+        <text x="560" y="174" text-anchor="middle" fill="#a78bfa" font-size="10">3. Spec -> SVG / Plugin</text>
+        ${ring(110, 95, 1)} ${ring(290, 138, 2)} ${ring(470, 181, 3)} ${ring(650, 215, 4)}
+      `;
+    } else {
+      svg.innerHTML = `
+        <rect x="295" y="18" width="170" height="44" rx="10" fill="#111b2e" stroke="#22d3ee" stroke-width="2"/>
+        <text x="380" y="44" text-anchor="middle" fill="#eef2ff" font-size="12" font-weight="700">${isCode ? "ResponseLens + Score" : "Response Shape?"}</text>
+        <path d="M380,62 L145,142 M380,62 L380,142 M380,62 L615,142" stroke="#64748b" stroke-width="1.8" class="flow-edge"/>
+        <rect x="55" y="142" width="180" height="58" rx="10" fill="#0d1a24" stroke="#10b981"/>
+        <text x="145" y="168" text-anchor="middle" fill="#10b981" font-size="11.5" font-weight="700">Simple Q&amp;A</text>
+        <text x="145" y="185" text-anchor="middle" fill="#94a3b8" font-size="10">Native SVG (0 tokens)</text>
+        <rect x="290" y="142" width="180" height="58" rx="10" fill="#111b2e" stroke="#f59e0b"/>
+        <text x="380" y="168" text-anchor="middle" fill="#f59e0b" font-size="11.5" font-weight="700">Architecture</text>
+        <text x="380" y="185" text-anchor="middle" fill="#94a3b8" font-size="10">Excalidraw SketchBrief</text>
+        <rect x="525" y="142" width="180" height="58" rx="10" fill="#1a132a" stroke="#a78bfa"/>
+        <text x="615" y="168" text-anchor="middle" fill="#a78bfa" font-size="11.5" font-weight="700">State / Algorithm</text>
+        <text x="615" y="185" text-anchor="middle" fill="#94a3b8" font-size="10">Visualize Gen UI Sim</text>
+        ${ring(380, 18, 1)} ${ring(145, 142, 2)} ${ring(380, 142, 3)} ${ring(615, 142, 4)}
+      `;
+    }
+  }
+
+  document.querySelectorAll("#grammarBtns button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentGrammar = btn.dataset.gram;
+      document.querySelectorAll("#grammarBtns button").forEach(b => b.classList.toggle("active", b === btn));
+      renderGrammar();
+    });
+  });
+
+  document.getElementById("tourNextBtn").addEventListener("click", () => {
+    tourStop = (tourStop % 4) + 1;
+    renderGrammar();
+  });
+
+  // Render 16 Techniques Atlas
+  function formatIdeaHtml(tech, idea) {
+    if (tech.treatment === "flip" && idea.text.includes(" -> Inversion: ")) {
+      const parts = idea.text.split(" -> Inversion: ");
+      return `<span class="idea-tag">${escHtml(idea.tag)}</span><span class="flip-anti">${escHtml(parts[0])}</span> &rarr; <span class="flip-inv">${escHtml(parts[1])}</span>`;
+    }
+    return `<span class="idea-tag">${escHtml(idea.tag)}</span>${escHtml(idea.text)}`;
+  }
+
+  function renderTechniques() {
+    const grid = document.getElementById("techniquesGrid");
+    const list = activeTechCat === "All" ? TECHNIQUES : TECHNIQUES.filter(t => t.category === activeTechCat);
+    grid.innerHTML = list.map(t => {
+      const filteredIdeas = t.treatment === "disney" && disneyFilter !== "All"
+        ? t.ideas.filter(i => i.tag === disneyFilter)
+        : t.ideas;
+
+      const disneyBar = t.treatment === "disney" ? `
+        <div class="disney-tabs">
+          ${["All", "Dreamer", "Realist", "Critic"].map(r => `<button class="disney-pill ${disneyFilter === r ? "active" : ""}" data-disney="${r}" type="button">${r}</button>`).join("")}
+        </div>` : "";
+
+      return `
+        <article class="tech-card" style="--tech-accent:${t.accent}">
+          <div class="tech-head">
+            <div>
+              <span class="tech-cat">${escHtml(t.category)} · ${t.ideas.length} Ideas</span>
+              <h3 class="tech-title">${escHtml(t.name)}</h3>
+            </div>
+            <div class="tech-mini-svg">${t.svg}</div>
+          </div>
+          ${disneyBar}
+          <div class="tech-ideas-list">
+            ${filteredIdeas.map(i => `<div class="idea-row">${formatIdeaHtml(t, i)}</div>`).join("")}
+          </div>
+        </article>
+      `;
+    }).join("");
+
+    grid.querySelectorAll("[data-disney]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        disneyFilter = btn.dataset.disney;
+        renderTechniques();
+      });
+    });
+  }
+
+  document.querySelectorAll("#techCatFilters button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      activeTechCat = btn.dataset.cat;
+      document.querySelectorAll("#techCatFilters button").forEach(b => b.classList.toggle("active", b === btn));
+      renderTechniques();
+    });
+  });
+
+  // Flat Idea Stream (All 115 ideas)
+  const ALL_IDEAS = [];
+  TECHNIQUES.forEach(t => {
+    t.ideas.forEach((item, idx) => {
+      const uid = `${t.id}-${idx}`;
+      const lower = item.text.toLowerCase();
+      const clusters = [];
+      if (/excalidraw|visualize|presentations|deckcraft|designcraft|blender|plugin/.test(lower)) clusters.push("plugins");
+      if (/diagram|svg|subway|flowdiff|grammar|topology|tree|split|map/.test(lower)) clusters.push("diagrams");
+      if (/animat|canvas|motion|kinetic|tour|replay|pulse|dvr/.test(lower)) clusters.push("animation");
+      if (/320px|header|pill|scroll|ste-80|persona|viewport|popover|drawer|step/.test(lower)) clusters.push("viewport");
+      if (/proof|verif|confiden|unverified|risk|trust|hallucinat|nuance/.test(lower)) clusters.push("trust");
+      ALL_IDEAS.push({ uid, tech: t.name, cat: t.category, tag: item.tag, text: item.text, clusters });
+    });
+  });
+
+  document.getElementById("statTechniques").textContent = String(TECHNIQUES.length);
+  document.getElementById("statIdeas").textContent = String(ALL_IDEAS.length);
+
+  function renderStream() {
+    document.getElementById("starCount").textContent = String(starredSet.size);
+    const q = streamQuery.trim().toLowerCase();
+    const rows = ALL_IDEAS.filter(item => {
+      if (streamTheme === "starred" && !starredSet.has(item.uid)) return false;
+      if (streamTheme !== "all" && streamTheme !== "starred" && !item.clusters.includes(streamTheme)) return false;
+      if (q && !item.text.toLowerCase().includes(q) && !item.tech.toLowerCase().includes(q) && !item.tag.toLowerCase().includes(q)) return false;
+      return true;
+    });
+
+    const container = document.getElementById("streamList");
+    if (!rows.length) {
+      container.innerHTML = `<div class="idea-row" style="grid-column:1/-1; text-align:center;">No ideas match the active filter.</div>`;
+      return;
+    }
+
+    container.innerHTML = rows.map(r => {
+      const on = starredSet.has(r.uid);
+      return `
+        <div class="stream-item ${on ? "starred" : ""}">
+          <div class="stream-meta">
+            <span>${escHtml(r.tech)} · ${escHtml(r.tag)}</span>
+            <button class="star-btn ${on ? "on" : ""}" data-star="${r.uid}" type="button">${on ? "Shortlisted" : "Shortlist"}</button>
+          </div>
+          <div>${escHtml(r.text)}</div>
+        </div>
+      `;
+    }).join("");
+
+    container.querySelectorAll("[data-star]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.star;
+        if (starredSet.has(id)) starredSet.delete(id);
+        else starredSet.add(id);
+        saveStars();
+        renderStream();
+      });
+    });
+  }
+
+  document.querySelectorAll("#streamThemeFilters button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      streamTheme = btn.dataset.themeFilter;
+      document.querySelectorAll("#streamThemeFilters button").forEach(b => b.classList.toggle("active", b === btn));
+      renderStream();
+    });
+  });
+
+  document.getElementById("ideaSearch").addEventListener("input", e => {
+    streamQuery = e.target.value;
+    renderStream();
+  });
+
+  // Keyboard shortcuts (D = X-Ray, T = Theme, 1-5 = 320px Stepper)
+  document.addEventListener("keydown", e => {
+    if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+    const k = e.key.toLowerCase();
+    if (k === "d") {
+      xrayMode = xrayMode === "plain" ? "code" : "plain";
+      applyXRay();
+    } else if (k === "t") {
+      themeMode = themeMode === "dark" ? "light" : "dark";
+      applyTheme();
+    } else if (["1", "2", "3", "4", "5"].includes(e.key)) {
+      vpStep = Number(e.key);
+      vpMode = "after";
+      renderViewport320();
+    }
+  });
+
+  // Initialize
+  applyTheme();
+  applyXRay();
+  renderNodeDrawer();
+  renderOrchestra();
+  renderViewport320();
+  renderGrammar();
+  renderTechniques();
+  renderStream();
+  requestAnimationFrame(drawCanvasFrame);
+})();
+</script>
+</body>
+</html>

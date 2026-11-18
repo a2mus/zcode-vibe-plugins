@@ -1,0 +1,3031 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vibe Debrief — Cockpit HUD vNext Prototype</title>
+  <style>
+    :root {
+      --bg-app: #090d13;
+      --bg-surface: #101620;
+      --bg-panel: #121924;
+      --bg-card: #182130;
+      --bg-card-hover: #1e293b;
+      --bg-elevated: #0d131c;
+      --border: rgba(148, 163, 184, 0.14);
+      --border-strong: rgba(148, 163, 184, 0.28);
+      --text-primary: #e7edf6;
+      --text-secondary: #9aa9be;
+      --text-muted: #69788e;
+
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.14);
+      --accent-border: rgba(56, 189, 248, 0.36);
+
+      --ok: #34d399;
+      --ok-soft: rgba(52, 211, 153, 0.13);
+      --ok-border: rgba(52, 211, 153, 0.36);
+
+      --warn: #fbbf24;
+      --warn-soft: rgba(251, 191, 36, 0.14);
+      --warn-border: rgba(251, 191, 36, 0.38);
+
+      --risk: #fb7185;
+      --risk-soft: rgba(251, 113, 133, 0.14);
+      --risk-border: rgba(251, 113, 133, 0.38);
+
+      --purple: #a78bfa;
+      --purple-soft: rgba(167, 139, 250, 0.14);
+      --purple-border: rgba(167, 139, 250, 0.35);
+
+      --shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.45);
+      --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
+      --grid-dot: rgba(148, 163, 184, 0.12);
+
+      --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --radius-sm: 7px;
+    }
+
+    html[data-theme="light"] {
+      --bg-app: #efeae0;
+      --bg-surface: #f7f4ec;
+      --bg-panel: #fbf9f4;
+      --bg-card: #ffffff;
+      --bg-card-hover: #f3efe6;
+      --bg-elevated: #f1ece1;
+      --border: rgba(30, 41, 59, 0.12);
+      --border-strong: rgba(30, 41, 59, 0.24);
+      --text-primary: #17202e;
+      --text-secondary: #4c5a6d;
+      --text-muted: #768396;
+
+      --accent: #0284c7;
+      --accent-soft: rgba(2, 132, 199, 0.10);
+      --accent-border: rgba(2, 132, 199, 0.34);
+
+      --ok: #059669;
+      --ok-soft: rgba(5, 150, 105, 0.10);
+      --ok-border: rgba(5, 150, 105, 0.34);
+
+      --warn: #b45309;
+      --warn-soft: rgba(217, 119, 6, 0.12);
+      --warn-border: rgba(217, 119, 6, 0.36);
+
+      --risk: #be123c;
+      --risk-soft: rgba(225, 29, 72, 0.10);
+      --risk-border: rgba(225, 29, 72, 0.34);
+
+      --purple: #6d28d9;
+      --purple-soft: rgba(109, 40, 217, 0.10);
+      --purple-border: rgba(109, 40, 217, 0.30);
+
+      --shadow-panel: 0 12px 32px rgba(30, 41, 59, 0.10);
+      --shadow-pop: 0 10px 28px rgba(30, 41, 59, 0.16);
+      --grid-dot: rgba(30, 41, 59, 0.12);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: var(--bg-app);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button {
+      font-family: inherit;
+      color: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+      padding: 0;
+    }
+
+    code, .mono {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+    }
+
+    /* Top Simulation Bar */
+    .sim-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 20px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+
+    .sim-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .sim-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    .sim-sub {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+
+    .sim-top-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .pill-btn:hover {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    .pill-btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+
+    /* 3-Column Workspace */
+    .workspace {
+      display: grid;
+      grid-template-columns: 300px 380px minmax(360px, 1fr);
+      gap: 20px;
+      padding: 20px;
+      max-width: 1520px;
+      margin: 0 auto;
+      align-items: start;
+    }
+
+    @media (max-width: 1180px) {
+      .workspace {
+        grid-template-columns: 300px 380px;
+      }
+      .stage2-col {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 740px) {
+      .workspace {
+        grid-template-columns: 1fr;
+        padding: 12px;
+      }
+      .hud-column {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .hud-shell {
+        width: 100%;
+        max-width: 380px;
+      }
+    }
+
+    /* Left Column: Simulation Controls */
+    .sim-col {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .sim-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+    }
+
+    .sim-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .scenario-list {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .scenario-btn {
+      text-align: left;
+      padding: 9px 11px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      transition: all 0.15s ease;
+    }
+
+    .scenario-btn:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-card-hover);
+    }
+
+    .scenario-btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+    }
+
+    .scenario-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .scenario-desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+
+    .seg-control {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 3px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+    }
+
+    .seg-btn {
+      padding: 6px 8px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+
+    .seg-btn.active {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+      border: 1px solid var(--border);
+    }
+
+    .plugin-toggles {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .plugin-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 10px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      font-size: 12px;
+    }
+
+    .plugin-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .plugin-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .plugin-role {
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+
+    .switch {
+      position: relative;
+      width: 36px;
+      height: 20px;
+      border-radius: 999px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      transition: all 0.18s ease;
+      flex-shrink: 0;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: var(--text-muted);
+      transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .switch.on {
+      background: var(--ok-soft);
+      border-color: var(--ok-border);
+    }
+
+    .switch.on::after {
+      transform: translateX(16px);
+      background: var(--ok);
+    }
+
+    .mini-presets {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .mini-link {
+      font-size: 11px;
+      color: var(--accent);
+      padding: 3px 7px;
+      border-radius: 5px;
+      background: var(--accent-soft);
+    }
+
+    .mini-link:hover { filter: brightness(1.1); }
+
+    .raw-feed {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 9px 10px;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    .feed-item {
+      padding: 4px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+      margin-right: 5px;
+    }
+
+    /* Center Column: 380px ZCode Right-Side Panel (Cockpit HUD) */
+    .hud-column {
+      position: relative;
+    }
+
+    .col-caption {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .hud-shell {
+      width: 380px;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      box-shadow: var(--shadow-panel);
+      overflow: visible;
+      position: relative;
+    }
+
+    /* 1-Strip Compact Header */
+    .hud-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-surface);
+      border-radius: 16px 16px 0 0;
+      position: relative;
+    }
+
+    .hud-brand {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .hud-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .xray-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .xray-toggle[data-mode="tech"] {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+
+    .gear-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-secondary);
+      transition: all 0.15s ease;
+    }
+
+    .gear-btn:hover, .gear-btn.open {
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+      background: var(--bg-card-hover);
+    }
+
+    /* Gear Popover */
+    .gear-popover {
+      position: absolute;
+      top: 46px;
+      right: 10px;
+      width: 235px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-pop);
+      padding: 11px;
+      z-index: 40;
+      display: none;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .gear-popover.open { display: flex; }
+
+    .pop-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+    }
+
+    .pop-chip {
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .pop-chip:hover { border-color: var(--accent-border); color: var(--accent); }
+
+    /* HUD Body */
+    .hud-body {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 11px;
+    }
+
+    /* 10-Second Radar */
+    .radar-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 11px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .radar-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .radar-summary {
+      font-size: 12.8px;
+      line-height: 1.48;
+      color: var(--text-primary);
+    }
+
+    .radar-summary .sym {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid var(--accent-border);
+    }
+
+    .waiting-strip {
+      border-top: 1px dashed var(--border);
+      padding-top: 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .waiting-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .wait-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .wait-badge.choice { background: var(--warn-soft); color: var(--warn); border: 1px solid var(--warn-border); }
+    .wait-badge.question { background: var(--purple-soft); color: var(--purple); border: 1px solid var(--purple-border); }
+    .wait-badge.verify { background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-border); }
+    .wait-badge.wait { background: var(--bg-elevated); color: var(--text-secondary); border: 1px solid var(--border-strong); }
+    .wait-badge.clear { background: var(--ok-soft); color: var(--ok); border: 1px solid var(--ok-border); }
+
+    .wait-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: currentColor;
+    }
+
+    .wait-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .action-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 9px;
+      border-radius: 7px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      transition: all 0.14s ease;
+    }
+
+    .action-chip:hover {
+      border-color: var(--accent-border);
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .action-chip.primary {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+
+    .action-chip.selected {
+      background: var(--ok-soft);
+      border-color: var(--ok-border);
+      color: var(--ok);
+    }
+
+    .inline-reply-box {
+      display: flex;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .inline-reply-box input {
+      flex: 1;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 5px 8px;
+      color: var(--text-primary);
+      font-size: 11.5px;
+      font-family: inherit;
+    }
+
+    .inline-reply-box button {
+      padding: 5px 9px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #061019;
+      font-weight: 700;
+      font-size: 11px;
+    }
+
+    /* Composable Micro-Blocks */
+    .micro-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .block-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .popout-mini {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent);
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--accent-soft);
+      border: 1px solid transparent;
+    }
+    .popout-mini:hover { border-color: var(--accent-border); }
+
+    /* Choice Cards */
+    .choice-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .choice-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 9px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      text-align: left;
+      transition: all 0.14s ease;
+    }
+
+    .choice-item:hover {
+      border-color: var(--accent-border);
+      background: var(--bg-card-hover);
+    }
+
+    .choice-item.picked {
+      border-color: var(--ok-border);
+      background: var(--ok-soft);
+    }
+
+    .choice-key {
+      width: 20px;
+      height: 20px;
+      border-radius: 5px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-strong);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .choice-text {
+      flex: 1;
+      font-size: 12px;
+    }
+
+    .choice-title {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .choice-sub {
+      font-size: 11px;
+      color: var(--text-secondary);
+      margin-top: 1px;
+    }
+
+    .tradeoff-bars {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+
+    .tbar {
+      font-size: 10px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .tbar-track {
+      width: 34px;
+      height: 4px;
+      border-radius: 99px;
+      background: var(--border);
+      overflow: hidden;
+    }
+
+    .tbar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 99px;
+    }
+
+    /* Inline SVG Diagram */
+    .svg-stage {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px;
+      overflow: hidden;
+    }
+
+    .svg-stage svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .dash-flow {
+      stroke-dasharray: 5 4;
+      animation: flowDash 1.4s linear infinite;
+    }
+
+    @keyframes flowDash {
+      to { stroke-dashoffset: -18; }
+    }
+
+    /* Proof & Risk Badges */
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .proof-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border-radius: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+
+    .proof-pill.ok { color: var(--ok); border-color: var(--ok-border); background: var(--ok-soft); }
+    .proof-pill.risk { color: var(--risk); border-color: var(--risk-border); background: var(--risk-soft); }
+    .proof-pill.info { color: var(--text-secondary); }
+
+    .proof-detail {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      display: none;
+    }
+    .proof-detail.open { display: block; }
+
+    /* Concept Pills + Stage 1 Drawer */
+    .concept-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .concept-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+      transition: all 0.14s ease;
+    }
+
+    .concept-pill:hover {
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+
+    .concept-pill.active {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+
+    .stage1-drawer {
+      margin-top: 4px;
+      padding: 10px;
+      border-radius: 9px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--accent-border);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      animation: slideIn 0.16s ease-out;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .stage1-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .stage1-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .target-tag {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: var(--purple-soft);
+      color: var(--purple);
+      border: 1px solid var(--purple-border);
+    }
+
+    .stage1-copy {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    .stage1-analogy {
+      font-size: 11.5px;
+      color: var(--text-primary);
+      padding: 5px 8px;
+      border-left: 2px solid var(--accent);
+      background: var(--bg-card);
+      border-radius: 0 6px 6px 0;
+    }
+
+    .stage1-canvas-wrap {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      overflow: hidden;
+      height: 104px;
+      position: relative;
+    }
+
+    .stage1-canvas-wrap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .stage1-cta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .popout-btn {
+      flex: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 10px;
+      border-radius: 7px;
+      background: var(--accent);
+      color: #06121e;
+      font-size: 12px;
+      font-weight: 700;
+      transition: filter 0.14s ease;
+    }
+
+    .popout-btn:hover { filter: brightness(1.08); }
+
+    /* Unclear / Minimal Fallback */
+    .unclear-box {
+      padding: 10px;
+      border-radius: 8px;
+      background: var(--warn-soft);
+      border: 1px solid var(--warn-border);
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .unclear-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--warn);
+    }
+
+    .raw-quote {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      background: var(--bg-elevated);
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    .hud-toast {
+      margin: 0 12px 10px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: var(--ok-soft);
+      border: 1px solid var(--ok-border);
+      color: var(--ok);
+      font-size: 11.5px;
+      font-weight: 600;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .hud-toast.show { display: flex; }
+
+    /* Right Column: Stage 2 External Pop-Out Stage */
+    .stage2-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stage2-shell {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      min-height: 540px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: var(--shadow-panel);
+    }
+
+    .stage2-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 36px 28px;
+      gap: 12px;
+      color: var(--text-secondary);
+    }
+
+    .stage2-empty-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+    }
+
+    .stage2-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+
+    .stage2-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stage2-kicker {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .stage2-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* Missing Plugin Banner */
+    .missing-banner {
+      margin: 14px 16px 0;
+      padding: 11px 13px;
+      border-radius: 10px;
+      background: var(--warn-soft);
+      border: 1px solid var(--warn-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .missing-copy {
+      flex: 1;
+      min-width: 220px;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    .missing-copy strong { color: var(--warn); }
+
+    .install-btn {
+      padding: 7px 12px;
+      border-radius: 7px;
+      background: var(--warn);
+      color: #140d00;
+      font-size: 11.5px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .install-btn:hover { filter: brightness(1.08); }
+
+    /* Stage 2 Interactive Visual Canvas */
+    .stage2-viewport {
+      margin: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-elevated);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stage2-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-btn {
+      padding: 4px 9px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .tool-btn.active {
+      background: var(--accent-soft);
+      border-color: var(--accent-border);
+      color: var(--accent);
+    }
+
+    .stage2-canvas-area {
+      position: relative;
+      height: 270px;
+      background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+      background-size: 18px 18px;
+    }
+
+    .stage2-canvas-area.excalidraw-surface {
+      background-color: #faf8f2;
+      background-image: radial-gradient(rgba(15, 23, 42, 0.14) 1px, transparent 1px);
+      color: #1e293b;
+    }
+
+    .stage2-canvas-area canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .stage2-hud-telemetry {
+      position: absolute;
+      bottom: 10px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .telemetry-pill {
+      padding: 4px 9px;
+      border-radius: 6px;
+      background: rgba(12, 17, 26, 0.84);
+      border: 1px solid var(--border-strong);
+      color: #e7edf6;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      pointer-events: auto;
+    }
+
+    /* Deep Technical Explanation */
+    .stage2-deep {
+      padding: 0 16px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .deep-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .deep-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .deep-card-title {
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    .deep-card p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <header class="sim-topbar">
+    <div class="sim-brand">
+      <span class="sim-dot"></span>
+      <span>Vibe Debrief — Cockpit HUD vNext</span>
+      <span class="sim-sub" id="top-subtitle">Converged Prototype</span>
+    </div>
+    <div class="sim-top-actions">
+      <button class="pill-btn" id="theme-toggle-btn" type="button">
+        <span id="theme-toggle-label">Field Desk Light</span>
+      </button>
+      <button class="pill-btn" id="reset-demo-btn" type="button">Reset Demo</button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <!-- LEFT COLUMN: SIMULATION CONTROLS -->
+    <aside class="sim-col">
+      <section class="sim-card">
+        <div class="sim-label">
+          <span>1. Test 4 Real AI Responses</span>
+        </div>
+        <div class="scenario-list" id="scenario-list"></div>
+      </section>
+
+      <section class="sim-card">
+        <div class="sim-label">
+          <span>2. Project Language (STE-80)</span>
+        </div>
+        <div class="seg-control">
+          <button class="seg-btn active" data-lang="en" type="button">English (STE-80)</button>
+          <button class="seg-btn" data-lang="fr" type="button">Français (STE-80)</button>
+        </div>
+      </section>
+
+      <section class="sim-card">
+        <div class="sim-label">
+          <span>3. Plugin Availability</span>
+        </div>
+        <div class="plugin-toggles" id="plugin-toggles"></div>
+        <div class="mini-presets">
+          <button class="mini-link" id="plugins-all-on" type="button">All Installed</button>
+          <button class="mini-link" id="plugins-all-off" type="button">All Missing (Test Fallback)</button>
+        </div>
+      </section>
+
+      <section class="sim-card">
+        <div class="sim-label">
+          <span>Workspace Event Log</span>
+        </div>
+        <div class="raw-feed" id="event-log"></div>
+      </section>
+    </aside>
+
+    <!-- CENTER COLUMN: SIMULATED 380PX ZCODE RIGHT-SIDE PANEL -->
+    <section class="hud-column">
+      <div class="col-caption">
+        <span>ZCode Right Panel · 380px</span>
+        <span class="mono" id="hud-mode-tag">HUD vNext</span>
+      </div>
+
+      <div class="hud-shell">
+        <!-- 1-Strip Compact Header -->
+        <div class="hud-header">
+          <div class="hud-brand">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent);">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 7v5l3 2"></path>
+            </svg>
+            <span>Vibe Debrief</span>
+          </div>
+
+          <div class="hud-controls">
+            <button class="xray-toggle" id="xray-btn" data-mode="plain" type="button" title="Toggle Plain STE-80 vs Technical symbols">
+              <span id="xray-label">X-Ray: Plain ↔ Tech</span>
+            </button>
+            <button class="gear-btn" id="gear-btn" type="button" aria-label="Settings">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.09a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Compact Settings Popover -->
+          <div class="gear-popover" id="gear-popover">
+            <div class="pop-row">
+              <span>Surface Theme</span>
+              <button class="pop-chip" id="pop-theme-btn" type="button">Dark HUD</button>
+            </div>
+            <div class="pop-row">
+              <span>Language</span>
+              <button class="pop-chip" id="pop-lang-btn" type="button">EN (STE-80)</button>
+            </div>
+            <div class="pop-row">
+              <span>Clarity Guard</span>
+              <span class="mono" style="font-size:11px;color:var(--ok);">STE-80 Active</span>
+            </div>
+            <div class="pop-row">
+              <span>Standalone Export</span>
+              <button class="pop-chip" id="pop-export-btn" type="button">Export HTML</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- HUD Dynamic Content -->
+        <div class="hud-body" id="hud-body"></div>
+
+        <div class="hud-toast" id="hud-toast">
+          <span id="hud-toast-text"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: STAGE 2 EXTERNAL POP-OUT STAGE -->
+    <section class="stage2-col">
+      <div class="col-caption">
+        <span>Stage 2 · External Pop-Out Surface</span>
+        <span class="mono" id="stage2-surface-tag">Standby</span>
+      </div>
+
+      <div class="stage2-shell" id="stage2-shell"></div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const I18N = {
+        en: {
+          whatHappened: "What Just Happened",
+          waitingOnYou: "Waiting On You",
+          xrayPlain: "Plain",
+          xrayTech: "Technical",
+          choicesTitle: "Options From Agent",
+          flowTitle: "Visual Flow",
+          beforeAfterTitle: "Before → After",
+          proofTitle: "Proof & Risk",
+          conceptsTitle: "Concepts Used (Click for Stage 1)",
+          deepDiveBtn: "Deep Dive & Pop Out ↗",
+          popOutShort: "Pop Out ↗",
+          unclearTitle: "Unclear Reply — Honest Fallback",
+          askArgon: "Clarify (Fast / Cheapest Model)",
+          showRaw: "Show Raw Reply",
+          minimalTag: "Minimal Mode · Verified",
+          stage2StandbyTitle: "Stage 2 External Pop-Out Ready",
+          stage2StandbyDesc: "Click any Concept Pill inside the 380px HUD to preview Stage 1 inline, then hit \"Deep Dive & Pop Out ↗\" to launch the full external canvas or HTML fallback here.",
+          missingBanner: (name) => `<strong>Plugin not installed</strong> — Install <code>${name}</code> for full interactive editing, or use this Built-in HTML Explainer.`,
+          installBtn: (name) => `Install ${name}`,
+          installedNote: (name) => `Rendered inside ${name}`,
+          fallbackTitle: "Built-in Standalone HTML Explainer (Fallback)",
+          closeStage2: "Close",
+          mechanics: "How It Works",
+          tradeoff: "Key Trade-off",
+          codeReality: "In Your Codebase",
+          badges: {
+            choice: "Pick a Choice",
+            question: "Answer Question",
+            verify: "Verify / Run",
+            wait: "Wait",
+            clear: "All Clear"
+          },
+          replyPlaceholder: "Type a short answer to send...",
+          send: "Send",
+          pickVerb: "Pick"
+        },
+        fr: {
+          whatHappened: "Ce qui vient de se passer",
+          waitingOnYou: "En attente de vous",
+          xrayPlain: "Simple",
+          xrayTech: "Technique",
+          choicesTitle: "Choix proposés",
+          flowTitle: "Flux visuel",
+          beforeAfterTitle: "Avant → Après",
+          proofTitle: "Preuves & Risques",
+          conceptsTitle: "Concepts (Cliquez pour Étape 1)",
+          deepDiveBtn: "Approfondir & Ouvrir ↗",
+          popOutShort: "Ouvrir ↗",
+          unclearTitle: "Réponse floue — Repli honnête",
+          askArgon: "Clarifier (Modèle rapide / économique)",
+          showRaw: "Voir texte brut",
+          minimalTag: "Mode Minimal · Vérifié",
+          stage2StandbyTitle: "Étape 2 externe prête",
+          stage2StandbyDesc: "Cliquez sur un concept dans le panneau 380px pour ouvrir l'Étape 1, puis cliquez sur « Approfondir & Ouvrir ↗ » pour lancer le canevas complet ou le repli HTML ici.",
+          missingBanner: (name) => `<strong>Plugin absent</strong> — Installez <code>${name}</code> pour l'édition interactive, ou utilisez cet Explicateur HTML intégré.`,
+          installBtn: (name) => `Installer ${name}`,
+          installedNote: (name) => `Rendu dans ${name}`,
+          fallbackTitle: "Explicateur HTML autonome intégré (Repli)",
+          closeStage2: "Fermer",
+          mechanics: "Fonctionnement",
+          tradeoff: "Compromis clé",
+          codeReality: "Dans votre code",
+          badges: {
+            choice: "Faire un choix",
+            question: "Répondre",
+            verify: "Vérifier / Lancer",
+            wait: "Patienter",
+            clear: "Tout est bon"
+          },
+          replyPlaceholder: "Tapez une courte réponse...",
+          send: "Envoyer",
+          pickVerb: "Choisir"
+        }
+      };
+
+      const PLUGINS = {
+        excalidraw: {
+          id: "excalidraw",
+          label: "Excalidraw",
+          roleEn: "Editable whiteboard",
+          roleFr: "Tableau blanc éditable",
+          installed: true
+        },
+        visualize: {
+          id: "visualize",
+          label: "Visualize Gen UI",
+          roleEn: "Interactive simulation",
+          roleFr: "Simulation interactive",
+          installed: true
+        },
+        vectorcraft: {
+          id: "vectorcraft",
+          label: "VectorCraft",
+          roleEn: "Precision vector schematic",
+          roleFr: "Schéma vectoriel précis",
+          installed: false
+        }
+      };
+
+      const CONCEPTS = {
+        sse: {
+          id: "sse",
+          plugin: "visualize",
+          anim: "stream",
+          label: { en: "SSE Stream", fr: "Flux SSE" },
+          def: {
+            en: "Server-Sent Events push updates over one open HTTP link without polling.",
+            fr: "Les événements serveur (SSE) envoient les mises à jour sur un lien HTTP ouvert."
+          },
+          analogy: {
+            en: "Analogy: Like a radio broadcast — you tune in once instead of calling every minute.",
+            fr: "Analogie : Comme la radio — vous écoutez en continu au lieu d'appeler chaque minute."
+          },
+          deep: {
+            mechanics: {
+              en: "The server keeps the HTTP response open with `text/event-stream` and flushes framed chunks as work completes.",
+              fr: "Le serveur garde la réponse `text/event-stream` ouverte et pousse chaque événement dès qu'il arrive."
+            },
+            tradeoff: {
+              en: "Simpler than WebSockets and auto-reconnects, but strictly one-way (server → client).",
+              fr: "Plus simple que WebSocket avec reconnexion auto, mais uniquement serveur → client."
+            },
+            code: {
+              en: "`mcp-server.mjs:142` (`streamEvents`) streams turn deltas to the HUD; `Last-Event-ID` restores missed frames.",
+              fr: "`mcp-server.mjs:142` (`streamEvents`) diffuse les deltas vers le HUD ; `Last-Event-ID` reprend après coupure."
+            }
+          }
+        },
+        optimisticLock: {
+          id: "optimisticLock",
+          plugin: "excalidraw",
+          anim: "lock",
+          label: { en: "Optimistic Lock", fr: "Verrou optimiste" },
+          def: {
+            en: "Assume no conflict at read time, then check a version stamp before saving.",
+            fr: "Suppose aucun conflit à la lecture, puis vérifie la version avant d'écrire."
+          },
+          analogy: {
+            en: "Analogy: Taking a ticket number — if someone saved ahead of you, retry with the fresh copy.",
+            fr: "Analogie : Vérifier le numéro de version d'un fichier partagé avant d'écraser les changements."
+          },
+          deep: {
+            mechanics: {
+              en: "Each record carries a `version` integer. Writes require `WHERE version = expected`; mismatch triggers a clean retry.",
+              fr: "Chaque état porte un entier `version`. L'écriture exige `version = attendue`, sinon elle réessaie."
+            },
+            tradeoff: {
+              en: "High read throughput with zero blocking, at the cost of occasional retry logic under contention.",
+              fr: "Lectures très rapides sans blocage, mais exige une boucle de réessai lors de collisions."
+            },
+            code: {
+              en: "Candidate Strategy A for `cache/retry.mjs`: compares `cursorVersion` before committing buffered events.",
+              fr: "Stratégie candidate A pour `cache/retry.mjs` : compare `cursorVersion` avant de valider le tampon."
+            }
+          }
+        },
+        idempotency: {
+          id: "idempotency",
+          plugin: "vectorcraft",
+          anim: "dedupe",
+          label: { en: "Idempotency Key", fr: "Clé d'idempotence" },
+          def: {
+            en: "A unique tag per request so safe retries never apply the same change twice.",
+            fr: "Un identifiant unique par requête pour éviter d'appliquer deux fois un réessai."
+          },
+          analogy: {
+            en: "Analogy: A stamped check number — the bank cashes it once even if mailed twice.",
+            fr: "Analogie : Un numéro de chèque unique — la banque ne le paie qu'une fois même envoyé deux fois."
+          },
+          deep: {
+            mechanics: {
+              en: "The client generates a UUID per intent. The server caches `{ key -> result }` and replays the stored result on duplicates.",
+              fr: "Le client génère un UUID par action. Le serveur mémorise `{ clé -> résultat }` et rejoue la réponse si déjà vue."
+            },
+            tradeoff: {
+              en: "Eliminates duplicate side effects on flaky networks; requires short-lived key storage.",
+              fr: "Supprime les doublons sur réseau instable ; demande de stocker les clés temporairement."
+            },
+            code: {
+              en: "Protects `vibe_debrief_publish` when `Last-Event-ID` replays a turn right after reconnect.",
+              fr: "Protège `vibe_debrief_publish` si `Last-Event-ID` rejoue un tour après reconnexion."
+            }
+          }
+        },
+        writeThrough: {
+          id: "writeThrough",
+          plugin: "excalidraw",
+          anim: "lock",
+          label: { en: "Write-Through Cache", fr: "Cache Write-Through" },
+          def: {
+            en: "Every update writes to cache and disk together so both always match.",
+            fr: "Chaque mise à jour écrit dans le cache et sur le disque en même temps."
+          },
+          analogy: {
+            en: "Analogy: Carbon-copy receipt — writing the top sheet writes the ledger copy instantly.",
+            fr: "Analogie : Carnet à double feuillet — écrire en haut copie immédiatement sur le registre."
+          },
+          deep: {
+            mechanics: {
+              en: "Writes block until both in-memory cache and durable store acknowledge success.",
+              fr: "L'écriture attend la confirmation du cache mémoire et du stockage durable."
+            },
+            tradeoff: {
+              en: "Strong consistency with zero stale reads, but slightly slower write latency.",
+              fr: "Cohérence forte sans lecture périmée, mais écriture légèrement plus lente."
+            },
+            code: {
+              en: "Option 1 in `store/sync.ts`: safest choice if offline state loss is unacceptable.",
+              fr: "Option 1 dans `store/sync.ts` : choix le plus sûr si aucune perte hors ligne n'est tolérée."
+            }
+          }
+        },
+        edgeTtl: {
+          id: "edgeTtl",
+          plugin: "vectorcraft",
+          anim: "dedupe",
+          label: { en: "Edge TTL", fr: "TTL en bordure" },
+          def: {
+            en: "Expire cached items after a fixed timer so old data clears automatically.",
+            fr: "Expire les données en cache après un délai fixe pour purger l'ancien."
+          },
+          analogy: {
+            en: "Analogy: Milk expiration date — fast to grab until the clock runs out.",
+            fr: "Analogie : Date de péremption — rapide à servir tant que le chrono reste valide."
+          },
+          deep: {
+            mechanics: {
+              en: "Each entry stores `expiresAt = now + ttlMs`. Reads past `expiresAt` fetch fresh upstream state.",
+              fr: "Chaque entrée stocke `expiresAt = now + ttlMs`. Passé ce délai, la lecture recharge la source."
+            },
+            tradeoff: {
+              en: "Very simple and low overhead, but updates wait until the timer expires.",
+              fr: "Très simple et léger, mais les changements attendent la fin du minuteur."
+            },
+            code: {
+              en: "Option 2 in `store/sync.ts`: sets `ttlMs = 30000` for workspace metadata.",
+              fr: "Option 2 dans `store/sync.ts` : fixe `ttlMs = 30000` pour les métadonnées."
+            }
+          }
+        },
+        swr: {
+          id: "swr",
+          plugin: "visualize",
+          anim: "stream",
+          label: { en: "Stale-While-Revalidate", fr: "Serve-Stale & Refresh" },
+          def: {
+            en: "Serve fast cached data right now while refreshing a fresh copy in the background.",
+            fr: "Sert le cache rapide tout de suite tout en rafraîchissant en arrière-plan."
+          },
+          analogy: {
+            en: "Analogy: Reading today's paper immediately while tomorrow's edition prints quietly.",
+            fr: "Analogie : Lire le journal disponible de suite pendant que la mise à jour arrive derrière."
+          },
+          deep: {
+            mechanics: {
+              en: "Returns cached payload in <2ms, dispatches async revalidation, and notifies subscribers if hash changed.",
+              fr: "Renvoie le cache en <2ms, lance un rafraîchissement async, puis met à jour si différent."
+            },
+            tradeoff: {
+              en: "Snappiest UI feel, but users may briefly see 1-turn-old state before silent swap.",
+              fr: "Interface la plus réactive, mais affiche brièvement l'ancien état avant bascule."
+            },
+            code: {
+              en: "Option 3 in `store/sync.ts`: ideal for HUD panels where instant open matters.",
+              fr: "Option 3 dans `store/sync.ts` : idéal pour un panneau HUD instantané."
+            }
+          }
+        },
+        raceCondition: {
+          id: "raceCondition",
+          plugin: "visualize",
+          anim: "race",
+          label: { en: "Race Condition", fr: "Situation de compétition" },
+          def: {
+            en: "Two parallel tasks edit the same data out of order, causing random overwrites.",
+            fr: "Deux tâches parallèles écrivent au même endroit dans le désordre et s'écrasent."
+          },
+          analogy: {
+            en: "Analogy: Two people editing the same sticky note at once — the slower writer wins by accident.",
+            fr: "Analogie : Deux personnes écrivant sur la même feuille en même temps — la dernière écrase l'autre."
+          },
+          deep: {
+            mechanics: {
+              en: "When Task A and Task B both read state v1, Task B's later write clobbers Task A's update.",
+              fr: "Si A et B lisent l'état v1 ensemble, l'écriture tardive de B efface celle de A."
+            },
+            tradeoff: {
+              en: "Hard to reproduce manually; appears under rapid hook bursts (`Edit` + `Bash`).",
+              fr: "Difficile à reproduire à la main ; survient lors de rafales de hooks (`Edit` + `Bash`)."
+            },
+            code: {
+              en: "Occurred in `debrief-engine.mjs` when `post-tool` and `stop` wrote state simultaneously.",
+              fr: "Survenu dans `debrief-engine.mjs` quand `post-tool` et `stop` écrivaient en même temps."
+            }
+          }
+        },
+        asyncMutex: {
+          id: "asyncMutex",
+          plugin: "vectorcraft",
+          anim: "lock",
+          label: { en: "Async Mutex", fr: "Mutex asynchrone" },
+          def: {
+            en: "A digital baton that lets only one async write enter a critical block at a time.",
+            fr: "Un témoin numérique qui laisse passer une seule écriture asynchrone à la fois."
+          },
+          analogy: {
+            en: "Analogy: A single-lane bridge — cars wait their turn instead of colliding mid-span.",
+            fr: "Analogie : Un pont à une voie — chaque voiture passe à son tour sans collision."
+          },
+          deep: {
+            mechanics: {
+              en: "Chains pending promises (`tail = tail.then(fn)`) so every save runs strictly in FIFO order.",
+              fr: "Chaîne les promesses en attente (`tail = tail.then(fn)`) pour exécuter en ordre FIFO."
+            },
+            tradeoff: {
+              en: "Zero external deps and 100% deterministic ordering; adds tiny queue wait under burst.",
+              fr: "Zéro dépendance et ordre 100% déterministe ; minuscule attente en rafale."
+            },
+            code: {
+              en: "Implemented in `persistState()` (`debrief-engine.mjs:214`), verified by 14 concurrency tests.",
+              fr: "Implémenté dans `persistState()` (`debrief-engine.mjs:214`), validé par 14 tests."
+            }
+          }
+        },
+        envFallback: {
+          id: "envFallback",
+          plugin: "vectorcraft",
+          anim: "dedupe",
+          label: { en: "Env Fallback", fr: "Repli d'environnement" },
+          def: {
+            en: "Read a user environment variable first, and fall back to a safe default if missing.",
+            fr: "Lit d'abord la variable d'environnement, puis utilise une valeur sûre par défaut."
+          },
+          analogy: {
+            en: "Analogy: Checking if you brought a custom helmet; if not, borrow the spare at the gate.",
+            fr: "Analogie : Prendre son casque perso s'il existe, sinon prendre celui de secours."
+          },
+          deep: {
+            mechanics: {
+              en: "Uses nullish coalescing (`??`) so explicit `0` or custom strings are respected while `undefined` falls back.",
+              fr: "Utilise `??` pour respecter les valeurs définies et ne replier que sur `undefined`."
+            },
+            tradeoff: {
+              en: "Prevents silent crashes on fresh machines without requiring `.env` setup.",
+              fr: "Évite les plantages sur machine neuve sans obliger à configurer `.env`."
+            },
+            code: {
+              en: "`hooks/hooks.json:14` resolves `ZCODE_TIMEOUT_MS ?? 4500` safely.",
+              fr: "`hooks/hooks.json:14` résout `ZCODE_TIMEOUT_MS ?? 4500` proprement."
+            }
+          }
+        }
+      };
+
+      const SCENARIOS = [
+        {
+          id: "hybrid",
+          navTitle: { en: "1. Hybrid Reply", fr: "1. Réponse hybride" },
+          navDesc: { en: "Architecture + 1 test error + Choice A/B", fr: "Archi + 1 erreur de test + Choix A/B" },
+          badgeType: "choice",
+          summary: {
+            plain: {
+              en: "The agent moved live updates to a steady stream. One cache test failed. Pick how retries work.",
+              fr: "L'agent a basculé les mises à jour vers un flux continu. Un test de cache échoue. Choisissez le mode de réessai."
+            },
+            tech: {
+              en: "Moved <span class='sym'>streamEvents()</span> to SSE (<span class='sym'>mcp-server.mjs:142</span>). <span class='sym'>cache.test.mjs:88</span> failed (<span class='sym'>ERR_STALE_CURSOR</span>).",
+              fr: "Basculé <span class='sym'>streamEvents()</span> sur SSE (<span class='sym'>mcp-server.mjs:142</span>). <span class='sym'>cache.test.mjs:88</span> échoue (<span class='sym'>ERR_STALE_CURSOR</span>)."
+            }
+          },
+          waitChips: [
+            { id: "pickA", label: { en: "Pick Choice A", fr: "Choisir A" }, primary: true, actionText: { en: "Sent Choice A (Optimistic Cache) to agent", fr: "Choix A (Cache optimiste) envoyé à l'agent" } },
+            { id: "pickB", label: { en: "Pick Choice B", fr: "Choisir B" }, primary: false, actionText: { en: "Sent Choice B (Server Cursor) to agent", fr: "Choix B (Curseur serveur) envoyé à l'agent" } },
+            { id: "fixTest", label: { en: "Fix Failing Test", fr: "Corriger le test" }, primary: false, actionText: { en: "Asked agent to fix cache.test.mjs:88", fr: "Demandé à l'agent de corriger cache.test.mjs:88" } }
+          ],
+          choices: [
+            {
+              key: "A",
+              title: { en: "Optimistic Local Cache", fr: "Cache local optimiste" },
+              sub: {
+                plain: { en: "Instant UI update; retries if version mismatches.", fr: "Mise à jour instantanée ; réessaie si conflit." },
+                tech: { en: "Uses version stamp in cache/retry.mjs; 0 extra RTT.", fr: "Vérifie version dans cache/retry.mjs ; 0 latence." }
+              }
+            },
+            {
+              key: "B",
+              title: { en: "Server Cursor Replay", fr: "Rejeu par curseur serveur" },
+              sub: {
+                plain: { en: "Server tracks exact position; safer on drops.", fr: "Le serveur suit la position ; plus sûr si coupure." },
+                tech: { en: "Persists Last-Event-ID cursor; +12ms reconnect check.", fr: "Stocke curseur Last-Event-ID ; +12ms à la reprise." }
+              }
+            }
+          ],
+          diagram: {
+            kind: "flow",
+            popoutPlugin: "excalidraw",
+            popoutTitle: { en: "SSE Event Stream & Cache Fault", fr: "Flux SSE & Erreur de cache" }
+          },
+          proofs: [
+            { kind: "risk", label: { en: "1 Test Failed", fr: "1 test échoué" }, detail: "node --test cache.test.mjs -> ERR_STALE_CURSOR at line 88" },
+            { kind: "info", label: { en: "2 Files Touched", fr: "2 fichiers modifiés" }, detail: "scripts/mcp-server.mjs (+34/-12), cache/retry.mjs (+18/-4)" }
+          ],
+          concepts: ["sse", "optimisticLock", "idempotency"]
+        },
+        {
+          id: "decision",
+          navTitle: { en: "2. Pure Decision / Question", fr: "2. Décision / Question pure" },
+          navDesc: { en: "AI asks user to pick 1 of 3 options", fr: "L'IA demande de choisir 1 option sur 3" },
+          badgeType: "question",
+          summary: {
+            plain: {
+              en: "No files changed yet. The agent asks which offline cache rule you want before editing.",
+              fr: "Aucun fichier modifié. L'agent demande quelle règle de cache hors ligne vous préférez."
+            },
+            tech: {
+              en: "Paused before <span class='sym'>store/sync.ts</span> edit. Pick caching policy: <span class='sym'>write-through</span>, <span class='sym'>edge-ttl</span>, or <span class='sym'>swr</span>.",
+              fr: "Pause avant <span class='sym'>store/sync.ts</span>. Choisissez : <span class='sym'>write-through</span>, <span class='sym'>edge-ttl</span> ou <span class='sym'>swr</span>."
+            }
+          },
+          waitChips: [
+            { id: "opt1", label: { en: "Option 1", fr: "Option 1" }, primary: false, actionText: { en: "Picked Option 1: Write-Through", fr: "Option 1 choisie : Write-Through" } },
+            { id: "opt2", label: { en: "Option 2", fr: "Option 2" }, primary: false, actionText: { en: "Picked Option 2: Edge TTL", fr: "Option 2 choisie : TTL bordure" } },
+            { id: "opt3", label: { en: "Option 3 (Rec)", fr: "Option 3 (Rec)" }, primary: true, actionText: { en: "Picked Option 3: Stale-While-Revalidate", fr: "Option 3 choisie : Serve-Stale" } },
+            { id: "customReply", label: { en: "Answer Question", fr: "Répondre librement" }, primary: false, isReplyTrigger: true }
+          ],
+          choices: [
+            {
+              key: "1",
+              title: { en: "Write-Through", fr: "Write-Through" },
+              sub: {
+                plain: { en: "Safest accuracy; slightly slower saves.", fr: "Fiabilité maximale ; sauvegarde un peu plus lente." },
+                tech: { en: "Sync disk + memory flush; 0 stale reads.", fr: "Écriture synchrone disque + RAM ; 0 lecture périmée." }
+              },
+              bars: [{ name: { en: "Safety", fr: "Sûreté" }, pct: 95 }, { name: { en: "Speed", fr: "Vitesse" }, pct: 55 }]
+            },
+            {
+              key: "2",
+              title: { en: "Edge TTL (30s)", fr: "TTL bordure (30s)" },
+              sub: {
+                plain: { en: "Simple timer; data can lag up to 30s.", fr: "Minuteur simple ; décalage max de 30s." },
+                tech: { en: "expiresAt = now + 30000; minimal code.", fr: "expiresAt = now + 30000 ; code minimal." }
+              },
+              bars: [{ name: { en: "Safety", fr: "Sûreté" }, pct: 65 }, { name: { en: "Speed", fr: "Vitesse" }, pct: 80 }]
+            },
+            {
+              key: "3",
+              title: { en: "Stale-While-Revalidate", fr: "Stale-While-Revalidate" },
+              sub: {
+                plain: { en: "Instant open; refreshes quietly behind.", fr: "Ouverture instantanée ; rafraîchit derrière." },
+                tech: { en: "<2ms cache hit + background fetch.", fr: "<2ms lecture cache + fetch en fond." }
+              },
+              bars: [{ name: { en: "Safety", fr: "Sûreté" }, pct: 80 }, { name: { en: "Speed", fr: "Vitesse" }, pct: 98 }]
+            }
+          ],
+          diagram: null,
+          proofs: [],
+          concepts: ["writeThrough", "edgeTtl", "swr"]
+        },
+        {
+          id: "codefix",
+          navTitle: { en: "3. Code Fix / Diff", fr: "3. Correctif Code / Diff" },
+          navDesc: { en: "Before → After flow + Verified tests", fr: "Flux Avant → Après + Tests validés" },
+          badgeType: "verify",
+          summary: {
+            plain: {
+              en: "The agent fixed the double-save bug by queuing writes one by one. All 14 tests pass.",
+              fr: "L'agent a corrigé la double sauvegarde en mettant les écritures en file. Les 14 tests passent."
+            },
+            tech: {
+              en: "Wrapped <span class='sym'>persistState()</span> in <span class='sym'>asyncMutex</span> (<span class='sym'>debrief-engine.mjs:214</span>). Suite: <span class='sym'>14/14 pass</span>.",
+              fr: "<span class='sym'>persistState()</span> protégé par <span class='sym'>asyncMutex</span> (<span class='sym'>debrief-engine.mjs:214</span>). Suite : <span class='sym'>14/14 OK</span>."
+            }
+          },
+          waitChips: [
+            { id: "confirmFix", label: { en: "Mark All Clear", fr: "Valider (Tout bon)" }, primary: true, marksClear: true, actionText: { en: "Fix confirmed — Marked All Clear", fr: "Correctif validé — Tout est bon" } },
+            { id: "rerun", label: { en: "Re-run Suite", fr: "Relancer tests" }, primary: false, actionText: { en: "Re-ran npm test: 14/14 passed in 180ms", fr: "npm test relancé : 14/14 OK en 180ms" } }
+          ],
+          choices: null,
+          diagram: {
+            kind: "beforeAfter",
+            popoutPlugin: "visualize",
+            popoutTitle: { en: "Before vs After: Async Mutex Queue", fr: "Avant vs Après : File Mutex Async" }
+          },
+          proofs: [
+            { kind: "ok", label: { en: "14/14 Tests Pass", fr: "14/14 tests OK" }, detail: "node --test engine.test.mjs -> 14 passed, 0 failed (180ms)" },
+            { kind: "ok", label: { en: "Low Risk", fr: "Risque faible" }, detail: "Isolated to persistState() in scripts/debrief-engine.mjs" }
+          ],
+          concepts: ["raceCondition", "asyncMutex"]
+        },
+        {
+          id: "unclear",
+          navTitle: { en: "4. Tiny / Unclear Reply", fr: "4. Réponse courte / floue" },
+          navDesc: { en: "Minimal Mode + Model-Agnostic Clarify fallback", fr: "Mode Minimal + Repli honnête (modèle actif)" },
+          badgeType: "question",
+          rawReply: "\"Updated the config hook maybe check the env var before restarting.\"",
+          summary: {
+            plain: {
+              en: "The reply is too vague to summarize safely. It hides which file and variable changed.",
+              fr: "La réponse est trop vague pour la résumer sûrement. Le fichier et la variable manquent."
+            },
+            tech: {
+              en: "Low parse confidence (<span class='sym'>0.31</span>): vague tokens <span class='sym'>config hook</span> / <span class='sym'>env var</span> without path or proof.",
+              fr: "Confiance faible (<span class='sym'>0.31</span>) : mentions floues <span class='sym'>config hook</span> / <span class='sym'>env var</span> sans chemin."
+            }
+          },
+          clarifiedSummary: {
+            plain: {
+              en: "Minimal Mode: Hook timeout now uses ZCODE_TIMEOUT_MS (default 4.5s). Syntax check passed.",
+              fr: "Mode Minimal : Le délai du hook lit ZCODE_TIMEOUT_MS (4,5s par défaut). Syntaxe vérifiée."
+            },
+            tech: {
+              en: "Minimal Mode: <span class='sym'>hooks/hooks.json:14</span> reads <span class='sym'>ZCODE_TIMEOUT_MS ?? 4500</span>. <span class='sym'>node --check</span> exited 0.",
+              fr: "Mode Minimal : <span class='sym'>hooks/hooks.json:14</span> lit <span class='sym'>ZCODE_TIMEOUT_MS ?? 4500</span>. <span class='sym'>node --check</span> OK."
+            }
+          },
+          waitChips: [
+            { id: "clarify", label: { en: "Clarify (Fast Model)", fr: "Clarifier (Modèle rapide)" }, primary: true, triggersArgon: true }
+          ],
+          choices: null,
+          diagram: null,
+          proofsClarified: [
+            { kind: "ok", label: { en: "Syntax Verified", fr: "Syntaxe vérifiée" }, detail: "node --check scripts/hook-runner.mjs -> exit 0" }
+          ],
+          conceptsClarified: ["envFallback"]
+        }
+      ];
+
+      const state = {
+        theme: "dark",
+        lang: "en",
+        xray: "plain", // "plain" | "tech"
+        scenarioId: "hybrid",
+        selectedChoiceByScenario: {},
+        selectedChipByScenario: {},
+        verifiedScenarios: {},
+        argonState: "unclear", // "unclear" | "waiting" | "clarified"
+        showRawReply: false,
+        showReplyInput: false,
+        openProofIdx: null,
+        stage1ConceptId: null,
+        stage2: null, // { type: "concept"|"diagram", id, plugin, title }
+        stage2Mode: "happy", // "happy" | "failure"
+        stage2Playing: true,
+        stage2Step: 1,
+        stage2Layer: "all",
+        excalidrawSelectedNode: 1,
+        excalidrawNote: false,
+        gearOpen: false,
+        logs: []
+      };
+
+      let animFrameId = null;
+      let animTick = 0;
+
+      function addLog(tag, text) {
+        const now = new Date();
+        const ts = now.toTimeString().slice(0, 8);
+        state.logs.unshift({ ts, tag, text });
+        if (state.logs.length > 8) state.logs.length = 8;
+        renderLog();
+      }
+
+      function showToast(text) {
+        const el = document.getElementById("hud-toast");
+        const txt = document.getElementById("hud-toast-text");
+        txt.textContent = text;
+        el.classList.add("show");
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => el.classList.remove("show"), 2600);
+      }
+
+      function t() { return I18N[state.lang]; }
+      function getScenario() { return SCENARIOS.find(s => s.id === state.scenarioId); }
+
+      function renderLog() {
+        const root = document.getElementById("event-log");
+        if (!state.logs.length) {
+          root.innerHTML = `<div class="feed-item" style="color:var(--text-muted)">Click any chip, choice, or Concept Pill to test live interactions.</div>`;
+          return;
+        }
+        root.innerHTML = state.logs.map(item =>
+          `<div class="feed-item"><span class="feed-tag">[${item.ts} ${item.tag}]</span><span>${escapeHtml(item.text)}</span></div>`
+        ).join("");
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function renderScenarios() {
+        const list = document.getElementById("scenario-list");
+        list.innerHTML = SCENARIOS.map(sc => {
+          const active = sc.id === state.scenarioId ? "active" : "";
+          return `
+            <button class="scenario-btn ${active}" data-scenario="${sc.id}" type="button">
+              <div class="scenario-title">
+                <span>${sc.navTitle[state.lang]}</span>
+              </div>
+              <div class="scenario-desc">${sc.navDesc[state.lang]}</div>
+            </button>
+          `;
+        }).join("");
+
+        list.querySelectorAll(".scenario-btn").forEach(btn => {
+          btn.addEventListener("click", () => {
+            state.scenarioId = btn.dataset.scenario;
+            state.stage1ConceptId = null;
+            state.openProofIdx = null;
+            state.showReplyInput = false;
+            addLog("SCENARIO", `Switched to ${state.scenarioId}`);
+            renderAll();
+          });
+        });
+      }
+
+      function renderPluginToggles() {
+        const root = document.getElementById("plugin-toggles");
+        root.innerHTML = Object.values(PLUGINS).map(pl => {
+          const role = state.lang === "en" ? pl.roleEn : pl.roleFr;
+          const status = pl.installed ? (state.lang === "en" ? "Installed" : "Installé") : (state.lang === "en" ? "Missing" : "Absent");
+          return `
+            <div class="plugin-row">
+              <div class="plugin-meta">
+                <span class="plugin-name">${pl.label}</span>
+                <span class="plugin-role">${role} · <strong style="color:${pl.installed ? "var(--ok)" : "var(--warn)"}">${status}</strong></span>
+              </div>
+              <button class="switch ${pl.installed ? "on" : ""}" data-plugin="${pl.id}" type="button" aria-label="Toggle ${pl.label}"></button>
+            </div>
+          `;
+        }).join("");
+
+        root.querySelectorAll(".switch").forEach(sw => {
+          sw.addEventListener("click", () => {
+            const p = PLUGINS[sw.dataset.plugin];
+            p.installed = !p.installed;
+            addLog("PLUGIN", `${p.label} -> ${p.installed ? "Installed" : "Missing"}`);
+            renderPluginToggles();
+            renderStage2();
+          });
+        });
+      }
+
+      function buildFlowSvg(sc) {
+        if (sc.diagram.kind === "flow") {
+          const errLabel = state.xray === "tech" ? "cache.test.mjs:88" : (state.lang === "en" ? "Cache Test" : "Test Cache");
+          const uiLabel = state.xray === "tech" ? "panel.html" : "Cockpit HUD";
+          const srvLabel = state.xray === "tech" ? "streamEvents()" : (state.lang === "en" ? "Event Stream" : "Flux SSE");
+          return `
+            <svg viewBox="0 0 340 108" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--accent)"/>
+                </marker>
+                <marker id="arrErr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                  <path d="M 0 1 L 10 5 L 0 9 z" fill="var(--risk)"/>
+                </marker>
+              </defs>
+              <rect x="8" y="32" width="90" height="40" rx="8" fill="var(--bg-card)" stroke="var(--accent-border)" stroke-width="1.4"/>
+              <text x="53" y="50" text-anchor="middle" fill="var(--text-primary)" font-size="10.5" font-weight="600">${uiLabel}</text>
+              <text x="53" y="63" text-anchor="middle" fill="var(--ok)" font-size="9">OK</text>
+
+              <rect x="125" y="32" width="92" height="40" rx="8" fill="var(--bg-card)" stroke="var(--accent-border)" stroke-width="1.4"/>
+              <text x="171" y="50" text-anchor="middle" fill="var(--text-primary)" font-size="10.5" font-weight="600">${srvLabel}</text>
+              <text x="171" y="63" text-anchor="middle" fill="var(--accent)" font-size="9">SSE +34</text>
+
+              <rect x="242" y="32" width="90" height="40" rx="8" fill="var(--risk-soft)" stroke="var(--risk-border)" stroke-width="1.5"/>
+              <text x="287" y="50" text-anchor="middle" fill="var(--text-primary)" font-size="10" font-weight="600">${errLabel}</text>
+              <text x="287" y="63" text-anchor="middle" fill="var(--risk)" font-size="9">! FAIL</text>
+
+              <line x1="98" y1="52" x2="122" y2="52" stroke="var(--accent)" stroke-width="1.6" class="dash-flow" marker-end="url(#arr)"/>
+              <line x1="217" y1="52" x2="239" y2="52" stroke="var(--risk)" stroke-width="1.6" class="dash-flow" marker-end="url(#arrErr)"/>
+            </svg>
+          `;
+        }
+
+        // Before -> After split for Code Fix
+        const beforeLbl = state.lang === "en" ? "BEFORE (Collision)" : "AVANT (Collision)";
+        const afterLbl = state.lang === "en" ? "AFTER (Mutex)" : "APRÈS (Mutex)";
+        const nodeA = state.xray === "tech" ? "post-tool + stop" : (state.lang === "en" ? "2 Writes" : "2 Écritures");
+        const nodeB = state.xray === "tech" ? "asyncMutex()" : (state.lang === "en" ? "1-by-1 Queue" : "File FIFO");
+        return `
+          <svg viewBox="0 0 340 108" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="8" width="156" height="92" rx="8" fill="var(--risk-soft)" stroke="var(--risk-border)" stroke-width="1"/>
+            <text x="84" y="24" text-anchor="middle" fill="var(--risk)" font-size="9.5" font-weight="700">${beforeLbl}</text>
+            <rect x="20" y="34" width="66" height="24" rx="5" fill="var(--bg-card)" stroke="var(--border-strong)"/>
+            <text x="53" y="49" text-anchor="middle" fill="var(--text-primary)" font-size="9.5">${nodeA}</text>
+            <rect x="94" y="58" width="56" height="28" rx="5" fill="var(--bg-card)" stroke="var(--risk-border)"/>
+            <text x="122" y="75" text-anchor="middle" fill="var(--risk)" font-size="9.5" font-weight="700">Clobber!</text>
+            <line x1="86" y1="46" x2="96" y2="62" stroke="var(--risk)" stroke-width="1.5" class="dash-flow"/>
+
+            <rect x="178" y="8" width="156" height="92" rx="8" fill="var(--ok-soft)" stroke="var(--ok-border)" stroke-width="1"/>
+            <text x="256" y="24" text-anchor="middle" fill="var(--ok)" font-size="9.5" font-weight="700">${afterLbl}</text>
+            <rect x="190" y="42" width="62" height="32" rx="6" fill="var(--bg-card)" stroke="var(--ok-border)"/>
+            <text x="221" y="61" text-anchor="middle" fill="var(--text-primary)" font-size="9.5" font-weight="600">${nodeB}</text>
+            <rect x="268" y="42" width="54" height="32" rx="6" fill="var(--bg-card)" stroke="var(--ok-border)"/>
+            <text x="295" y="61" text-anchor="middle" fill="var(--ok)" font-size="9.5" font-weight="700">14/14 OK</text>
+            <line x1="252" y1="58" x2="266" y2="58" stroke="var(--ok)" stroke-width="1.6" class="dash-flow"/>
+          </svg>
+        `;
+      }
+
+      function renderHud() {
+        const sc = getScenario();
+        const L = t();
+        const body = document.getElementById("hud-body");
+        const xrayBtn = document.getElementById("xray-btn");
+        xrayBtn.dataset.mode = state.xray;
+        document.getElementById("xray-label").textContent =
+          `X-Ray: ${state.xray === "plain" ? L.xrayPlain : L.xrayTech}`;
+
+        // Determine Radar text & Waiting On You state
+        let summaryHtml = "";
+        let badgeKey = sc.badgeType;
+        let isUnclear = sc.id === "unclear" && state.argonState !== "clarified";
+        let isWaitingArgon = sc.id === "unclear" && state.argonState === "waiting";
+        let isClarified = sc.id === "unclear" && state.argonState === "clarified";
+
+        if (sc.id === "unclear") {
+          if (isClarified) {
+            summaryHtml = sc.clarifiedSummary[state.xray][state.lang];
+            badgeKey = "clear";
+          } else if (isWaitingArgon) {
+            summaryHtml = sc.summary[state.xray][state.lang];
+            badgeKey = "wait";
+          } else {
+            summaryHtml = sc.summary[state.xray][state.lang];
+            badgeKey = "question";
+          }
+        } else {
+          summaryHtml = sc.summary[state.xray][state.lang];
+          if (sc.id === "codefix" && state.verifiedScenarios[sc.id]) {
+            badgeKey = "clear";
+          } else if (state.selectedChoiceByScenario[sc.id] || state.selectedChipByScenario[sc.id]) {
+            badgeKey = "clear";
+          }
+        }
+
+        const badgeLabel = L.badges[badgeKey];
+
+        // Build Waiting On You chips
+        let chipsHtml = "";
+        if (isWaitingArgon) {
+          chipsHtml = `<span class="eyebrow" style="color:var(--accent);">${state.lang === "en" ? "Active fast model is inspecting recent hook edits..." : "Argon vérifie les éditions récentes..."}</span>`;
+        } else if (isClarified) {
+          chipsHtml = `<span class="proof-pill ok">${L.minimalTag}</span>`;
+        } else {
+          chipsHtml = sc.waitChips.map(ch => {
+            const isPicked = state.selectedChipByScenario[sc.id] === ch.id;
+            const cls = isPicked ? "selected" : (ch.primary ? "primary" : "");
+            return `<button class="action-chip ${cls}" data-chip="${ch.id}" type="button">${ch.label[state.lang]}</button>`;
+          }).join("");
+        }
+
+        const replyBoxHtml = (sc.id === "decision" && state.showReplyInput) ? `
+          <div class="inline-reply-box">
+            <input id="custom-reply-input" type="text" placeholder="${L.replyPlaceholder}" />
+            <button id="send-reply-btn" type="button">${L.send}</button>
+          </div>
+        ` : "";
+
+        // Radar Card
+        let html = `
+          <div class="radar-card">
+            <div class="radar-top">
+              <span class="eyebrow">${L.whatHappened}</span>
+              <span class="mono" style="font-size:10px;color:var(--text-muted);">~8s</span>
+            </div>
+            <div class="radar-summary">${summaryHtml}</div>
+            <div class="waiting-strip">
+              <div class="waiting-head">
+                <span class="eyebrow">${L.waitingOnYou}</span>
+                <span class="wait-badge ${badgeKey}"><span class="wait-dot"></span>${badgeLabel}</span>
+              </div>
+              <div class="wait-chips">${chipsHtml}</div>
+              ${replyBoxHtml}
+            </div>
+          </div>
+        `;
+
+        // Edge Case 4: Unclear Honest Fallback Card
+        if (isUnclear && !isWaitingArgon) {
+          html += `
+            <div class="micro-block">
+              <div class="unclear-box">
+                <div class="unclear-title">${L.unclearTitle}</div>
+                <div style="font-size:11.5px;color:var(--text-primary);">
+                  ${state.lang === "en"
+                    ? "Vibe Debrief refused to guess missing details. Use the cheapest available model (or your active model) to inspect the diff."
+                    : "Vibe Debrief évite d'inventer les détails absents. Utilisez le modèle rapide disponible (ou le modèle actif) pour inspecter le diff."}
+                </div>
+                ${state.showRawReply ? `<div class="raw-quote">${escapeHtml(sc.rawReply)}</div>` : ""}
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                  <button class="action-chip primary" id="argon-clarify-btn" type="button">${L.askArgon}</button>
+                  <button class="action-chip" id="toggle-raw-btn" type="button">${L.showRaw}</button>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        // Choices Micro-Block
+        if (sc.choices) {
+          const pickedKey = state.selectedChoiceByScenario[sc.id];
+          html += `
+            <div class="micro-block">
+              <div class="block-head">
+                <span class="eyebrow">${L.choicesTitle}</span>
+                ${pickedKey ? `<span class="mono" style="font-size:10.5px;color:var(--ok);">Selected: ${pickedKey}</span>` : ""}
+              </div>
+              <div class="choice-grid">
+                ${sc.choices.map(ch => {
+                  const picked = pickedKey === ch.key ? "picked" : "";
+                  const barsHtml = ch.bars ? `
+                    <div class="tradeoff-bars">
+                      ${ch.bars.map(b => `
+                        <span class="tbar">
+                          <span>${b.name[state.lang]}</span>
+                          <span class="tbar-track"><span class="tbar-fill" style="width:${b.pct}%"></span></span>
+                        </span>
+                      `).join("")}
+                    </div>
+                  ` : "";
+                  return `
+                    <button class="choice-item ${picked}" data-choice="${ch.key}" type="button">
+                      <span class="choice-key">${ch.key}</span>
+                      <div class="choice-text">
+                        <div class="choice-title">${ch.title[state.lang]}</div>
+                        <div class="choice-sub">${ch.sub[state.xray][state.lang]}</div>
+                        ${barsHtml}
+                      </div>
+                    </button>
+                  `;
+                }).join("")}
+              </div>
+            </div>
+          `;
+        }
+
+        // Diagram Micro-Block
+        if (sc.diagram) {
+          const title = sc.diagram.kind === "beforeAfter" ? L.beforeAfterTitle : L.flowTitle;
+          html += `
+            <div class="micro-block">
+              <div class="block-head">
+                <span class="eyebrow">${title}</span>
+                <button class="popout-mini" id="diagram-popout-btn" type="button">${L.popOutShort}</button>
+              </div>
+              <div class="svg-stage">${buildFlowSvg(sc)}</div>
+            </div>
+          `;
+        }
+
+        // Proof & Risk Micro-Block
+        const proofs = isClarified ? sc.proofsClarified : sc.proofs;
+        if (proofs && proofs.length) {
+          const openDetail = state.openProofIdx !== null && proofs[state.openProofIdx] ? proofs[state.openProofIdx].detail : "";
+          html += `
+            <div class="micro-block">
+              <div class="block-head">
+                <span class="eyebrow">${L.proofTitle}</span>
+              </div>
+              <div class="badge-row">
+                ${proofs.map((p, idx) => `
+                  <button class="proof-pill ${p.kind}" data-proof="${idx}" type="button">${p.label[state.lang]}</button>
+                `).join("")}
+              </div>
+              <div class="proof-detail ${openDetail ? "open" : ""}">${escapeHtml(openDetail)}</div>
+            </div>
+          `;
+        }
+
+        // Concept Pills + Stage 1 Inline Deep Dive
+        const conceptIds = isClarified ? sc.conceptsClarified : (sc.concepts || []);
+        if (conceptIds.length) {
+          let stage1Html = "";
+          if (state.stage1ConceptId && conceptIds.includes(state.stage1ConceptId)) {
+            const c = CONCEPTS[state.stage1ConceptId];
+            const pl = PLUGINS[c.plugin];
+            stage1Html = `
+              <div class="stage1-drawer">
+                <div class="stage1-head">
+                  <div class="stage1-title">
+                    <span>${c.label[state.lang]}</span>
+                    <span class="target-tag">${pl.label}</span>
+                  </div>
+                  <button class="action-chip" id="close-stage1-btn" type="button" style="padding:2px 7px;font-size:11px;">×</button>
+                </div>
+                <div class="stage1-copy">${c.def[state.lang]}</div>
+                <div class="stage1-analogy">${c.analogy[state.lang]}</div>
+                <div class="stage1-canvas-wrap">
+                  <canvas id="stage1-canvas" width="330" height="104"></canvas>
+                </div>
+                <div class="stage1-cta">
+                  <button class="popout-btn" id="open-stage2-btn" type="button">${L.deepDiveBtn}</button>
+                </div>
+              </div>
+            `;
+          }
+
+          html += `
+            <div class="micro-block">
+              <div class="block-head">
+                <span class="eyebrow">${L.conceptsTitle}</span>
+              </div>
+              <div class="concept-pills">
+                ${conceptIds.map(cid => {
+                  const c = CONCEPTS[cid];
+                  const active = state.stage1ConceptId === cid ? "active" : "";
+                  return `<button class="concept-pill ${active}" data-concept="${cid}" type="button">${c.label[state.lang]}</button>`;
+                }).join("")}
+              </div>
+              ${stage1Html}
+            </div>
+          `;
+        }
+
+        body.innerHTML = html;
+        wireHudHandlers(sc);
+      }
+
+      function wireHudHandlers(sc) {
+        const body = document.getElementById("hud-body");
+        const L = t();
+
+        body.querySelectorAll("[data-chip]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const cid = btn.dataset.chip;
+            const chip = sc.waitChips.find(c => c.id === cid);
+            if (!chip) return;
+            if (chip.isReplyTrigger) {
+              state.showReplyInput = !state.showReplyInput;
+              renderHud();
+              return;
+            }
+            if (chip.triggersArgon) {
+              triggerArgonClarify();
+              return;
+            }
+            if (chip.marksClear) {
+              state.verifiedScenarios[sc.id] = true;
+            }
+            state.selectedChipByScenario[sc.id] = cid;
+            if (cid === "pickA") state.selectedChoiceByScenario[sc.id] = "A";
+            if (cid === "pickB") state.selectedChoiceByScenario[sc.id] = "B";
+            if (cid === "opt1") state.selectedChoiceByScenario[sc.id] = "1";
+            if (cid === "opt2") state.selectedChoiceByScenario[sc.id] = "2";
+            if (cid === "opt3") state.selectedChoiceByScenario[sc.id] = "3";
+            const msg = chip.actionText[state.lang];
+            showToast(msg);
+            addLog("RADAR", msg);
+            renderHud();
+          });
+        });
+
+        const sendBtn = document.getElementById("send-reply-btn");
+        if (sendBtn) {
+          sendBtn.addEventListener("click", () => {
+            const inp = document.getElementById("custom-reply-input");
+            const val = (inp.value || "").trim() || "Use SWR for dashboard only";
+            state.showReplyInput = false;
+            state.selectedChipByScenario[sc.id] = "customReply";
+            showToast(`Sent: "${val}"`);
+            addLog("REPLY", val);
+            renderHud();
+          });
+        }
+
+        body.querySelectorAll("[data-choice]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const k = btn.dataset.choice;
+            state.selectedChoiceByScenario[sc.id] = k;
+            const msg = `${L.pickVerb} ${k} -> ZCode chat`;
+            showToast(msg);
+            addLog("CHOICE", `Selected option ${k} in ${sc.id}`);
+            renderHud();
+          });
+        });
+
+        body.querySelectorAll("[data-proof]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const idx = Number(btn.dataset.proof);
+            state.openProofIdx = state.openProofIdx === idx ? null : idx;
+            renderHud();
+          });
+        });
+
+        body.querySelectorAll("[data-concept]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const cid = btn.dataset.concept;
+            state.stage1ConceptId = state.stage1ConceptId === cid ? null : cid;
+            if (state.stage1ConceptId) {
+              addLog("STAGE 1", `Opened inline concept: ${CONCEPTS[cid].label[state.lang]}`);
+            }
+            renderHud();
+          });
+        });
+
+        const closeS1 = document.getElementById("close-stage1-btn");
+        if (closeS1) {
+          closeS1.addEventListener("click", () => {
+            state.stage1ConceptId = null;
+            renderHud();
+          });
+        }
+
+        const openS2 = document.getElementById("open-stage2-btn");
+        if (openS2 && state.stage1ConceptId) {
+          openS2.addEventListener("click", () => {
+            const c = CONCEPTS[state.stage1ConceptId];
+            state.stage2 = {
+              type: "concept",
+              id: c.id,
+              plugin: c.plugin,
+              anim: c.anim,
+              title: c.label[state.lang]
+            };
+            state.stage2Step = 1;
+            addLog("STAGE 2", `Popped out ${c.label[state.lang]} -> ${PLUGINS[c.plugin].label}`);
+            renderStage2();
+          });
+        }
+
+        const diagPop = document.getElementById("diagram-popout-btn");
+        if (diagPop && sc.diagram) {
+          diagPop.addEventListener("click", () => {
+            state.stage2 = {
+              type: "diagram",
+              id: sc.id,
+              plugin: sc.diagram.popoutPlugin,
+              anim: sc.diagram.kind === "beforeAfter" ? "race" : "stream",
+              title: sc.diagram.popoutTitle[state.lang]
+            };
+            state.stage2Step = 1;
+            addLog("STAGE 2", `Popped out diagram -> ${PLUGINS[sc.diagram.popoutPlugin].label}`);
+            renderStage2();
+          });
+        }
+
+        const argonBtn = document.getElementById("argon-clarify-btn");
+        if (argonBtn) argonBtn.addEventListener("click", triggerArgonClarify);
+
+        const rawBtn = document.getElementById("toggle-raw-btn");
+        if (rawBtn) {
+          rawBtn.addEventListener("click", () => {
+            state.showRawReply = !state.showRawReply;
+            renderHud();
+          });
+        }
+      }
+
+      function triggerArgonClarify() {
+        state.argonState = "waiting";
+        addLog("ARGON", "Requested model-agnostic clarification (cheapest enabled model)...");
+        renderHud();
+        setTimeout(() => {
+          state.argonState = "clarified";
+          addLog("ARGON", "Resolved into Minimal Mode (hooks/hooks.json:14)");
+          showToast(state.lang === "en" ? "Fast model clarified the turn" : "Le modèle rapide a clarifié la réponse");
+          renderHud();
+        }, 650);
+      }
+
+      function renderStage2() {
+        const shell = document.getElementById("stage2-shell");
+        const tag = document.getElementById("stage2-surface-tag");
+        const L = t();
+
+        if (!state.stage2) {
+          tag.textContent = "Standby";
+          shell.innerHTML = `
+            <div class="stage2-empty">
+              <div class="stage2-empty-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                  <polyline points="15 3 21 3 21 9"></polyline>
+                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                </svg>
+              </div>
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary);">${L.stage2StandbyTitle}</div>
+              <div style="max-width:380px;font-size:12.5px;line-height:1.5;">${L.stage2StandbyDesc}</div>
+            </div>
+          `;
+          return;
+        }
+
+        const s2 = state.stage2;
+        const plugin = PLUGINS[s2.plugin];
+        const isInstalled = plugin.installed;
+
+        // Refresh localized title if concept
+        const title = s2.type === "concept" ? CONCEPTS[s2.id].label[state.lang] : getScenario().diagram.popoutTitle[state.lang];
+        tag.textContent = isInstalled ? plugin.label : `HTML Fallback (${plugin.id} missing)`;
+
+        const missingBannerHtml = !isInstalled ? `
+          <div class="missing-banner">
+            <div class="missing-copy">${L.missingBanner(plugin.id)}</div>
+            <button class="install-btn" id="install-plugin-btn" type="button">${L.installBtn(plugin.label)}</button>
+          </div>
+        ` : "";
+
+        // Toolbar tailored to installed plugin vs Built-in HTML fallback
+        let toolbarHtml = "";
+        if (!isInstalled) {
+          toolbarHtml = `
+            <div class="toolbar-group">
+              <span class="eyebrow" style="color:var(--ok);">${L.fallbackTitle}</span>
+            </div>
+            <div class="toolbar-group">
+              ${[1, 2, 3].map(n => `<button class="tool-btn ${state.stage2Step === n ? "active" : ""}" data-s2step="${n}" type="button">Step ${n}</button>`).join("")}
+              <button class="tool-btn ${state.stage2Playing ? "active" : ""}" id="s2-play-btn" type="button">${state.stage2Playing ? "Pause" : "Play"}</button>
+            </div>
+          `;
+        } else if (plugin.id === "excalidraw") {
+          toolbarHtml = `
+            <div class="toolbar-group">
+              <span class="eyebrow" style="color:var(--purple);">${L.installedNote(plugin.label)}</span>
+              <button class="tool-btn ${state.excalidrawNote ? "active" : ""}" id="exc-note-btn" type="button">+ Sticky Note</button>
+            </div>
+            <div class="toolbar-group">
+              ${[0, 1, 2].map(i => `<button class="tool-btn ${state.excalidrawSelectedNode === i ? "active" : ""}" data-excnode="${i}" type="button">Node ${i + 1}</button>`).join("")}
+            </div>
+          `;
+        } else if (plugin.id === "visualize") {
+          toolbarHtml = `
+            <div class="toolbar-group">
+              <span class="eyebrow" style="color:var(--accent);">${L.installedNote(plugin.label)}</span>
+              <button class="tool-btn ${state.stage2Mode === "happy" ? "active" : ""}" data-s2mode="happy" type="button">Happy Path</button>
+              <button class="tool-btn ${state.stage2Mode === "failure" ? "active" : ""}" data-s2mode="failure" type="button">Failure Path</button>
+            </div>
+            <div class="toolbar-group">
+              <button class="tool-btn ${state.stage2Playing ? "active" : ""}" id="s2-play-btn" type="button">${state.stage2Playing ? "Pause" : "Play"}</button>
+            </div>
+          `;
+        } else {
+          toolbarHtml = `
+            <div class="toolbar-group">
+              <span class="eyebrow" style="color:var(--ok);">${L.installedNote(plugin.label)}</span>
+              <button class="tool-btn ${state.stage2Layer === "all" ? "active" : ""}" data-s2layer="all" type="button">All Layers</button>
+              <button class="tool-btn ${state.stage2Layer === "guard" ? "active" : ""}" data-s2layer="guard" type="button">Guards Only</button>
+            </div>
+            <div class="toolbar-group">
+              <button class="tool-btn ${state.stage2Playing ? "active" : ""}" id="s2-play-btn" type="button">${state.stage2Playing ? "Pause" : "Play"}</button>
+            </div>
+          `;
+        }
+
+        // Deep Technical Explanation cards
+        const conceptObj = s2.type === "concept" ? CONCEPTS[s2.id] : CONCEPTS[getScenario().concepts[0]];
+        const surfaceClass = isInstalled && plugin.id === "excalidraw" ? "excalidraw-surface" : "";
+
+        shell.innerHTML = `
+          <div class="stage2-header">
+            <div class="stage2-title-group">
+              <div class="stage2-kicker">
+                <span>STAGE 2</span>
+                <span>·</span>
+                <span>${isInstalled ? plugin.label : "Standalone HTML Fallback"}</span>
+              </div>
+              <div class="stage2-title">${title}</div>
+            </div>
+            <button class="action-chip" id="close-stage2-btn" type="button">${L.closeStage2}</button>
+          </div>
+          ${missingBannerHtml}
+          <div class="stage2-viewport">
+            <div class="stage2-toolbar">${toolbarHtml}</div>
+            <div class="stage2-canvas-area ${surfaceClass}">
+              <canvas id="stage2-canvas" width="640" height="270"></canvas>
+              <div class="stage2-hud-telemetry">
+                <span class="telemetry-pill" id="s2-telemetry-left">Live 60fps</span>
+                <span class="telemetry-pill" id="s2-telemetry-right">${isInstalled ? plugin.id : "html-fallback"}</span>
+              </div>
+            </div>
+          </div>
+          <div class="stage2-deep">
+            <div class="deep-grid">
+              <div class="deep-card">
+                <div class="deep-card-title">${L.mechanics}</div>
+                <p>${conceptObj.deep.mechanics[state.lang]}</p>
+              </div>
+              <div class="deep-card">
+                <div class="deep-card-title">${L.tradeoff}</div>
+                <p>${conceptObj.deep.tradeoff[state.lang]}</p>
+              </div>
+              <div class="deep-card">
+                <div class="deep-card-title">${L.codeReality}</div>
+                <p>${conceptObj.deep.code[state.lang]}</p>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById("close-stage2-btn").addEventListener("click", () => {
+          state.stage2 = null;
+          renderStage2();
+        });
+
+        const installBtn = document.getElementById("install-plugin-btn");
+        if (installBtn) {
+          installBtn.addEventListener("click", () => {
+            installBtn.textContent = state.lang === "en" ? "Installing..." : "Installation...";
+            setTimeout(() => {
+              plugin.installed = true;
+              addLog("INSTALL", `Installed ${plugin.label} — upgraded Stage 2`);
+              renderPluginToggles();
+              renderStage2();
+            }, 420);
+          });
+        }
+
+        shell.querySelectorAll("[data-s2mode]").forEach(b => {
+          b.addEventListener("click", () => {
+            state.stage2Mode = b.dataset.s2mode;
+            renderStage2();
+          });
+        });
+
+        shell.querySelectorAll("[data-s2step]").forEach(b => {
+          b.addEventListener("click", () => {
+            state.stage2Step = Number(b.dataset.s2step);
+            renderStage2();
+          });
+        });
+
+        shell.querySelectorAll("[data-s2layer]").forEach(b => {
+          b.addEventListener("click", () => {
+            state.stage2Layer = b.dataset.s2layer;
+            renderStage2();
+          });
+        });
+
+        shell.querySelectorAll("[data-excnode]").forEach(b => {
+          b.addEventListener("click", () => {
+            state.excalidrawSelectedNode = Number(b.dataset.excnode);
+            renderStage2();
+          });
+        });
+
+        const excNote = document.getElementById("exc-note-btn");
+        if (excNote) {
+          excNote.addEventListener("click", () => {
+            state.excalidrawNote = !state.excalidrawNote;
+            renderStage2();
+          });
+        }
+
+        const playBtn = document.getElementById("s2-play-btn");
+        if (playBtn) {
+          playBtn.addEventListener("click", () => {
+            state.stage2Playing = !state.stage2Playing;
+            renderStage2();
+          });
+        }
+      }
+
+      /* Shared 60fps Canvas Loop for Stage 1 Mini-Diagram & Stage 2 External Surface */
+      function drawRoundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+      }
+
+      function paintStage1Canvas() {
+        const canvas = document.getElementById("stage1-canvas");
+        if (!canvas || !state.stage1ConceptId) return;
+        const ctx = canvas.getContext("2d");
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        const c = CONCEPTS[state.stage1ConceptId];
+        const dark = state.theme === "dark";
+        const fg = dark ? "#e7edf6" : "#17202e";
+        const muted = dark ? "#9aa9be" : "#4c5a6d";
+        const boxFill = dark ? "#182130" : "#ffffff";
+        const accent = dark ? "#38bdf8" : "#0284c7";
+        const ok = dark ? "#34d399" : "#059669";
+        const warn = dark ? "#fbbf24" : "#b45309";
+        const risk = dark ? "#fb7185" : "#be123c";
+
+        const phase = (animTick * 0.025) % 1;
+
+        // 3 compact nodes
+        const nodes = c.anim === "stream"
+          ? ["Source", "Stream", "HUD"]
+          : c.anim === "lock"
+          ? ["Req A", "Guard", "State"]
+          : c.anim === "race"
+          ? ["Write 1", "Shared", "Write 2"]
+          : ["Input", "Filter", "Store"];
+
+        const xs = [20, 128, 236];
+        xs.forEach((x, idx) => {
+          ctx.fillStyle = boxFill;
+          ctx.strokeStyle = idx === 1 ? accent : (dark ? "rgba(148,163,184,0.3)" : "rgba(30,41,59,0.2)");
+          ctx.lineWidth = 1.4;
+          drawRoundRect(ctx, x, 30, 74, 38, 8);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = fg;
+          ctx.font = "600 11px Inter, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(nodes[idx], x + 37, 53);
+        });
+
+        // Animated packet(s)
+        ctx.strokeStyle = muted;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(94, 49);
+        ctx.lineTo(128, 49);
+        ctx.moveTo(202, 49);
+        ctx.lineTo(236, 49);
+        ctx.stroke();
+
+        const px = 94 + phase * 142;
+        ctx.fillStyle = c.anim === "race" && phase > 0.45 ? risk : ok;
+        ctx.beginPath();
+        ctx.arc(px, 49, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (c.anim === "lock" || c.anim === "dedupe") {
+          ctx.fillStyle = warn;
+          ctx.font = "600 9.5px monospace";
+          ctx.textAlign = "center";
+          ctx.fillText(c.anim === "lock" ? "ver=42" : "#k9 dedupe", 165, 86);
+        }
+      }
+
+      function paintStage2Canvas() {
+        const canvas = document.getElementById("stage2-canvas");
+        if (!canvas || !state.stage2) return;
+        const ctx = canvas.getContext("2d");
+        const W = canvas.width;
+        const H = canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        const s2 = state.stage2;
+        const plugin = PLUGINS[s2.plugin];
+        const dark = state.theme === "dark";
+        const isExcalidraw = plugin.installed && plugin.id === "excalidraw";
+
+        const fg = isExcalidraw ? "#1e293b" : (dark ? "#e7edf6" : "#17202e");
+        const muted = isExcalidraw ? "#475569" : (dark ? "#9aa9be" : "#4c5a6d");
+        const boxBg = isExcalidraw ? "#fffdf7" : (dark ? "#182130" : "#ffffff");
+        const accent = isExcalidraw ? "#0284c7" : (dark ? "#38bdf8" : "#0284c7");
+        const ok = dark ? "#34d399" : "#059669";
+        const warn = dark ? "#fbbf24" : "#b45309";
+        const risk = dark ? "#fb7185" : "#be123c";
+
+        const tPhase = state.stage2Playing ? ((animTick * 0.016) % 1) : (state.stage2Step - 1) * 0.33;
+
+        if (isExcalidraw) {
+          // Sketchy Excalidraw whiteboard style
+          const labels = ["Client Intent", "Lock / Version Check", "Durable State"];
+          const xs = [60, 245, 440];
+          xs.forEach((x, idx) => {
+            const selected = state.excalidrawSelectedNode === idx;
+            ctx.fillStyle = selected ? "#e0f2fe" : boxBg;
+            ctx.strokeStyle = selected ? "#0284c7" : "#334155";
+            ctx.lineWidth = selected ? 2.4 : 1.8;
+            drawRoundRect(ctx, x, 86, 140, 74, 10);
+            ctx.fill();
+            ctx.stroke();
+            // Sketch second pass
+            ctx.strokeStyle = "rgba(51, 65, 85, 0.25)";
+            ctx.lineWidth = 1;
+            drawRoundRect(ctx, x + 2, 88, 138, 72, 10);
+            ctx.stroke();
+
+            ctx.fillStyle = fg;
+            ctx.font = "700 13px Inter, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(labels[idx], x + 70, 120);
+            ctx.fillStyle = muted;
+            ctx.font = "11px monospace";
+            ctx.fillText(idx === 1 ? "check(v42)" : idx === 2 ? "commit()" : "emit()", x + 70, 140);
+          });
+
+          // Sketch arrows
+          ctx.strokeStyle = "#334155";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(202, 123); ctx.quadraticCurveTo(222, 114, 243, 123);
+          ctx.moveTo(387, 123); ctx.quadraticCurveTo(412, 132, 438, 123);
+          ctx.stroke();
+
+          if (state.excalidrawNote) {
+            ctx.fillStyle = "#fef3c7";
+            ctx.strokeStyle = "#d97706";
+            ctx.lineWidth = 1.5;
+            drawRoundRect(ctx, 240, 182, 165, 50, 4);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = "#78350f";
+            ctx.font = "600 11px Inter, sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText("Note: Retry safely on", 252, 203);
+            ctx.fillText("version mismatch (409).", 252, 219);
+          }
+
+          const telR = document.getElementById("s2-telemetry-right");
+          if (telR) telR.textContent = `Excalidraw · Selected Node ${state.excalidrawSelectedNode + 1}`;
+          return;
+        }
+
+        // Visualize Gen UI / VectorCraft / Built-in HTML Explainer animated canvas
+        const isFailure = plugin.installed && plugin.id === "visualize" && state.stage2Mode === "failure";
+        const boxes = [
+          { x: 54, y: 92, w: 120, h: 66, title: "1. Trigger", sub: "Client Action" },
+          { x: 256, y: 92, w: 128, h: 66, title: "2. Guard", sub: isFailure ? "Skipped!" : "Queue / Check" },
+          { x: 466, y: 92, w: 120, h: 66, title: "3. Outcome", sub: isFailure ? "Collision!" : "Safe Commit" }
+        ];
+
+        // Connector rails
+        ctx.strokeStyle = isFailure ? risk : accent;
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(174, 125); ctx.lineTo(256, 125);
+        ctx.moveTo(384, 125); ctx.lineTo(466, 125);
+        ctx.stroke();
+
+        // Guard-layer halo if VectorCraft
+        if (plugin.installed && plugin.id === "vectorcraft") {
+          ctx.strokeStyle = ok;
+          ctx.setLineDash([4, 4]);
+          ctx.lineWidth = 1.4;
+          drawRoundRect(ctx, 240, 74, 160, 102, 12);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+
+        boxes.forEach((b, i) => {
+          const active = Math.floor(tPhase * 3) === i;
+          ctx.fillStyle = boxBg;
+          ctx.strokeStyle = (i === 2 && isFailure) ? risk : (active ? accent : (dark ? "rgba(148,163,184,0.28)" : "rgba(30,41,59,0.22)"));
+          ctx.lineWidth = active ? 2.2 : 1.4;
+          drawRoundRect(ctx, b.x, b.y, b.w, b.h, 10);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = fg;
+          ctx.font = "700 12.5px Inter, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(b.title, b.x + b.w / 2, b.y + 28);
+
+          ctx.fillStyle = (i === 2 && isFailure) ? risk : muted;
+          ctx.font = "11px monospace";
+          ctx.fillText(b.sub, b.x + b.w / 2, b.y + 47);
+        });
+
+        // Moving signal packet(s)
+        const px = 174 + tPhase * 292;
+        ctx.fillStyle = isFailure ? risk : ok;
+        ctx.beginPath();
+        ctx.arc(px, 125, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (isFailure) {
+          const px2 = 174 + ((tPhase + 0.14) % 1) * 292;
+          ctx.fillStyle = warn;
+          ctx.beginPath();
+          ctx.arc(px2, 137, 5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const telL = document.getElementById("s2-telemetry-left");
+        if (telL) {
+          telL.textContent = isFailure
+            ? "Failure Path: parallel packets collide"
+            : (!plugin.installed ? `Fallback Step ${state.stage2Step}/3` : "Happy Path: deterministic order");
+        }
+      }
+
+      function tickAnimation() {
+        animTick++;
+        paintStage1Canvas();
+        paintStage2Canvas();
+        animFrameId = requestAnimationFrame(tickAnimation);
+      }
+
+      function syncThemeAndLangUI() {
+        document.documentElement.setAttribute("data-theme", state.theme);
+        document.getElementById("theme-toggle-label").textContent =
+          state.theme === "dark" ? "Field Desk Light" : "Cockpit Dark";
+        document.getElementById("pop-theme-btn").textContent =
+          state.theme === "dark" ? "Dark HUD" : "Field Desk";
+        document.getElementById("pop-lang-btn").textContent =
+          state.lang === "en" ? "EN (STE-80)" : "FR (STE-80)";
+
+        document.querySelectorAll("[data-lang]").forEach(b => {
+          b.classList.toggle("active", b.dataset.lang === state.lang);
+        });
+      }
+
+      function renderAll() {
+        syncThemeAndLangUI();
+        renderScenarios();
+        renderPluginToggles();
+        renderHud();
+        renderStage2();
+        renderLog();
+      }
+
+      // Top & Popover Wiring
+      document.getElementById("theme-toggle-btn").addEventListener("click", () => {
+        state.theme = state.theme === "dark" ? "light" : "dark";
+        syncThemeAndLangUI();
+      });
+
+      document.getElementById("pop-theme-btn").addEventListener("click", () => {
+        state.theme = state.theme === "dark" ? "light" : "dark";
+        syncThemeAndLangUI();
+      });
+
+      document.getElementById("pop-lang-btn").addEventListener("click", () => {
+        state.lang = state.lang === "en" ? "fr" : "en";
+        renderAll();
+      });
+
+      document.getElementById("pop-export-btn").addEventListener("click", () => {
+        state.gearOpen = false;
+        document.getElementById("gear-popover").classList.remove("open");
+        document.getElementById("gear-btn").classList.remove("open");
+        const msg = state.lang === "en"
+          ? "Exported standalone vibe-debrief.html"
+          : "Exporté : vibe-debrief.html autonome";
+        showToast(msg);
+        addLog("EXPORT", msg);
+      });
+
+      document.querySelectorAll("[data-lang]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.lang = btn.dataset.lang;
+          addLog("LANG", `STE-80 language -> ${state.lang.toUpperCase()}`);
+          renderAll();
+        });
+      });
+
+      document.getElementById("plugins-all-on").addEventListener("click", () => {
+        Object.values(PLUGINS).forEach(p => { p.installed = true; });
+        addLog("PLUGIN", "All external visual plugins enabled");
+        renderPluginToggles();
+        renderStage2();
+      });
+
+      document.getElementById("plugins-all-off").addEventListener("click", () => {
+        Object.values(PLUGINS).forEach(p => { p.installed = false; });
+        addLog("PLUGIN", "All external plugins set to Missing (testing fallback)");
+        renderPluginToggles();
+        renderStage2();
+      });
+
+      document.getElementById("xray-btn").addEventListener("click", () => {
+        state.xray = state.xray === "plain" ? "tech" : "plain";
+        addLog("X-RAY", `Switched to ${state.xray === "plain" ? "Plain STE-80" : "Technical symbols"}`);
+        renderHud();
+      });
+
+      document.getElementById("gear-btn").addEventListener("click", (e) => {
+        e.stopPropagation();
+        state.gearOpen = !state.gearOpen;
+        document.getElementById("gear-popover").classList.toggle("open", state.gearOpen);
+        document.getElementById("gear-btn").classList.toggle("open", state.gearOpen);
+      });
+
+      document.addEventListener("click", (e) => {
+        const pop = document.getElementById("gear-popover");
+        const gear = document.getElementById("gear-btn");
+        if (state.gearOpen && !pop.contains(e.target) && !gear.contains(e.target)) {
+          state.gearOpen = false;
+          pop.classList.remove("open");
+          gear.classList.remove("open");
+        }
+      });
+
+      document.getElementById("reset-demo-btn").addEventListener("click", () => {
+        state.scenarioId = "hybrid";
+        state.xray = "plain";
+        state.selectedChoiceByScenario = {};
+        state.selectedChipByScenario = {};
+        state.verifiedScenarios = {};
+        state.argonState = "unclear";
+        state.showRawReply = false;
+        state.showReplyInput = false;
+        state.openProofIdx = null;
+        state.stage1ConceptId = null;
+        state.stage2 = null;
+        state.logs = [];
+        PLUGINS.excalidraw.installed = true;
+        PLUGINS.visualize.installed = true;
+        PLUGINS.vectorcraft.installed = false;
+        renderAll();
+      });
+
+      // Boot
+      renderAll();
+      tickAnimation();
+    })();
+  </script>
+</body>
+</html>

@@ -5,8 +5,12 @@ parent: none
 sources:
   - _bmad-output/planning-artifacts/prd-vibe-debrief.md
   - _bmad-output/initiative-vibe-debrief/architecture-vibe-debrief/architecture-vibe-debrief.md
+  - _bmad-output/initiative-vibe-debrief/ux-vibe-debrief/DESIGN.md
+  - _bmad-output/initiative-vibe-debrief/ux-vibe-debrief/EXPERIENCE.md
 companions:
   - _bmad-output/initiative-vibe-debrief/architecture-vibe-debrief/architecture-vibe-debrief.md
+  - _bmad-output/initiative-vibe-debrief/ux-vibe-debrief/DESIGN.md
+  - _bmad-output/initiative-vibe-debrief/ux-vibe-debrief/EXPERIENCE.md
 risk: medium
 ---
 
@@ -14,7 +18,7 @@ risk: medium
 
 ## Description
 
-Vibe Debrief turns ZCode's right-side panel into a fast comprehension cockpit: each agent turn distills into STE-80 prose, an always-on interactive SVG diagram, fused proof/uncertainty/checklist oversight, an optional standalone HTML export, a complexity-gated Canvas explainer, and one-click `MEMORY.md` persistence. The v0.2.0 baseline (R1–R7) is shipped; the remaining work is the v0.3.0 hardening wave the architecture spine deferred: a zero-dependency test suite (OQ-2), atomic state writes (AD-5), light-theme SVG/Canvas parity, and ARIA/keyboard support. Derived from the PRD and the architecture spine; both are sources of this ticket.
+Vibe Debrief turns ZCode's right-side panel into a fast comprehension cockpit: each agent turn distills into STE-80 prose, an always-on interactive SVG diagram, fused proof/uncertainty/checklist oversight, an optional standalone HTML export, a complexity-gated Canvas explainer, and one-click `MEMORY.md` persistence. The v0.2.0 baseline (R1–R7) is shipped; the remaining work is the v0.3.0 hardening wave the architecture spine deferred: a zero-dependency test suite (OQ-2), atomic state writes (AD-5), light-theme SVG/Canvas parity, and ARIA/keyboard support. Derived from the PRD, the architecture spine and the UX spines; all are sources of this ticket.
 
 ## Outcome
 
@@ -31,10 +35,11 @@ Multi-project vibe-coders audit each turn's impact in under a minute with confid
 7. **R7** (prd FR-27–FR-28): Confirmed lessons persist as slug `.md` plus `MEMORY.md` under ZCode memory with workspace fallback, and state stays bounded (history 15, touched files 15, lessons 50).
 8. **R8** (prd OQ-2; spine Deferred OQ-2): A zero-dependency `node:test` suite verifies the engine priority exports (STE-80, complexity gate, diagram synthesis, escaping, classification, lesson persistence) and the transport gates (MCP handshake, hook single-line stdout) with one command.
 9. **R9** (spine AD-5 hardening): Concurrent MCP and Hook processes never leave a torn or partially written `vibe-debrief-state.json`; a write lands whole or leaves the previous state intact.
-10. **R10** (spine Deferred light-theme; ux DESIGN): Panel SVG diagram, Canvas explainer and the standalone HTML export render correctly in both light and dark themes from one shared theme-token contract.
-11. **R11** (spine Deferred ARIA; ux EXPERIENCE): The panel is fully operable by keyboard (focus order, Enter and Space activation, visible focus) and announces state changes to assistive technology, honoring `prefers-reduced-motion`.
+10. **R10** (spine Deferred light-theme; ux DESIGN colors & contrast gap): Panel SVG diagram, Canvas explainer and the standalone HTML export render correctly in both light and dark themes from one shared theme-token contract.
+11. **R11** (spine Deferred ARIA; ux EXPERIENCE accessibility floor): The panel is fully operable by keyboard (focus order, Enter and Space activation, visible focus) and announces state changes to assistive technology, honoring `prefers-reduced-motion`.
+12. **R12** (prd RULE-5; spine AD-8, Deferred OQ-4); see Done when 5: v0.3.0 ships with all four version locations synced, checked by a zero-dependency `scripts/check-version-sync.mjs` wired into the suite.
 
-R1–R7 are delivered in v0.2.0 and are the regression scope the test suite protects; R8–R11 are the v0.3.0 delta the epics deliver.
+R1–R7 are delivered in v0.2.0; they are the shipped baseline and out of epic scope. The engine, state, transport and export paths beneath them are the regression subset the Epic 1 suite protects. R8–R12 are the v0.3.0 delta the epics deliver.
 
 ## Constraints
 
@@ -75,7 +80,9 @@ R1–R7 are delivered in v0.2.0 and are the regression scope the test suite prot
 - Assumption: Atomic write mechanism is temp file plus `renameSync` with last-writer-wins semantics and no lockfile; settles at Epic 2 refinement.
 - Assumption: Standalone export theming follows `prefers-color-scheme` with both palettes embedded and no user-facing toggle; settles at Epic 3 refinement.
 - Open question: OQ-1 (prd) — primary v0.3.0 validation signal; owner is the Product Owner, gates SM-4/SM-5 measurement only, does not block these epics; PO pick is checklist interaction rate.
-- Open question: OQ-4 (prd) — fold `scripts/check-version-sync.mjs` into the v0.3.0 release story in the closing epic; PO pick is yes.
+- Decision: 2026-11-17 — OQ-4 resolved: `scripts/check-version-sync.mjs` is built in the closing epic, wired into the suite, and recorded as R12.
+- Decision: 2026-11-17 — No platform-baseline epic: v0.2.0 already ships the four runtime layers, plugin wiring and UI; the opening epic is the verification harness every later epic waits on.
+- Decision: 2026-11-17 — R1–R7 stay the shipped v0.2.0 baseline and carry no epic; the Epic 1 suite covers the engine, state, transport and export paths beneath them.
 - Decision: 2026-11-17 — v0.3.0 scope is the four spine Deferred hardening areas (test suite OQ-2, atomic state writes AD-5, light-theme parity, ARIA/keyboard); cross-turn diff maps, live CI calibration and onboarding handbooks stay out (user request).
 - Decision: 2026-11-17 — OQ-2 resolved: zero-dependency `node:test` suite adopted (session memory confirmed by spine Stack row).
 - Decision: 2026-11-17 — OQ-3 resolved: keep Stop hook AI synthesis alongside CreateSession delegation (session memory confirmed by spine Deferred row).

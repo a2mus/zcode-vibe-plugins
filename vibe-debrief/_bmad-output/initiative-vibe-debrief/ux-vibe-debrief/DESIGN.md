@@ -1,127 +1,142 @@
 ---
 name: Vibe Debrief
-description: Zero-dependency ZCode right-side comprehension panel (MCP App) and standalone HTML explainer implementing Karpathy's 4-rung comprehension framework.
+description: Zero-dependency ZCode right-side Cockpit HUD (MCP App) and standalone HTML explainer combining 10-second situational radar, X-Ray STE-80 dual coding, multi-grammar SVG diagrams, and 2-stage concept deep dives.
 status: final
-updated: 2026-11-17
+updated: 2026-11-18
 colors:
-  # Dark mode defaults (:root in assets/panel.html)
-  bg-primary: '#0b0f17'
-  bg-secondary: '#131a26'
-  bg-tertiary: '#1c2536'
-  bg-elevated: '#182030'
-  border: '#2a354b'
+  # Dark HUD defaults (:root in assets/panel.html & mockups/cockpit-hud.html)
+  bg-app: '#090d13'
+  bg-surface: '#101620'
+  bg-panel: '#121924'
+  bg-card: '#182130'
+  bg-card-hover: '#1e293b'
+  bg-elevated: '#0d131c'
+  border: '#94a3b824'
+  border-strong: '#94a3b847'
   border-subtle: '#1e2738'
-  text-primary: '#f0f6fc'
-  text-secondary: '#9ba7b8'
-  text-muted: '#697586'
+  text-primary: '#e7edf6'
+  text-secondary: '#9aa9be'
+  text-muted: '#69788e'
+  text-on-accent: '#06121e'
+  text-on-warn: '#140d00'
   accent: '#38bdf8'
   accent-soft: '#38bdf824'
-  success: '#34d399'
-  success-soft: '#34d39924'
-  success-subtle: '#34d3990d'
-  warning: '#fbbf24'
-  warning-soft: '#fbbf2426'
+  accent-border: '#38bdf85c'
+  ok: '#34d399'
+  ok-soft: '#34d39921'
+  ok-subtle: '#34d3990d'
+  ok-border: '#34d3995c'
+  warn: '#fbbf24'
+  warn-soft: '#fbbf2424'
+  warn-border: '#fbbf2461'
+  risk: '#fb7185'
+  risk-soft: '#fb718524'
+  risk-border: '#fb718561'
   purple: '#a78bfa'
-  purple-soft: '#a78bfa26'
-  danger: '#fb7185'
-  danger-soft: '#fb718526'
+  purple-soft: '#a78bfa24'
+  purple-border: '#a78bfa59'
   teal: '#2dd4bf'
   teal-soft: '#2dd4bf24'
-  # Light mode overrides (body.theme-light in assets/panel.html)
-  bg-primary-light: '#f8fafc'
-  bg-secondary-light: '#ffffff'
-  bg-tertiary-light: '#f1f5f9'
-  bg-elevated-light: '#ffffff'
-  border-light: '#cbd5e1'
-  border-subtle-light: '#e2e8f0'
-  text-primary-light: '#0f172a'
-  text-secondary-light: '#475569'
-  text-muted-light: '#64748b'
+  teal-border: '#2dd4bf59'
+  # Field Desk Light overrides (body.theme-light / html[data-theme="light"])
+  bg-app-light: '#efeae0'
+  bg-surface-light: '#f7f4ec'
+  bg-panel-light: '#fbf9f4'
+  bg-card-light: '#ffffff'
+  bg-card-hover-light: '#f3efe6'
+  bg-elevated-light: '#f1ece1'
+  border-light: '#1e293b1f'
+  border-strong-light: '#1e293b3d'
+  border-subtle-light: '#e2dcd0'
+  text-primary-light: '#17202e'
+  text-secondary-light: '#4c5a6d'
+  text-muted-light: '#768396'
   accent-light: '#0284c7'
   accent-soft-light: '#0284c71a'
-  success-light: '#059669'
-  success-soft-light: '#0596691a'
-  warning-light: '#d97706'
-  warning-soft-light: '#d977061f'
-  purple-light: '#7c3aed'
-  purple-soft-light: '#7c3aed1a'
-  danger-light: '#e11d48'
-  danger-soft-light: '#e11d481a'
+  accent-border-light: '#0284c757'
+  ok-light: '#059669'
+  ok-soft-light: '#0596691a'
+  ok-border-light: '#05966957'
+  warn-light: '#b45309'
+  warn-soft-light: '#d977061f'
+  warn-border-light: '#d977065c'
+  risk-light: '#be123c'
+  risk-soft-light: '#e11d481a'
+  risk-border-light: '#e11d4857'
+  purple-light: '#6d28d9'
+  purple-soft-light: '#6d28d91a'
+  purple-border-light: '#6d28d94d'
   teal-light: '#0d9488'
   teal-soft-light: '#0d94881a'
-  # Brand gradients & fixed media stage surfaces
+  teal-border-light: '#0d94884d'
+  # Fixed media & external canvas stages
   brand-sky: '#0ea5e9'
   brand-indigo: '#6366f1'
   explainer-stage-bg: '#070b12'
+  excalidraw-stage-bg: '#faf8f2'
+  excalidraw-ink: '#1e293b'
+  grid-dot: '#94a3b81f'
+  grid-dot-light: '#1e293b1f'
   canvas-grid-line: '#38bdf814'
+  telemetry-pill-bg: '#0c111ad6'
   white: '#ffffff'
 typography:
-  brand-badge:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 14px
-    fontWeight: '800'
-    lineHeight: '1.2'
   brand-title:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 13.5px
-    fontWeight: '800'
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 13px
+    fontWeight: '700'
     lineHeight: '1.3'
     letterSpacing: -0.01em
-  hero-tldr:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 14px
-    fontWeight: '800'
-    lineHeight: '1.4'
-  story-title:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 12.5px
-    fontWeight: '800'
-    lineHeight: '1.35'
+  radar-headline:
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 12.8px
+    fontWeight: '600'
+    lineHeight: '1.48'
   body:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     fontSize: 13px
     fontWeight: '400'
-    lineHeight: '1.5'
-  story-body:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 12.6px
+    lineHeight: '1.45'
+  block-body:
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 12px
     fontWeight: '400'
-    lineHeight: '1.5'
-  tab-label:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 11.5px
+    lineHeight: '1.48'
+  stage2-title:
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 15px
     fontWeight: '700'
     lineHeight: '1.3'
   control:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 11px
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 11.5px
     fontWeight: '600'
     lineHeight: '1.3'
-  kicker:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 10.5px
-    fontWeight: '800'
-    lineHeight: '1.3'
-    letterSpacing: 0.05em
   pill:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 10.5px
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 11px
     fontWeight: '700'
     lineHeight: '1.2'
+  eyebrow:
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 10px
+    fontWeight: '700'
+    lineHeight: '1.25'
+    letterSpacing: 0.08em
   micro:
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif'
-    fontSize: 9.8px
+    fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+    fontSize: 10px
     fontWeight: '600'
     lineHeight: '1.2'
   code:
-    fontFamily: '"Cascadia Code", "JetBrains Mono", Consolas, monospace'
+    fontFamily: '"JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
     fontSize: 11px
     fontWeight: '400'
     lineHeight: '1.45'
   code-chip:
-    fontFamily: '"Cascadia Code", "JetBrains Mono", Consolas, monospace'
-    fontSize: 10.8px
-    fontWeight: '500'
+    fontFamily: '"JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+    fontSize: 11px
+    fontWeight: '600'
     lineHeight: '1.3'
   canvas-title:
     fontFamily: 'sans-serif'
@@ -134,386 +149,373 @@ typography:
     fontWeight: '700'
     lineHeight: '1.2'
 rounded:
-  xs: 6px
+  xs: 5px
   sm: 7px
-  md: 8px
-  lg: 9px
-  DEFAULT: 10px
+  md: 10px
+  lg: 14px
+  shell: 16px
   full: 999px
 spacing:
-  '1': 3px
-  '2': 4px
-  '3': 6px
-  '4': 8px
-  '5': 10px
-  '6': 12px
-  topbar-padding: '10px 12px 8px'
-  panel-padding: 12px
-  card-padding: '11px 13px'
-  card-gap: 10px
+  '1': 4px
+  '2': 6px
+  '3': 8px
+  '4': 10px
+  '5': 12px
+  '6': 16px
+  header-padding: '10px 12px'
+  hud-padding: 12px
+  card-padding: '10px 11px'
+  radar-padding: '11px 12px'
+  block-gap: 11px
   diagram-viewbox-width: 460px
-  diagram-node-height: 58px
+  stage1-canvas-height: 104px
+  stage2-canvas-height: 270px
   canvas-width: 600px
   canvas-height: 250px
 components:
-  top-bar:
-    background: '{colors.bg-secondary}'
+  hud-header:
+    background: '{colors.bg-surface}'
     borderBottom: '{colors.border}'
-    padding: '{spacing.topbar-padding}'
-  brand-badge:
-    backgroundGradient: '{colors.accent} -> {colors.purple}'
-    foreground: '{colors.bg-primary}'
-    radius: '{rounded.md}'
-    typography: '{typography.brand-badge}'
-  model-select:
-    background: '{colors.bg-tertiary}'
-    foreground: '{colors.text-primary}'
-    border: '{colors.border}'
-    radius: '{rounded.sm}'
-    maxWidth: 118px
-    typography: '{typography.control}'
-  button-primary:
-    backgroundGradient: '{colors.brand-sky} -> {colors.brand-indigo}'
-    border: '{colors.accent}'
-    foreground: '{colors.white}'
-    radius: '{rounded.sm}'
-    typography: '{typography.control}'
-  button-secondary:
-    background: '{colors.bg-tertiary}'
-    foreground: '{colors.text-primary}'
-    border: '{colors.border}'
-    hoverBackground: '{colors.accent-soft}'
-    hoverBorder: '{colors.accent}'
-    radius: '{rounded.sm}'
-    typography: '{typography.control}'
-  button-success:
-    background: '{colors.success-soft}'
-    foreground: '{colors.success}'
-    border: '{colors.success}'
-    hoverForeground: '{colors.bg-primary}'
-    radius: '{rounded.sm}'
-    typography: '{typography.control}'
-  mode-switcher:
-    background: '{colors.bg-primary}'
-    border: '{colors.border-subtle}'
-    radius: '{rounded.lg}'
-    padding: '{spacing.1}'
-    activeBugBackground: '{colors.danger-soft}'
-    activeBugForeground: '{colors.danger}'
-    activeImplBackground: '{colors.accent-soft}'
-    activeImplForeground: '{colors.accent}'
-    buttonRadius: '{rounded.xs}'
-    typography: '{typography.tab-label}'
-  persona-chip:
-    background: '{colors.bg-tertiary}'
+    padding: '{spacing.header-padding}'
+    typography: '{typography.brand-title}'
+  xray-toggle:
+    background: '{colors.bg-card}'
+    border: '{colors.border-strong}'
     foreground: '{colors.text-secondary}'
+    activeBackground: '{colors.accent-soft}'
+    activeBorder: '{colors.accent-border}'
+    activeForeground: '{colors.accent}'
+    radius: '{rounded.full}'
+    typography: '{typography.pill}'
+  gear-popover:
+    background: '{colors.bg-card}'
+    border: '{colors.border-strong}'
+    chipBackground: '{colors.bg-elevated}'
+    chipBorder: '{colors.border}'
+    radius: '{rounded.md}'
+    width: 235px
+    typography: '{typography.control}'
+  view-switcher:
+    background: '{colors.bg-elevated}'
     border: '{colors.border}'
-    activeBackground: '{colors.purple-soft}'
-    activeBorder: '{colors.purple}'
+    activeBackground: '{colors.bg-card}'
     activeForeground: '{colors.text-primary}'
-    radius: '{rounded.full}'
-    typography: '{typography.pill}'
-  ste-toggle-chip:
-    background: '{colors.bg-tertiary}'
-    foreground: '{colors.text-secondary}'
+    inactiveForeground: '{colors.text-secondary}'
+    radius: '{rounded.md}'
+    buttonRadius: '{rounded.sm}'
+    typography: '{typography.control}'
+  radar-card:
+    background: '{colors.bg-card}'
     border: '{colors.border}'
-    activeBackground: '{colors.teal-soft}'
-    activeBorder: '{colors.teal}'
-    activeForeground: '{colors.teal}'
+    symbolBackground: '{colors.accent-soft}'
+    symbolBorder: '{colors.accent-border}'
+    symbolForeground: '{colors.accent}'
+    radius: '{rounded.md}'
+    padding: '{spacing.radar-padding}'
+    headlineTypography: '{typography.radar-headline}'
+  waiting-badge:
     radius: '{rounded.full}'
     typography: '{typography.pill}'
-  tabs-nav:
-    background: '{colors.bg-secondary}'
-    borderBottom: '{colors.border}'
-    activeColor: '{colors.accent}'
-    inactiveColor: '{colors.text-secondary}'
-    typography: '{typography.tab-label}'
-  toast-banner:
-    background: '{colors.success-soft}'
-    border: '{colors.success}'
+    choiceBackground: '{colors.warn-soft}'
+    choiceForeground: '{colors.warn}'
+    choiceBorder: '{colors.warn-border}'
+    actionBackground: '{colors.accent-soft}'
+    actionForeground: '{colors.accent}'
+    actionBorder: '{colors.accent-border}'
+    replyBackground: '{colors.purple-soft}'
+    replyForeground: '{colors.purple}'
+    replyBorder: '{colors.purple-border}'
+    blockedBackground: '{colors.risk-soft}'
+    blockedForeground: '{colors.risk}'
+    blockedBorder: '{colors.risk-border}'
+    noneBackground: '{colors.ok-soft}'
+    noneForeground: '{colors.ok}'
+    noneBorder: '{colors.ok-border}'
+  action-chip:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border-strong}'
     foreground: '{colors.text-primary}'
-    radius: '{rounded.md}'
-    typography: '{typography.control}'
-  hero-card:
-    backgroundGradient: '{colors.bg-secondary} -> {colors.bg-tertiary}'
-    border: '{colors.border}'
-    radius: '{rounded.DEFAULT}'
-    padding: '{spacing.6}'
-    titleTypography: '{typography.hero-tldr}'
-  pill-badge:
-    radius: '{rounded.full}'
-    typography: '{typography.pill}'
-    bugBackground: '{colors.danger-soft}'
-    bugForeground: '{colors.danger}'
-    implBackground: '{colors.accent-soft}'
-    implForeground: '{colors.accent}'
-    personaBackground: '{colors.purple-soft}'
-    personaForeground: '{colors.purple}'
-    successBackground: '{colors.success-soft}'
-    successForeground: '{colors.success}'
-    warningBackground: '{colors.warning-soft}'
-    warningForeground: '{colors.warning}'
-    tealBackground: '{colors.teal-soft}'
-    tealForeground: '{colors.teal}'
-  analogy-box:
-    background: '{colors.bg-primary}'
-    accentBorder: '{colors.warning}'
+    primaryBackground: '{colors.accent-soft}'
+    primaryBorder: '{colors.accent-border}'
+    primaryForeground: '{colors.accent}'
+    selectedBackground: '{colors.ok-soft}'
+    selectedBorder: '{colors.ok-border}'
+    selectedForeground: '{colors.ok}'
     radius: '{rounded.sm}'
-    kickerTypography: '{typography.kicker}'
-    bodyTypography: '{typography.body}'
-  diagram-card:
-    background: '{colors.bg-secondary}'
-    stageBackground: '{colors.bg-primary}'
-    stageBorder: '{colors.border-subtle}'
-    radius: '{rounded.DEFAULT}'
-    stageRadius: '{rounded.md}'
-    kickerTypography: '{typography.kicker}'
-  diagram-node:
-    fill: '{colors.bg-secondary}'
-    selectedFill: '{colors.accent-soft}'
-    highRiskStroke: '{colors.danger}'
-    mediumRiskStroke: '{colors.warning}'
-    activeStroke: '{colors.accent}'
-    defaultStroke: '{colors.success}'
-    radius: '{rounded.md}'
-    height: '{spacing.diagram-node-height}'
     typography: '{typography.control}'
-  diagram-edge:
-    defaultStroke: '{colors.accent}'
-    mediumRiskStroke: '{colors.warning}'
-    highRiskStroke: '{colors.danger}'
-    badgeFill: '{colors.bg-primary}'
-    badgeRadius: 8.5px
-    typography: '{typography.micro}'
-  file-badge:
-    background: '{colors.bg-tertiary}'
-    border: '{colors.border}'
-    highRiskBorder: '{colors.danger}'
-    mediumRiskBorder: '{colors.warning}'
-    selectedBackground: '{colors.accent-soft}'
-    selectedBorder: '{colors.accent}'
+  inline-reply-box:
+    inputBackground: '{colors.bg-elevated}'
+    inputBorder: '{colors.border-strong}'
+    submitBackground: '{colors.accent}'
+    submitForeground: '{colors.text-on-accent}'
     radius: '{rounded.xs}'
+    typography: '{typography.control}'
+  minimal-strip:
+    background: '{colors.bg-card}'
+    border: '{colors.ok-border}'
+    badgeBackground: '{colors.ok-soft}'
+    badgeForeground: '{colors.ok}'
+    radius: '{rounded.md}'
+    typography: '{typography.control}'
+  choice-grid:
+    gap: '{spacing.2}'
+    itemBackground: '{colors.bg-elevated}'
+    itemHoverBackground: '{colors.bg-card-hover}'
+    itemBorder: '{colors.border}'
+    itemHoverBorder: '{colors.accent-border}'
+    itemPickedBackground: '{colors.ok-soft}'
+    itemPickedBorder: '{colors.ok-border}'
+    keyBackground: '{colors.bg-card}'
+    barTrack: '{colors.border}'
+    barFill: '{colors.accent}'
+    radius: '{rounded.md}'
+    typography: '{typography.block-body}'
+  svg-stage:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border}'
+    radius: '{rounded.md}'
+    padding: '{spacing.2}'
+    nodeFill: '{colors.bg-card}'
+    nodeSelectedFill: '{colors.accent-soft}'
+    nodeRiskStroke: '{colors.risk}'
+    nodeWarnStroke: '{colors.warn}'
+    nodeActiveStroke: '{colors.accent}'
+    nodeOkStroke: '{colors.ok}'
+    edgeStroke: '{colors.accent}'
     typography: '{typography.code-chip}'
-  node-inspector:
-    background: '{colors.bg-primary}'
-    border: '{colors.border}'
-    radius: '{rounded.sm}'
-    typography: '{typography.control}'
-  story-card:
-    background: '{colors.bg-secondary}'
-    border: '{colors.border}'
-    radius: '{rounded.DEFAULT}'
-    padding: '{spacing.card-padding}'
-    titleTypography: '{typography.story-title}'
-    bodyTypography: '{typography.story-body}'
-    causeAccent: '{colors.danger}'
-    planAccent: '{colors.accent}'
-    whyAccent: '{colors.purple}'
-    resultAccent: '{colors.success}'
-    consequencesAccent: '{colors.teal}'
-    lessonsAccent: '{colors.warning}'
-  status-banner:
-    yesBackground: '{colors.success-soft}'
-    yesBorder: '{colors.success}'
-    partialBackground: '{colors.warning-soft}'
-    partialBorder: '{colors.warning}'
-    noBackground: '{colors.danger-soft}'
-    noBorder: '{colors.danger}'
-    radius: '{rounded.md}'
-    typography: '{typography.story-title}'
-  proof-item:
-    background: '{colors.bg-primary}'
-    border: '{colors.border-subtle}'
-    radius: '{rounded.xs}'
-    evidenceTypography: '{typography.code-chip}'
-  audit-row:
-    background: '{colors.bg-primary}'
-    border: '{colors.border-subtle}'
-    radius: '{rounded.xs}'
-    typography: '{typography.body}'
-  check-row:
-    background: '{colors.bg-primary}'
-    border: '{colors.border-subtle}'
-    accentColor: '{colors.success}'
-    doneTextColor: '{colors.text-muted}'
-    radius: '{rounded.xs}'
-    typography: '{typography.body}'
-  promote-button:
-    background: '{colors.warning-soft}'
-    foreground: '{colors.warning}'
-    border: '{colors.warning}'
-    radius: '{rounded.xs}'
-    typography: '{typography.micro}'
-  lesson-card:
-    background: '{colors.bg-primary}'
-    border: '{colors.border-subtle}'
-    confirmedBackground: '{colors.success-subtle}'
-    confirmedBorder: '{colors.success}'
-    radius: '{rounded.md}'
-    titleTypography: '{typography.story-title}'
-  lesson-form:
-    background: '{colors.bg-primary}'
-    border: '{colors.border}'
-    inputBackground: '{colors.bg-secondary}'
-    focusBorder: '{colors.accent}'
-    radius: '{rounded.md}'
-    typography: '{typography.body}'
-  explainer-stage:
-    background: '{colors.explainer-stage-bg}'
-    border: '{colors.border}'
-    gridColor: '{colors.canvas-grid-line}'
-    pulseColor: '{colors.accent}'
-    radius: '{rounded.DEFAULT}'
-    titleTypography: '{typography.canvas-title}'
-    nodeTypography: '{typography.canvas-node}'
-  explainer-controls:
-    gap: '{spacing.3}'
-    buttonSpec: '{components.button-secondary}'
-    primarySpec: '{components.button-primary}'
-  scene-pill:
-    background: '{colors.bg-tertiary}'
-    foreground: '{colors.text-secondary}'
+  powerup-dock:
+    background: '{colors.bg-elevated}'
     border: '{colors.border}'
     activeBackground: '{colors.accent-soft}'
-    activeBorder: '{colors.accent}'
+    activeBorder: '{colors.accent-border}'
+    activeForeground: '{colors.accent}'
+    radius: '{rounded.sm}'
+    typography: '{typography.micro}'
+  proof-pill:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border}'
+    okBackground: '{colors.ok-soft}'
+    okBorder: '{colors.ok-border}'
+    okForeground: '{colors.ok}'
+    riskBackground: '{colors.risk-soft}'
+    riskBorder: '{colors.risk-border}'
+    riskForeground: '{colors.risk}'
+    infoForeground: '{colors.text-secondary}'
+    detailBackground: '{colors.bg-elevated}'
+    radius: '{rounded.sm}'
+    typography: '{typography.pill}'
+  audit-row:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border}'
+    promoteBackground: '{colors.warn-soft}'
+    promoteBorder: '{colors.warn-border}'
+    promoteForeground: '{colors.warn}'
+    checkAccent: '{colors.ok}'
+    checkDoneColor: '{colors.text-muted}'
+    radius: '{rounded.sm}'
+    typography: '{typography.block-body}'
+  concept-pill:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border-strong}'
+    foreground: '{colors.text-primary}'
+    activeBackground: '{colors.accent-soft}'
+    activeBorder: '{colors.accent-border}'
     activeForeground: '{colors.accent}'
     radius: '{rounded.full}'
     typography: '{typography.control}'
-  explainer-caption:
-    background: '{colors.bg-secondary}'
+  stage1-drawer:
+    background: '{colors.bg-elevated}'
+    border: '{colors.accent-border}'
+    analogyBackground: '{colors.bg-card}'
+    analogyBorder: '{colors.accent}'
+    canvasBackground: '{colors.bg-panel}'
+    ctaBackground: '{colors.accent}'
+    ctaForeground: '{colors.text-on-accent}'
+    targetTagBackground: '{colors.purple-soft}'
+    targetTagForeground: '{colors.purple}'
+    targetTagBorder: '{colors.purple-border}'
+    radius: '{rounded.md}'
+    typography: '{typography.block-body}'
+  stage2-popout:
+    background: '{colors.bg-surface}'
+    headerBackground: '{colors.bg-card}'
+    border: '{colors.border-strong}'
+    viewportBackground: '{colors.bg-elevated}'
+    excalidrawBackground: '{colors.excalidraw-stage-bg}'
+    excalidrawInk: '{colors.excalidraw-ink}'
+    gridDot: '{colors.grid-dot}'
+    telemetryBackground: '{colors.telemetry-pill-bg}'
+    radius: '{rounded.shell}'
+    titleTypography: '{typography.stage2-title}'
+  missing-banner:
+    background: '{colors.warn-soft}'
+    border: '{colors.warn-border}'
+    foreground: '{colors.text-primary}'
+    highlightForeground: '{colors.warn}'
+    ctaBackground: '{colors.warn}'
+    ctaForeground: '{colors.text-on-warn}'
+    radius: '{rounded.md}'
+    typography: '{typography.block-body}'
+  unclear-box:
+    background: '{colors.warn-soft}'
+    border: '{colors.warn-border}'
+    titleForeground: '{colors.warn}'
+    quoteBackground: '{colors.bg-elevated}'
+    radius: '{rounded.md}'
+    typography: '{typography.block-body}'
+  explainer-stage:
+    background: '{colors.explainer-stage-bg}'
+    border: '{colors.border-strong}'
+    gridColor: '{colors.canvas-grid-line}'
+    pulseColor: '{colors.accent}'
+    radius: '{rounded.md}'
+    titleTypography: '{typography.canvas-title}'
+    nodeTypography: '{typography.canvas-node}'
+  lesson-card:
+    background: '{colors.bg-elevated}'
     border: '{colors.border}'
+    confirmedBackground: '{colors.ok-subtle}'
+    confirmedBorder: '{colors.ok-border}'
     radius: '{rounded.md}'
-    kickerTypography: '{typography.kicker}'
-    bodyTypography: '{typography.body}'
-  script-box:
-    background: '{colors.bg-primary}'
-    border: '{colors.border-subtle}'
+    typography: '{typography.block-body}'
+  lesson-form:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border-strong}'
+    inputBackground: '{colors.bg-card}'
+    focusBorder: '{colors.accent}'
     radius: '{rounded.md}'
-    typography: '{typography.code}'
+    typography: '{typography.block-body}'
   memory-code-box:
-    background: '{colors.bg-primary}'
-    border: '{colors.border-subtle}'
+    background: '{colors.bg-elevated}'
+    border: '{colors.border}'
     radius: '{rounded.md}'
     typography: '{typography.code}'
   history-item:
-    background: '{colors.bg-secondary}'
+    background: '{colors.bg-card}'
     border: '{colors.border}'
-    hoverBorder: '{colors.accent}'
+    hoverBorder: '{colors.accent-border}'
     radius: '{rounded.md}'
-    typography: '{typography.story-title}'
+    typography: '{typography.control}'
+  hud-toast:
+    background: '{colors.ok-soft}'
+    border: '{colors.ok-border}'
+    foreground: '{colors.ok}'
+    radius: '{rounded.sm}'
+    typography: '{typography.control}'
 ---
 
 # Vibe Debrief — Design Specification (`DESIGN.md`)
 
-> Visual identity and token contract for `assets/panel.html` (`ui://vibe-debrief/panel.html`) and standalone offline HTML exports (`generateStandaloneHtmlArtifact`). Behavioral rules, IA, and journeys live in [EXPERIENCE.md](./EXPERIENCE.md).
+> Visual identity and token contract for `assets/panel.html` (`ui://vibe-debrief/panel.html`) and standalone offline HTML exports (`generateStandaloneHtmlArtifact`), evolved to **Cockpit HUD vNext (target `v0.4.0`)** while preserving `v0.3.0` theme-parity and CSP hardening (`R10`, `R11`). Behavioral rules, IA, and journeys live in [EXPERIENCE.md](./EXPERIENCE.md).
 
 ## Brand & Style
 
-Vibe Debrief is a **technical comprehension cockpit** built for vibe-coders working in ZCode's narrow right-side panel. Its aesthetic posture is **clarity-first developer telemetry**: dark slate surfaces inspired by terminal and IDE canvases, crisp hairline borders instead of heavy drop shadows, high-signal color coding reserved exclusively for risk and causal roles, and compact typography designed to be scanned in 30–60 seconds without wall-of-text fatigue.
+Vibe Debrief is a **10-second developer cockpit HUD** built for ZCode's narrow right-side panel (`320–460px`). Its aesthetic posture balances two complementary moods:
+1. **Night-Watch Telemetry (Default Dark HUD):** Deep obsidian slate surfaces (`#090d13` → `#182130`) with hairline translucent borders, subtle dot-matrix diagram backdrops, and crisp electric-sky (`{colors.accent}`) callouts so signal cuts through immediately.
+2. **Field Desk Light (Synced Light Theme):** Warm archival paper surfaces (`#efeae0` → `#fbf9f4` → `#ffffff`) tuned for daylight reading without sterile glare, paired with darkened ink-grade semantic accents (`#0284c7`, `#059669`, `#b45309`, `#be123c`).
 
-Two hard engineering constraints shape every visual decision:
-1. **Zero external dependencies:** All styles, inline SVGs, and `<canvas>` visuals render with system UI fonts and pure CSS/SVG/2D Canvas — zero external CSS frameworks, icon fonts, or CDNs.
-2. **CSP `unsafeEval: false` & host-theme sync:** The panel runs in an isolated MCP App iframe (`text/html;profile=mcp-app`) and switches dynamically between dark (default `:root`) and light (`body.theme-light`) via host context notifications.
+Visual chrome stays razor-thin: a single compact top strip replaces stacked control bars, freeing ~85% of the above-the-fold panel for situational radar, kinetic SVG topology, proof chips, and clickable concepts.
+
+Two hard engineering constraints govern every visual choice:
+1. **Zero external dependencies:** All styles, inline SVGs, and `<canvas>` visuals render with system UI/mono fonts and pure CSS/SVG/2D Canvas — zero external CSS frameworks, icon fonts, or CDNs.
+2. **CSP `unsafeEval: false` & host-theme sync:** The panel runs in an isolated MCP App iframe (`text/html;profile=mcp-app`) and switches dynamically between dark (`:root`) and Field Desk Light (`body.theme-light` / `html[data-theme="light"]`) via host context notifications.
 
 ## Colors
 
-Vibe Debrief is **dark-first** (`:root` defines dark surfaces) with a complete light-theme override table (`body.theme-light`). Every color carries semantic meaning rather than decoration:
+Vibe Debrief is **dark-first** with a complete **Field Desk Light** override table. Alpha tints (`-soft`, `-border`, dot grids) use `rgba()` in CSS and 8-digit hex equivalents in frontmatter.
 
-| Role | Dark Token | Light Token | Purpose & Boundary |
+| Role | Dark HUD Token | Field Desk Light Token | Purpose & Boundary |
 | --- | --- | --- | --- |
-| Primary canvas | `{colors.bg-primary}` (`#0b0f17`) | `{colors.bg-primary-light}` (`#f8fafc`) | App shell background, diagram stage, inset evidence/audit rows, code boxes. |
-| Card surface | `{colors.bg-secondary}` (`#131a26`) | `{colors.bg-secondary-light}` (`#ffffff`) | Top bar, tab strip, story cards, SVG nodes, history items. |
-| Control surface | `{colors.bg-tertiary}` (`#1c2536`) | `{colors.bg-tertiary-light}` (`#f1f5f9`) | Secondary buttons, model selector, persona/file chips, hero gradient stop. |
-| Elevated surface | `{colors.bg-elevated}` (`#182030`) | `{colors.bg-elevated-light}` (`#ffffff`) | Reserved token for floating/elevated containers (currently unused in `panel.html` CSS). |
-| Hairline borders | `{colors.border}` (`#2a354b`) / `{colors.border-subtle}` (`#1e2738`) | `{colors.border-light}` (`#cbd5e1`) / `{colors.border-subtle-light}` (`#e2e8f0`) | Card separation (`border`) and inset sub-row dividers (`border-subtle`). |
-| Text hierarchy | `{colors.text-primary}` (`#f0f6fc`), `{colors.text-secondary}` (`#9ba7b8`), `{colors.text-muted}` (`#697586`) | `{colors.text-primary-light}` (`#0f172a`), `{colors.text-secondary-light}` (`#475569`), `{colors.text-muted-light}` (`#64748b`) | Headline/body, metadata/tabs, timestamps/completed checks. |
-| Sky accent (Implementation / Active) | `{colors.accent}` (`#38bdf8`) / `{colors.accent-soft}` | `{colors.accent-light}` (`#0284c7`) / `{colors.accent-soft-light}` | Active tab underline, Implementation mode, selected diagram node, interactive focus. |
-| Emerald (Verified / Success) | `{colors.success}` (`#34d399`) / `{colors.success-soft}` | `{colors.success-light}` (`#059669`) / `{colors.success-soft-light}` | Result cards, `yes` status banner, confirmed lessons, low-risk nodes, toast banner. |
-| Amber (Warning / Watch / Lessons) | `{colors.warning}` (`#fbbf24`) / `{colors.warning-soft}` | `{colors.warning-light}` (`#d97706`) / `{colors.warning-soft-light}` | Analogy left border, medium-risk nodes/edges, `partial` status, `💡→Rule` promote chip, Section 5 lessons. |
-| Rose (Bug / High Risk) | `{colors.danger}` (`#fb7185`) / `{colors.danger-soft}` | `{colors.danger-light}` (`#e11d48`) / `{colors.danger-soft-light}` | Bug mode active toggle, Card 1 Root Cause accent, `no` status, `high` risk files/nodes (`auth`, `server`, `payment`, `hook`). |
-| Violet (Persona / Why) | `{colors.purple}` (`#a78bfa`) / `{colors.purple-soft}` | `{colors.purple-light}` (`#7c3aed`) / `{colors.purple-soft-light}` | Active persona chip, Implementation Card 2 *Plan & Why* accent, brand badge gradient stop. |
-| Teal (Consequences / STE-80) | `{colors.teal}` (`#2dd4bf`) / `{colors.teal-soft}` | `{colors.teal-light}` (`#0d9488`) / `{colors.teal-soft-light}` | Active `STE-80` clarity chip, Card 4 *Consequences & Oversight* accent. |
-| Brand gradient & Stage | `{colors.brand-sky}` (`#0ea5e9`), `{colors.brand-indigo}` (`#6366f1`), `{colors.explainer-stage-bg}` (`#070b12`) | Same (dark cinema stage) | Primary CTA (`✨ AI Explain`, `▶ Play`) and 3b1b-inspired blueprint `<canvas>` backdrop. |
+| App / shell canvas | `{colors.bg-app}` (`#090d13`), `{colors.bg-panel}` (`#121924`) | `{colors.bg-app-light}` (`#efeae0`), `{colors.bg-panel-light}` (`#fbf9f4`) | Outer viewport, panel container, Stage 1 inline canvas wrap. |
+| Header & Stage 2 chrome | `{colors.bg-surface}` (`#101620`) | `{colors.bg-surface-light}` (`#f7f4ec`) | Pinned 1-strip header, Stage 2 external pop-out frame. |
+| Card & interactive tile | `{colors.bg-card}` (`#182130`), `{colors.bg-card-hover}` (`#1e293b`) | `{colors.bg-card-light}` (`#ffffff`), `{colors.bg-card-hover-light}` (`#f3efe6`) | `radar-card`, composable micro-blocks, `gear-popover`, SVG nodes. |
+| Inset / elevated well | `{colors.bg-elevated}` (`#0d131c`) | `{colors.bg-elevated-light}` (`#f1ece1`) | Segmented track, SVG/diagram stage, `action-chip`, `stage1-drawer`, `proof-detail`. |
+| Translucent hairline borders | `{colors.border}` (`rgba(148,163,184,0.14)`), `{colors.border-strong}` (`0.28`) | `{colors.border-light}` (`rgba(30,41,59,0.12)`), `{colors.border-strong-light}` (`0.24`) | Card containment (`border`) and clickable chip/popover edges (`border-strong`). |
+| Text hierarchy | `{colors.text-primary}` (`#e7edf6`), `{colors.text-secondary}` (`#9aa9be`), `{colors.text-muted}` (`#69788e`) | `{colors.text-primary-light}` (`#17202e`), `{colors.text-secondary-light}` (`#4c5a6d`), `{colors.text-muted-light}` (`#768396`) | Primary headlines/claims, descriptions, uppercase eyebrows/timestamps. |
+| Sky accent (`Tech` / Active / Flow) | `{colors.accent}` (`#38bdf8`), `{colors.accent-soft}`, `{colors.accent-border}` | `{colors.accent-light}` (`#0284c7`), `{colors.accent-soft-light}`, `{colors.accent-border-light}` | X-Ray `Tech` active state, symbol pills, SVG flow arrows, `Action` waiting state, primary CTA (`{colors.text-on-accent}` `#06121e` text). |
+| Emerald (`Verified` / `None` / `Confirmed`) | `{colors.ok}` (`#34d399`), `{colors.ok-soft}`, `{colors.ok-border}` | `{colors.ok-light}` (`#059669`), `{colors.ok-soft-light}`, `{colors.ok-border-light}` | `ok` proof pills, `All Clear` waiting badge, `Minimal Mode` badge, picked choice, confirmed `MEMORY.md` lessons, `hud-toast`. |
+| Amber (`Choice` / `Unclear` / `Missing Plugin`) | `{colors.warn}` (`#fbbf24`), `{colors.warn-soft}`, `{colors.warn-border}` | `{colors.warn-light}` (`#b45309`), `{colors.warn-soft-light}`, `{colors.warn-border-light}` | `Pick a Choice` waiting badge, `unclear-box`, `missing-banner` + install CTA (`{colors.text-on-warn}` `#140d00` text), `💡→Rule` promote pill. |
+| Rose (`Blocked` / `High Risk`) | `{colors.risk}` (`#fb7185`), `{colors.risk-soft}`, `{colors.risk-border}` | `{colors.risk-light}` (`#be123c`), `{colors.risk-soft-light}`, `{colors.risk-border-light}` | `Blocked` waiting badge, high-risk SVG nodes, unverified/failing `proof-pill.risk`. |
+| Violet (`Reply` / `Target Tag`) | `{colors.purple}` (`#a78bfa`), `{colors.purple-soft}`, `{colors.purple-border}` | `{colors.purple-light}` (`#6d28d9`), `{colors.purple-soft-light}`, `{colors.purple-border-light}` | `Answer Question` waiting badge, Stage 1 target plugin tag (`Excalidraw`, `Visualize`, `VectorCraft`). |
+| Teal (`STE-80` Clarity Guard) | `{colors.teal}` (`#2dd4bf`), `{colors.teal-soft}`, `{colors.teal-border}` | `{colors.teal-light}` (`#0d9488`), `{colors.teal-soft-light}`, `{colors.teal-border-light}` | `STE-80 Active` clarity status indicator and language badge. |
+| Special canvas stages | `{colors.explainer-stage-bg}` (`#070b12`), `{colors.excalidraw-stage-bg}` (`#faf8f2`), `{colors.telemetry-pill-bg}` | `{colors.excalidraw-stage-bg}` (`#faf8f2`) / `{colors.bg-elevated-light}` | 3b1b blueprint stage (`#070b12`), Excalidraw warm whiteboard surface (`#faf8f2` with `{colors.excalidraw-ink}`), Stage 2 floating telemetry pill. |
 
-**CSS `rgba()` equivalence:** Soft tint tokens in `assets/panel.html` use `rgba()` over the base hue (e.g., `rgba(56, 189, 248, 0.14)` for `{colors.accent-soft}`); hex equivalents in frontmatter represent the exact alpha channel.
-
-**Contrast & Light-Mode Parity Gap (`[ASSUMPTION]`):**
-- **Target contrast floor:** Load-bearing text (`{colors.text-primary}` on `{colors.bg-secondary}`, `{colors.text-secondary}` on `{colors.bg-secondary}`) targets WCAG 2.1 AA (`>= 4.5:1` for body text, `>= 3:1` for node strokes and focus indicators).
-- **Known implementation delta:** In `assets/panel.html` v0.2.0, SVG diagram nodes/edges (`#131a26`, `#0b0f17`, `#9ba7b8`) and `.explainer-stage` (`#070b12`) hardcode dark-theme hexes instead of reading `body.theme-light` CSS variables; `{colors.text-muted}` (`#697586` on `#131a26`) sits near `3.5:1` and should be lightened or restricted to non-essential timestamps / completed strikethroughs (`[ASSUMPTION]` for v0.3.0 contrast audit).
+**Contrast & Theme Parity Floor (`R10`):**
+- Load-bearing body text (`{colors.text-primary}` / `{colors.text-secondary}` on `{colors.bg-card}`) targets WCAG 2.1 AA (`>= 4.5:1`), and interactive strokes/focus rings target `>= 3:1` in both Dark HUD and Field Desk Light.
+- **v0.3.0 → vNext Parity Rule:** SVG nodes, SVG edge labels, and inline `<canvas>` frames read resolved CSS custom properties (`getComputedStyle(document.documentElement)`) rather than hardcoded dark hexes, guaranteeing crisp legibility under `body.theme-light` and standalone `prefers-color-scheme: light` exports. `{colors.text-muted}` (`#69788e` dark / `#768396` light) is reserved strictly for non-essential uppercase eyebrows and completed strikethroughs (`[ASSUMPTION]` verify light-mode eyebrow contrast during v0.3.0 audit).
 
 ## Typography
 
-Vibe Debrief uses two native system font stacks to preserve zero-dependency startup speed and crisp code legibility:
-- **UI Sans (`--font-sans`):** `-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif`
-- **Code & Evidence Mono (`--font-mono`):** `"Cascadia Code", "JetBrains Mono", Consolas, monospace`
+Two native font stacks ensure zero-latency rendering and crisp identifier legibility across Plain (`STE-80`) and Technical (`X-Ray`) modes:
+- **UI Sans (`--font-sans`):** `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`
+- **Code & X-Ray Mono (`--font-mono`):** `"JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
 
 **Type Ramp:**
-- **Hero TL;DR (`{typography.hero-tldr}`):** `14px` / `800` / `1.4` — single-sentence summary at the top of the panel.
-- **Brand Badge & Title (`{typography.brand-badge}`, `{typography.brand-title}`):** `14px` / `800` and `13.5px` / `800` (`-0.01em` tracking).
-- **Body & Story Prose (`{typography.body}`, `{typography.story-body}`):** `13px` base (`1.5` line-height) and `12.6px` inside cards (`white-space: pre-line` for multi-line STE-80 bullets).
-- **Card Headers (`{typography.story-title}`):** `12.5px` / `800` — numbered step titles (`1.`–`5.`).
-- **Tab & Mode Controls (`{typography.tab-label}`, `{typography.control}`):** `11.5px` / `700` for navigation; `11px` / `600` for compact header buttons and transport controls.
-- **Kickers & Pills (`{typography.kicker}`, `{typography.pill}`):** `10.5px` / `800` uppercase (`0.04em`–`0.05em` tracking) for section labels; `10.5px` / `700` for status pills.
-- **Monospace Evidence (`{typography.code}`, `{typography.code-chip}`):** `11px` for `MEMORY.md` and plain-text narration script; `10.8px` for file badges and `10.3px` for `proofClaims` evidence paths.
+- **Stage 2 Header (`{typography.stage2-title}`):** `15px` / `700` / `1.3` — popped-out visual canvas title.
+- **Brand Title (`{typography.brand-title}`):** `13px` / `700` / `1.3` (`-0.01em` tracking).
+- **10s Radar Headline (`{typography.radar-headline}`):** `12.8px` / `600` / `1.48` — concise 1-sentence summary with inline `{typography.code-chip}` symbol pills.
+- **Body & Micro-Block Copy (`{typography.body}`, `{typography.block-body}`):** `13px` shell base (`1.45`); `12px` / `1.48` inside choices, Stage 1 drawer, missing-plugin banner, and audit rows.
+- **Controls & Pills (`{typography.control}`, `{typography.pill}`):** `11.5px` / `600` for action chips, tabs, and popover controls; `11px` / `700` for waiting badges, X-Ray pill, and proof pills.
+- **Eyebrows & Micro (`{typography.eyebrow}`, `{typography.micro}`):** `10px` / `700` uppercase (`0.08em` tracking) for block kickers (`WHAT JUST HAPPENED`, `WAITING ON YOU`); `10px` / `600` for trade-off bars and power-up dock tags.
+- **Monospace Evidence (`{typography.code}`, `{typography.code-chip}`):** `11px` for `proof-detail`, raw unclear quote, `MEMORY.md` preview, and inline symbol tags.
 
 ## Layout & Spacing
 
-The panel is engineered for a **narrow vertical ZCode sidebar** (`flex-direction: column; height: 100vh; overflow: hidden;`):
+Designed for a **narrow vertical ZCode sidebar (`320–460px`, default prototype `380px`)** with optional Stage 2 external pop-out on the main workspace canvas:
 
-- **Pinned Chrome (`flex-shrink: 0`):**
-  1. `{components.top-bar}` (`padding: {spacing.topbar-padding}`) holds 3 stacked rows: Brand + Action buttons, 2-column equal Mode Switcher (`grid-template-columns: 1fr 1fr; gap: {spacing.3}`), and horizontal scrolling Persona Strip + `STE-80` chip.
-  2. `{components.tabs-nav}` (`padding: 0 10px; gap: {spacing.2}`) pins the 4 tab triggers immediately below the header.
-- **Scrollable Body (`flex: 1; overflow-y: auto; padding: {spacing.panel-padding}`):** Renders one active tab view at a time with `10px`–`11px` vertical rhythm (`{spacing.card-gap}`).
-- **Truncation & Overflow Guardrails:** `.brand-left` sets `min-width: 0` with `text-overflow: ellipsis` on title/subtitle; `{components.model-select}` caps width at `118px`; `.persona-strip` scrolls horizontally (`overflow-x: auto`) rather than wrapping into multiple rows.
-- **SVG Adaptive Serpentine Grid:** Inside `viewBox="0 0 {spacing.diagram-viewbox-width} H"`, `cols` adapts to node count (`1–2` nodes → `1–2` columns, `3–4` nodes → `2` columns, `5–6` nodes → `3` columns) with odd rows reversing column direction (`serpentine`) so arrows stay short and readable at narrow sidebar widths.
+- **1-Strip Pinned Header (`{components.hud-header}`):** Single row (`padding: {spacing.header-padding}`) containing Brand mark + `Distill` trigger on the left, `xray-toggle` + `gear-btn` on the right, and a compact `view-switcher` (`HUD` | `Visual` | `Memory & History`) immediately beneath or integrated inline on wide panels — keeping >=85% of the initial viewport free for the 10s Radar and Visual Centerpiece.
+- **Scrollable HUD Body (`padding: {spacing.hud-padding}; gap: {spacing.block-gap}`):** Stacks `radar-card` (or `minimal-strip`) followed by composed Micro-Blocks (`11px` vertical rhythm, `{spacing.card-padding}` internal padding).
+- **Gear Popover (`{components.gear-popover}`):** Anchored `top: 46px; right: 10px; width: 235px` above the HUD body so theme, language, persona, model preference, and HTML export never clutter the header strip.
+- **SVG Multi-Grammar Stage (`viewBox="0 0 {spacing.diagram-viewbox-width} H"`):** Scales fluidly (`width: 100%; height: auto`) with grammar-appropriate layouts (`Sequence`, `FlowDiff`, `Subway Layer Map`, `Before/After Split`, `Decision Tree`) capped at 6 primary nodes so labels remain readable at `320px`.
+- **Stage 1 vs Stage 2 Spatial Boundary:** Stage 1 inline micro-visuals stay bounded at `height: {spacing.stage1-canvas-height}` (`104px`) inside the panel; Stage 2 full interactive canvases (`height: {spacing.stage2-canvas-height}` `270px+` viewport + deep explanation grid) always pop out onto the main ZCode stage or a standalone browser window.
 
 ## Elevation & Depth
 
-Vibe Debrief avoids heavy drop shadows to keep dense technical cards calm and legible:
-- **Flat Tonal Layering:** Depth comes from stepping surface values (`{colors.bg-primary}` inset wells inside `{colors.bg-secondary}` cards over `{colors.bg-primary}` shell), reinforced by `1px solid` borders (`{colors.border}` and `{colors.border-subtle}`).
-- **Semantic Left-Edge Bars:** Story cards use a `4px solid` left border (`.story-card`) to anchor reading order by role without introducing colored card backgrounds.
-- **Single Decorative Shadow:** Only `{components.brand-badge}` carries a subtle glow (`0 2px 8px rgba(56, 189, 248, 0.25)`) to distinguish the plugin mark in the top-left corner.
+Depth comes from **tonal surface stepping + crisp `1px` borders** rather than heavy shadows:
+- **Flat Tonal Hierarchy:** `bg-app` → `bg-surface` → `bg-panel` → `bg-card` → `bg-elevated` wells, separated by `{colors.border}` and `{colors.border-strong}`.
+- **Subtle Dot-Matrix Texture:** Diagram and Stage 2 viewports use a `1px` radial dot grid (`18px × 18px`, `{colors.grid-dot}`) to visually separate spatial canvases from prose blocks.
+- **Restrained Floating Shadows:** Only the HUD shell frame (`0 18px 48px rgba(0,0,0,0.45)` dark / `0 12px 32px rgba(30,41,59,0.10)` light) and `gear-popover` (`0 12px 32px rgba(0,0,0,0.55)`) carry elevation shadows so floating controls clearly detach from cards beneath them.
 
 ## Shapes
 
-Corners follow a tight, technical **6px–10px** hierarchy (`{rounded.*}`), reserving full pills (`{rounded.full}`) exclusively for clickable chips and status badges:
-- `{rounded.DEFAULT}` (`10px`): Primary cards (`hero-card`, `diagram-card`, `story-card`, `explainer-stage`).
-- `{rounded.lg}` (`9px`): Segmented `mode-switcher` track.
-- `{rounded.md}` (`8px`): Inner stages (`diagram-card` stage, SVG node `<rect>`, `brand-badge`, `status-banner`, `toast-banner`, `lesson-card`, `history-item`, `script-box`, `memory-code-box`).
-- `{rounded.sm}` (`7px`): Action buttons (`btn`), `model-select`, `analogy-box`, `node-inspector`.
-- `{rounded.xs}` (`6px`): Segmented `mode-btn`, `file-badge`, `audit-row`, `check-row`, `proof-item`, `promote-button`.
-- `{rounded.full}` (`999px`): `pill-badge`, `persona-chip`, `ste-toggle-chip`, `scene-pill`.
+A crisp **5px–16px** geometric scale (`{rounded.*}`):
+- `{rounded.shell}` (`16px`): Outer HUD panel shell and Stage 2 external frame.
+- `{rounded.lg}` (`14px`): Large Stage 2 viewport / outer workspace cards.
+- `{rounded.md}` (`10px`): `radar-card`, composable `.micro-block`, `gear-popover`, `svg-stage`, `stage1-drawer`, `missing-banner`, `lesson-card`, `history-item`.
+- `{rounded.sm}` (`7px`): `action-chip`, `proof-pill`, `popout-btn`, `stage1-canvas-wrap`, `powerup-dock` buttons, `view-switcher` segments.
+- `{rounded.xs}` (`5px`): `choice-key` badges, inline symbol `.sym` tags, `inline-reply-box` controls.
+- `{rounded.full}` (`999px`): `xray-toggle`, `waiting-badge`, `concept-pill`, `target-tag`, status pills.
 
 ## Components
 
-Every visual component defined in `assets/panel.html` (paired with behavioral contracts in [EXPERIENCE.md](./EXPERIENCE.md#component-patterns)):
+Every visual component in the Cockpit HUD contract (paired with behavioral contracts in [EXPERIENCE.md](./EXPERIENCE.md#component-patterns)):
 
 | Component | Token Spec | Visual Anatomy & States |
 | --- | --- | --- |
-| `top-bar` | `{components.top-bar}` | Full-width pinned header with `8px`–`10px` vertical spacing and bottom hairline `{colors.border}`. |
-| `brand-badge` | `{components.brand-badge}` | `26×26px` rounded square (`{rounded.md}`) with `VD` monogram over 135° `{colors.accent}` → `{colors.purple}` gradient. |
-| `model-select` | `{components.model-select}` | Compact `<select>` (`max-width: 118px`, ellipsis) displaying lightweight Gemini models (`⚡ <slug>`). |
-| `button-primary` / `button-secondary` / `button-success` | `{components.button-primary}`, `{components.button-secondary}`, `{components.button-success}` | `5px 8px` compact buttons (`7px` radius). Primary uses sky-to-indigo gradient (`✨ AI Explain`, `▶ Play`); secondary shifts to `{colors.accent-soft}` on hover; success uses emerald soft tint (`Confirm & Save`). |
-| `mode-switcher` | `{components.mode-switcher}` | Inset 2-column track (`{colors.bg-primary}`). Active Bug pill tints `{colors.danger-soft}` / `{colors.danger}`; active Implementation pill tints `{colors.accent-soft}` / `{colors.accent}`. |
-| `persona-chip` & `ste-toggle-chip` | `{components.persona-chip}`, `{components.ste-toggle-chip}` | Scrollable `999px` pills. Active persona tints `{colors.purple-soft}`; active `STE-80` chip tints `{colors.teal-soft}`. |
-| `tabs-nav` | `{components.tabs-nav}` | Horizontal tab bar with `2px solid` bottom indicator (`{colors.accent}` when active). `🎬 Explainer` tab is hidden unless complex. |
-| `toast-banner` | `{components.toast-banner}` | Full-width inline banner above tabs content (`{colors.success-soft}` fill, `{colors.success}` border), hidden by default (`.visible`). |
-| `hero-card` & `pill-badge` | `{components.hero-card}`, `{components.pill-badge}` | Gradient card (`160deg`) hosting mode/complexity/STE-80/persona pills, right-aligned timestamp, bold `14px` TL;DR, and `analogy-box`. |
-| `analogy-box` | `{components.analogy-box}` | Inset `{colors.bg-primary}` block with `3px solid {colors.warning}` left bar and uppercase `💡 Picture It Like This` kicker. |
-| `diagram-card`, `diagram-node`, `diagram-edge` | `{components.diagram-card}`, `{components.diagram-node}`, `{components.diagram-edge}` | Inset SVG stage (`460px` viewBox). Nodes (`rx="8"`, `h="58"`) encode risk via `1.5px` stroke (`2.4px` + `{colors.accent-soft}` fill when selected); edges carry `r="8.5"` numbered step circles. |
-| `file-badge` & `node-inspector` | `{components.file-badge}`, `{components.node-inspector}` | Monospace file chips with role icon + risk border; dashed `node-inspector` footer bar displays selected node/file role, risk, and path. |
-| `story-card` & `status-banner` | `{components.story-card}`, `{components.status-banner}` | Cards `1`–`5` with `4px` semantic left bar (`cause`, `plan`, `why`, `result`, `consequences`, `lessons`). Card 3 Bug mode shows full-width `status-banner` (`yes` emerald, `partial` amber, `no` rose). |
-| `proof-item` | `{components.proof-item}` | Inset evidence row (`verified` ✅ / `unverified` ❌ / `inferred` ℹ️) with claim label and monospace source line. |
-| `audit-row`, `check-row`, `promote-button` | `{components.audit-row}`, `{components.check-row}`, `{components.promote-button}` | Card 4 oversight sub-blocks: `audit-row` pairs risk pill + `💡→Rule` promote button; `check-row` pairs emerald-accent checkbox with strikethrough on completion. |
-| `lesson-card` & `lesson-form` | `{components.lesson-card}`, `{components.lesson-form}` | Section 5 list items (emerald border + soft green wash when `.confirmed`) plus collapsible inline form (`lesson-form`) with `54px` min-height textarea. |
-| `explainer-stage`, `explainer-controls`, `scene-pill`, `explainer-caption`, `script-box` | `{components.explainer-stage}`, `{components.explainer-controls}`, `{components.scene-pill}`, `{components.explainer-caption}`, `{components.script-box}` | Dark `#070b12` `600×250` `<canvas>` stage with `30px` blueprint grid, bottom progress bar, transport row (`▶`/`⏸`, `⏮`, `⏭`, speed `<select>`, voice toggle), horizontal scene pills, caption card, and monospace `script-box`. |
-| `memory-code-box` & `history-item` | `{components.memory-code-box}`, `{components.history-item}` | `260px` max-height scrollable monospace `MEMORY.md` preview (`word-break: break-word`) and clickable `history-item` cards with accent hover border. |
+| `hud-header` | `{components.hud-header}` | Single compact top bar (`10px 12px`) with brand clock/spark icon, workspace title, and right-aligned control cluster. |
+| `xray-toggle` | `{components.xray-toggle}` | `999px` pill displaying `X-Ray: Plain ↔ Tech`; shifts to `{colors.accent-soft}` fill and `{colors.accent-border}` stroke when `data-mode="tech"`. |
+| `gear-popover` | `{components.gear-popover}` | `235px` floating menu triggered by `28×28px` gear icon; stacks compact key/chip rows (`Surface Theme`, `Language`, `Persona`, `Clarity Guard`, `Model`, `Export HTML`). |
+| `view-switcher` | `{components.view-switcher}` | Compact segmented strip (`HUD` \| `Visual` \| `Memory & History`) tucked cleanly inside or directly below the header without multi-row chip bloat. |
+| `radar-card` | `{components.radar-card}` | Top hero card pairing `WHAT JUST HAPPENED` eyebrow, verdict pill, <=14-word headline (with inline `.sym` code badges in Tech mode), confidence strip, and dashed-top `WAITING ON YOU` footer. |
+| `waiting-badge` & `action-chip` | `{components.waiting-badge}`, `{components.action-chip}` | Semantic pill with `6px` status dot (`Choice` amber, `Action` sky, `Reply` violet, `Blocked` rose, `None` emerald) + wrapping `action-chip` quick-reply buttons (`.primary`, `.selected`). |
+| `inline-reply-box` | `{components.inline-reply-box}` | Single-line input + accent submit button appearing inside `radar-card` when state is `Reply`. |
+| `minimal-strip` | `{components.minimal-strip}` | Collapsed 1-line bar (`{colors.ok-border}`) for trivial turns showing verified badge, 1-line label, and `Expand` link. |
+| `choice-grid` & `choice-item` | `{components.choice-grid}` | Vertical stack of selectable cards; each has `20×20px` monospace key (`A`/`B`), bold title, subtext, optional `34×4px` trade-off bars, and emerald `.picked` state. |
+| `svg-stage` | `{components.svg-stage}` | Inset `1px`-bordered diagram stage (`460px` viewBox) with risk-coded nodes, numbered edges, kinetic `.dash-flow` dashed pulse (`stroke-dashoffset` animation), and click-to-inspect footer bar. |
+| `powerup-dock` | `{components.powerup-dock}` | Compact pill row beneath `svg-stage` (`[SVG]`, `[Excalidraw]`, `[Interactive Gen UI]`, `[VectorCraft]`, `[Animate]`) highlighting active surface and installed status. |
+| `proof-pill` & `audit-row` | `{components.proof-pill}`, `{components.audit-row}` | Compact inline badges (`ok` emerald, `risk` rose, `info` neutral) toggling monospace `proof-detail` drawer, paired with `audit-row` (`💡→Rule` promote pill + emerald verification checkboxes). |
+| `concept-pill` & `stage1-drawer` | `{components.concept-pill}`, `{components.stage1-drawer}` | Wrapping `999px` technical term pills; active pill opens `{colors.accent-border}` inline drawer with target-plugin `target-tag`, STE-80 explanation, left-accented analogy box, `104px` micro-canvas, and full-width `Deep Dive & Pop Out ↗` CTA. |
+| `stage2-popout` & `missing-banner` | `{components.stage2-popout}`, `{components.missing-banner}` | Main-stage visual shell with toolbar, `270px+` dot-grid or Excalidraw `#faf8f2` canvas, floating `{colors.telemetry-pill-bg}` telemetry bar, and 3-column deep explanation cards (`How It Works`, `Key Trade-off`, `In Your Codebase`). Missing plugins render an amber `missing-banner` + `Install <plugin>` CTA above the built-in HTML fallback. |
+| `unclear-box` | `{components.unclear-box}` | Amber-bordered fallback card showing honest uncertainty notice, monospace `raw-quote` snippet, and `Clarify (Fast / Cheapest Model)` + `Show Raw Reply` buttons. |
+| `explainer-stage` | `{components.explainer-stage}` | `600×250` dark blueprint `<canvas>` curator tour (`30px` grid, `▶`/`⏸`, `⏮`/`⏭`, speed, voice toggle, scene pills, and copyable `script-box`), unlockable anytime via `[Animate]`. |
+| `lesson-card`, `lesson-form`, `memory-code-box` | `{components.lesson-card}`, `{components.lesson-form}`, `{components.memory-code-box}` | Rule cards (emerald wash when confirmed in `MEMORY.md`), inline `➕ Add Lesson` form (`54px` textarea), and scrollable monospace `MEMORY.md` preview. |
+| `history-item` & `hud-toast` | `{components.history-item}`, `{components.hud-toast}` | Clickable turn snapshot rows (verdict/mode pill, timestamp, TL;DR) and transient bottom-docked emerald confirmation toast. |
 
 ## Do's and Don'ts
 
-- **Do** keep all color meaning semantic: rose (`{colors.danger}`) means Bug or High Risk, amber (`{colors.warning}`) means Watch Out / Analogy / Lesson, emerald (`{colors.success}`) means Verified / Confirmed, sky (`{colors.accent}`) means Implementation / Active Selection.
-- **Do** reserve pill shapes (`{rounded.full}`) for compact tags, persona chips, and scene selectors so rectangular cards stay scannable.
-- **Do** bind both SVG diagram colors and `<canvas>` stage tokens to theme variables in future updates so `body.theme-light` achieves full visual parity (`[ASSUMPTION]` for v0.3.0).
-- **Don't** introduce external fonts, CDN CSS/JS, inline `onclick=` attributes, or `eval` (violates `RULE-2` zero-dependency and `RULE-3` `unsafeEval: false`).
-- **Don't** add heavy box shadows, decorative gradients on body cards, or more than 6 nodes in the SVG diagram.
-- **Don't** display full-file code diffs or multi-turn chat bubbles inside the right-side panel.
+- **Do** preserve semantic color discipline: emerald (`{colors.ok}`) = verified/clear/saved, amber (`{colors.warn}`) = choice/unclear/missing-plugin/rule-promote, rose (`{colors.risk}`) = blocked/high-risk, sky (`{colors.accent}`) = active/technical X-Ray/flow, violet (`{colors.purple}`) = reply/external plugin target.
+- **Do** bind SVG, inline `<canvas>`, and standalone exports to resolved CSS variables so Dark HUD and Field Desk Light achieve full contrast parity (`R10`).
+- **Do** keep the 320–460px sidebar visually uncluttered — pop full interactive whiteboards, simulations, and vector graphics out to Stage 2 rather than shrinking controls into unreadable scrollbars.
+- **Don't** stack multi-row headers, persona chip bars, or full-file code diffs inside the top chrome.
+- **Don't** introduce external fonts, CDN CSS/JS, inline `onclick=` attributes, or `eval` (`unsafeEval: false` / `C3`).
+- **Don't** hide unverified claims behind celebratory green styling or exceed 6 primary nodes in the inline SVG diagram.
