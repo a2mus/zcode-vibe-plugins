@@ -26,6 +26,19 @@
       "description_i18n": {
         "zh-CN": "面向视觉学习者与多项目 Vibe 编程开发者的右侧栏插件：融合 STE-80 清晰表达、全回合交互式 SVG 流程图、证据与不确定性审计、独立 HTML 导出、复杂流程动画解说及一键写入 ZCode 记忆库。"
       }
+    },
+    {
+      "name": "project-colors",
+      "source": "./project-colors",
+      "version": "0.1.0",
+      "description": "Assign a distinct color to each project and color-code its subtasks (sessions) in a dashboard panel, markdown overviews, and chat summaries.",
+      "displayName": "Project Colors",
+      "displayName_i18n": {
+        "zh-CN": "项目配色"
+      },
+      "description_i18n": {
+        "zh-CN": "为每个项目分配专属颜色，并在仪表盘、Markdown 概览和会话摘要中以颜色区分各项目及其子任务。"
+      }
     }
   ]
 }

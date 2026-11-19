@@ -1,0 +1,22 @@
+{
+  "name": "project-colors",
+  "version": "0.1.0",
+  "description": "Assign a distinct color to each project and color-code its subtasks (sessions) in a dashboard panel, markdown overviews, and chat summaries.",
+  "description_i18n": {
+    "en": "Assign a distinct color to each project and color-code its subtasks (sessions) in a dashboard panel, markdown overviews, and chat summaries.",
+    "zh-CN": "为每个项目分配专属颜色，并在仪表盘、Markdown 概览和会话摘要中以颜色区分各项目及其子任务。"
+  },
+  "author": {
+    "name": "mus"
+  },
+  "keywords": [
+    "colors",
+    "projects",
+    "subtasks",
+    "sessions",
+    "dashboard",
+    "appearance"
+  ],
+  "commands": "./commands",
+  "skills": "./skills"
+}

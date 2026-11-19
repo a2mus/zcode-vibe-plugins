@@ -1,9 +1,10 @@
 # ZCode Vibe Plugins (`a2mus/zcode-vibe-plugins`)
 
-A community ZCode plugin marketplace featuring two workspace-agnostic **right-side panel plugins** designed for visual clarity, high-ROI workflow navigation, and cost-aware AI model routing:
+A community ZCode plugin marketplace featuring three workspace-agnostic plugins — two **right-side panel plugins** plus a **project color toolkit** — designed for visual clarity, high-ROI workflow navigation, and cost-aware AI model routing:
 
 1. **🧭 BMAD Companion (`bmad-companion` · `v0.5.2`)** — Interactive 4-phase BMAD-METHOD lifecycle tracker, smart AI vs. static tracker reconciliation (`sprint-status.yaml` & `tickets.toml`), newest-first git diff artifact inspector, contextual `/bmad-*` prompt generator, and dynamic cost-aware model router.
 2. **⚡ Vibe Debrief — Comprehension-First ELI5 Panel (`vibe-debrief` · `v0.2.0`)** — Translates the last AI turn into scannable visual cards using **80% ASD-STE100 clarity**, always-on **interactive SVG diagrams**, inline **proof & uncertainty checks**, **standalone HTML export**, **complex-only 3b1b animated explainers**, and **1-click saving of confirmed lessons** directly into ZCode's persistent `MEMORY.md`.
+3. **🎨 Project Colors (`project-colors` · `v0.1.0`)** — Assigns every project a persistent color and renders a **color-coded subtask dashboard**, working around ZCode's lack of a native per-project color setting.
 
 ---
 
@@ -72,9 +73,25 @@ Built for **visual learners** and **vibe-coders juggling multiple projects** who
 
 ---
 
+## 🎨 3. Project Colors (`project-colors` · `v0.1.0`)
+
+Gives every project its own persistent color and color-codes its subtasks (sessions) — a local-first workaround for ZCode's lack of a native per-project color setting:
+
+- **Persistent Color Registry**: One color per project (9-color palette or custom `#rrggbb` hex) stored in `~/.zcode/project-colors/registry.json`, outside plugin directories so updates never lose assignments.
+- **Color-Coded Subtask Dashboard**: Generates an HTML panel listing every project with its sessions, each block in its project color, from live `ListProjects`/`ListSessions` data.
+- **Deterministic Auto-Assignment**: Projects without a color get the first unused palette color (alphabetical order); the reply lists new assignments so you can change them.
+- **Emoji Color Discipline**: Agents prefix project names with their color marker in summaries and todos while the skill is active.
+
+### Slash Commands & Skills
+- `/color-set <project> <color>` — Assign or change a project's color (palette name or hex).
+- `/color-dashboard` — Generate the color-coded projects + subtasks dashboard.
+- `/color-list` — List current project color assignments.
+
+---
+
 ## 🔒 Privacy & Local-First Design
 
-- Both plugins run **100% locally** via stdio MCP servers (`node`) and store per-workspace UI state only inside your local workspace `.zcode/` directory (or your local `~/.zcode/cli/memories/` directory when you confirm a lesson).
+- All plugins run **100% locally**. The two panel plugins use stdio MCP servers (`node`) and store per-workspace UI state only inside your local workspace `.zcode/` directory (or your local `~/.zcode/cli/memories/` directory when you confirm a lesson); project-colors touches only its local registry and the session visualization directory.
 - Model discovery reads only your local ZCode configuration metadata (`~/.zcode/v2/`) to list enabled model IDs—no credentials, API keys, or code leave your machine through these plugins.
 - Optional hook synthesis (`BMAD_COMPANION_OPENAI_KEY` / `VIBE_DEBRIEF_OPENAI_KEY`) is **disabled by default** unless you explicitly configure an environment key.
 
