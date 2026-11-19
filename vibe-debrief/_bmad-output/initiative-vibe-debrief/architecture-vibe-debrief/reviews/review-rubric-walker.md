@@ -2,81 +2,101 @@
 type: architecture-spine-review
 target: ../architecture-vibe-debrief.md
 reviewer: rubric-walker
-date: 2026-11-17
-verdict: CONDITIONAL PASS
+date: 2026-11-18
+verdict: PASS
 ---
 
-# Architecture Spine Review — vibe-debrief
+# Architecture Spine Review — vibe-debrief (Cockpit HUD vNext & v0.3.0 Hardening)
 
 **Target:** `D:\Developpement\Projets\Zcode plugins\vibe-debrief\_bmad-output\initiative-vibe-debrief\architecture-vibe-debrief\architecture-vibe-debrief.md`  
 **Inputs Checked:**
+- `D:\Developpement\Projets\Zcode plugins\vibe-debrief\_bmad-output\initiative-vibe-debrief\initiative-vibe-debrief.md` (`R1`–`R12`, `C1`–`C7`)
+- `D:\Developpement\Projets\Zcode plugins\vibe-debrief\_bmad-output\initiative-vibe-debrief\ux-vibe-debrief\DESIGN.md`
+- `D:\Developpement\Projets\Zcode plugins\vibe-debrief\_bmad-output\initiative-vibe-debrief\ux-vibe-debrief\EXPERIENCE.md` (`OQ-5`)
 - `D:\Developpement\Projets\Zcode plugins\vibe-debrief\AGENTS.md`
-- `D:\Developpement\Projets\Zcode plugins\vibe-debrief\_bmad-output\planning-artifacts\prd-vibe-debrief.md`
-- Brownfield verification against `.zcode-plugin/plugin.json`, `scripts/mcp-server.mjs`, `scripts/debrief-engine.mjs`, and `assets/panel.html`
+- Brownfield verification against `scripts/debrief-engine.mjs`, `scripts/mcp-server.mjs`, `scripts/hook-runner.mjs`, and `assets/panel.html`
 
-**Verdict:** **CONDITIONAL PASS**
+**Verdict:** **PASS**
 
-The spine is clean, strongly grounded in the brownfield codebase, and achieves 100% traceability across `FR-1`–`FR-28` and `RULE-1`–`RULE-6`. Two targeted fixes are needed before locking: (1) align `AD-5` so it does not claim to prevent multi-process concurrent write corruption via an unlocked `writeFileSync`, and (2) close minor divergence gaps around turn-handoff state (`agentPublishedThisTurn`) and shared SVG/Canvas theme tokens across `panel.html` and `generateStandaloneHtmlArtifact`.
-
----
-
-## Checklist Evaluation
-
-### 1. Does it fix the real divergence points for the level below and miss none?
-**Mostly Yes — 2 minor gaps.**
-
-`AD-1` through `AD-12` cover the primary divergence points across the four runtime layers (`debrief-engine.mjs`, `mcp-server.mjs`, `hook-runner.mjs`, `panel.html`): layer separation, unidirectional imports, stdout framing isolation, zero external dependencies, centralized persistence, CSP/XSS safety, reading-boundary clarity, 4-file version sync, `postMessage` bridge, single UI render entry point, never-crash hooks, and complexity gating.
-
-**Missed or under-specified divergence points:**
-- **Turn-handoff coordination (`agentPublishedThisTurn`):** Both `vibe_debrief_publish` (`mcp-server.mjs`) and `UserPromptSubmit`/`Stop` (`hook-runner.mjs`) coordinate via `state.agentPublishedThisTurn`. It appears in Consistency Conventions and the Capability Map (`FR-3`, `FR-10`, `FR-12`), but lacks an explicit invariant/AD. If a future tool or hook forgets to set or clear it, `Stop` silently overwrites an agent-published debrief.
-- **Cross-process state race:** `mcp-server.mjs` and `hook-runner.mjs` run as separate OS processes and both mutate `.zcode/vibe-debrief-state.json`. See item 2 below.
-
-### 2. Is every AD's Rule enforceable and does it actually prevent its stated divergence?
-**No — 1 concrete gap in `AD-5`, plus 2 minor precision notes.**
-
-- **Gap (`AD-5 — Engine Owns All Persistent State`):** `AD-5` states *"Prevents: Split persistence logic; concurrent state corruption from multiple writers."* Centralizing I/O in `debrief-engine.mjs` prevents split persistence logic, **but does not prevent concurrent state corruption from multiple writers**. `mcp-server.mjs` and `hook-runner.mjs` are separate OS processes that both run `loadPersistedState` → merge → `savePersistedState` (`writeFileSync` in `debrief-engine.mjs:70`) with no file lock or atomic temp-file rename. Either narrow `AD-5`'s "Prevents" claim to split persistence/schema drift, or add atomic write-and-rename / lock semantics to the Rule.
-- **Manual enforcement (`AD-8 — 4-File Version Sync`):** The Rule is clear, but enforcement relies on manual discipline until `OQ-4` (`scripts/check-version-sync.mjs`) is implemented in `v0.3.0`.
-- **Precision (`AD-9 — Panel–Host Communication Protocol`):** Line 144 specifies `tools/call (6 tool names)`. Listing the 6 panel-called tools (`get_state`, `set_persona`, `toggle_check`, `export_html`, `generate_explainer`, `confirm_lesson`) vs. the 2 agent-only tools (`open`, `publish`) would remove ambiguity.
-- All other ADs (`AD-1`–`AD-4`, `AD-6`, `AD-7`, `AD-10`–`AD-12`) are concrete, verifiable (e.g., `grep`/AST-checkable for `AD-3`, `AD-4`, `AD-6`), and directly prevent their stated divergences.
-
-### 3. Is anything under Deferred that could let two units diverge?
-**Mostly No — 1 watchpoint.**
-
-- **Light-theme parity for SVG/Canvas:** Deferred to `v0.3.0` UX. However, *two* units render SVG diagrams and Canvas explainers independently: `assets/panel.html` and `scripts/debrief-engine.mjs` (`generateStandaloneHtmlArtifact`). Deferring light-theme parity without a shared theme-token contract risks palette divergence if either unit is styled independently.
-- **Other deferred items (`AD-13` `node --test` suite, `OQ-3` Hook AI synthesis disposition, `OQ-4` automated version-sync check, ARIA/keyboard/reduced-motion, Deployment/environments):** None of these allow architectural divergence between units; `AD-4` already constrains `AD-13` to `node:test`.
-
-### 4. Is named tech verified-current?
-**Yes.**
-
-All stack entries match `AGENTS.md` and the live codebase:
-- Node.js ESM `>= 18` (built-in `fetch`, `node:test`), tested on `v26.12.1`.
-- MCP Protocol `"2025-11-25"` (matches `scripts/mcp-server.mjs`).
-- MCP App Protocol `"2026-01-26"` (matches `assets/panel.html:1166`).
-- Built-in browser APIs (HTML5 Canvas 2D, Web Speech API) and ZCode Plugin Manifest `v0.2.0` (`.zcode-plugin/plugin.json`).
-- Gemini model defaults (`gemini-2.5-flash`, fallback `new-provider/gemini-3.8-flash`) match `AGENTS.md` and PRD.
-
-### 5. Does it ratify rather than contradict the brownfield codebase (`AGENTS.md`)?
-**Yes.**
-
-Every invariant in `AGENTS.md` is ratified: 4-file layer split, zero external dependencies, stdout isolation, `unsafeEval: false`, `escapeHtml()` + `\u003c` JSON escaping, 4-file version sync, workspace root precedence, ZCode memory directory fallback, collection caps (`15`/`15`/`50`), complexity gate (`>= 4`), `4500ms` AI timeout, and the Reading-Boundary Principle. The `21` exports cited in `Structural Seed` for `scripts/debrief-engine.mjs` also match the actual codebase. (`tests/debrief-engine.test.mjs` is properly tagged `[ASSUMPTION] v0.3.0`.)
-
-### 6. Does the Capability → Architecture Map cover every requirement in the PRD (`FR-1`..`FR-28`, `RULE-1`..`RULE-6`)?
-**Yes — 100% coverage in the map table.**
-
-Every requirement in `prd-vibe-debrief.md` (`FR-1` through `FR-28`, including `FR-8a`, and `RULE-1` through `RULE-6`) is mapped to its runtime layer(s)/function(s) and governing AD(s).  
-*(Minor nit: `FR-8a` is present in the Capability → Architecture Map table but omitted from the YAML frontmatter `binds:` list.)*
-
-### 7. Is every dimension the initiative altitude owns decided, deferred, or an open question?
-**Yes — with one minor observability note.**
-
-- **Deployment & environments:** Explicitly addressed under `Deferred` (single-user ZCode desktop plugin; no CI/CD or multi-user infra).
-- **Infra / provider strategy:** Decided across `System Context`, `AD-4`, `AD-11`, and `Deferred (OQ-3)` (ZCode Host, optional OpenAI-compatible `Stop` synthesis with `4500ms` timeout + heuristic fallback, and `CreateSession` lightweight Gemini delegation).
-- **Operations:** Health check (`ping`), graceful degradation (`AD-11`), and storage fallbacks are covered. Only `stderr` diagnostic logging conventions (when silent `catch` blocks should log to `stderr` vs. stay silent) are left implicit.
+The updated architecture spine resolves every finding from the prior review (`AD-5` atomic temp-file + `renameSync` persistence, `AD-6` shared Dark HUD / Field Desk Light CSS token contract, `AD-8` automated 4-file version-sync gate, `AD-9` explicit tool/message enumeration, `AD-13` turn-handoff & model-agnostic Clarify contract) while cleanly extending `AD-14`..`AD-17` and the `OQ-5` schema seed for Cockpit HUD vNext. Three non-blocking implementation watchpoints (`medium`/`low`) are recorded below for epic/story refinement.
 
 ---
 
-## Recommended Adjustments
+## Good-Spine Checklist Evaluation
 
-1. **Fix `AD-5`:** Either narrow *"Prevents"* to *"Split persistence logic and uncoordinated schema mutations"* or specify atomic write (`writeFileSync` to temp + `renameSync`) / lockfile protection so the Rule actually prevents multi-process write races.
-2. **Add turn-handoff invariant:** Document the `agentPublishedThisTurn` lifecycle contract (set by `vibe_debrief_publish`, respected by `Stop`, cleared by `UserPromptSubmit`/`Stop`) as an explicit invariant or Consistency Convention rule.
-3. **Minor cleanups:** Add `FR-8a` to frontmatter `binds`, name the 6 panel-invoked tools in `AD-9`, and note in `Deferred` (Light-theme parity) that `panel.html` and `generateStandaloneHtmlArtifact` must share theme tokens when implemented.
+### 1. Fixes the real divergence points for the level below (epics/stories) and misses none
+**PASS.**
+
+All cross-cutting divergence vectors across both the `v0.3.0` hardening wave (`R8`–`R12`) and the `v0.4.0` Cockpit HUD vNext wave (`OQ-5`, `AD-14`–`AD-17`) are locked:
+- **Layer & transport boundaries (`AD-1`–`AD-4`):** One file per runtime layer, downward-only imports (`mcp-server` and `hook-runner` -> `debrief-engine`), strict `stdout` framing isolation, and zero external dependencies (`node:` built-ins only).
+- **Concurrency & schema evolution (`AD-5`):** Atomic sibling temp-file (`vibe-debrief-state.<pid>.<timestamp>.tmp`) + `renameSync` prevents cross-process torn reads/writes between MCP and Hook invocations (`R9`), and `ensureDebriefEnriched` guarantees additive in-memory normalization of `v0.2.0`/`v0.3.0` snapshots into the `v0.4.0` Cockpit HUD schema (`OQ-5`).
+- **Dual-surface theme & diagram parity (`AD-6`, `AD-14`):** Both `assets/panel.html` and `generateStandaloneHtmlArtifact` consume the same CSS custom property tokens from `DESIGN.md` (`getComputedStyle(document.documentElement)`) and render the same 5-grammar `diagramSpec` (sync-aliased with `debrief.diagram`).
+- **Client-side X-Ray & transient state isolation (`AD-10`, `AD-15`):** Pre-packaged `xray.plain` and `xray.tech` payloads guarantee `< 16ms` local DOM toggles with zero RPC/LLM calls, and `renderPanelState` separates server-owned `panelState` from 8 transient UI state flags.
+- **Host messaging & Stage 2 fallback (`AD-9`, `AD-16`, `AD-17`):** All quick-reply chips (`waitingOnYou`), `Clarify`/`Distill` triggers, and Stage 2 visual plugin pop-outs (`excalidraw`, `visualize`, `vectorcraft`, `designcraft`) route through `ui/message`, with a mandatory zero-LLM fallback to `vibe_debrief_export_html` + `missing-banner` whenever a target plugin is not installed.
+
+### 2. Every AD's Rule is enforceable and actually prevents its stated divergence
+**PASS (with 2 non-blocking story-level watchpoints).**
+
+Every AD from `AD-1` through `AD-17` states a concrete, testable Rule that directly prevents its stated divergence:
+- `AD-1`–`AD-4`, `AD-6`, `AD-8` are statically verifiable via `node --test` and `scripts/check-version-sync.mjs`.
+- `AD-5` now enforces atomic temp-file + `renameSync` writes (`<= 50ms` budget `C6`), directly preventing multi-process state corruption (`R9`).
+- `AD-10` enforces semantic ARIA roles, `tabindex="0"`, keyboard handlers, and `prefers-reduced-motion: reduce` (`R11`).
+- `AD-11` and `AD-13` enforce never-crash hook execution, `agentPublishedThisTurn` preservation, `heuristicConfidence < 0.55` honest `unclear-box` fallback, and dynamic cheapest-model discovery (`discoverCheapestEnabledModels`).
+
+**Watchpoints for epic/story authors:**
+1. **[MEDIUM] Transitional contract between `R5`/`R8` (`v0.3.0`) and `AD-12` (`v0.4.0`) on `complexity.level` & `explainerScenes`:**
+   - Brownfield `assessWorkflowComplexity` (`scripts/debrief-engine.mjs:366`) returns `level: "complex" | "simple"`, and `R5` / `buildExplainerScenesIfComplex` gates `explainerScenes` to `level === "complex"` (returning `[]` on simple turns).
+   - `AD-12` introduces 3 levels (`"minimal"` | `"focused"` | `"complex"`) and pre-synthesizes deterministic `explainerScenes` on every non-minimal turn so `Visual` and `[Animate]` work without complexity lockout.
+   - **Mitigation for stories:** To ensure `v0.3.0` (`R8`) regression tests and `v0.4.0` (`AD-12`) coexist cleanly regardless of release slicing, keep `buildExplainerScenesIfComplex(debrief, complexity, force = false)` behavior unchanged for direct unit tests, drive the tiny-turn UI collapse from the boolean `debrief.minimalMode` field (already in the `OQ-5` JSON seed), and treat `"simple"` and `"focused"` as compatible non-complex synonyms in tests.
+2. **[LOW] MCP tool `inputSchema` widening in `scripts/mcp-server.mjs`:**
+   - Brownfield `TOOLS` definitions in `scripts/mcp-server.mjs` enforce `additionalProperties: false` on all 8 tools.
+   - `AD-17` passes `{ conceptSlug, targetPlugin }` to `vibe_debrief_export_html` (currently `properties: {}` at `scripts/mcp-server.mjs:450`), `gear-popover` (`AD-7`, `AD-13`) updates `language` and `preferredModel` (via `vibe_debrief_set_persona`), and `vibe_debrief_publish` accepts optional `OQ-5` fields (`verdict`, `waitingOnYou`, `diagramSpec`, `xray`, `concepts`, `microBlocks`). Stories implementing `AD-14`–`AD-17` must add these optional properties to `TOOLS[*].inputSchema.properties`.
+
+### 3. Nothing under Deferred could let two units built independently diverge
+**PASS.**
+
+All four previously deferred items that carried cross-unit divergence risk (`R8` `node:test` suite, `R9` atomic state writes, `R10` shared light-theme tokens, `R11` ARIA/keyboard, `R12` automated version sync) have been promoted into active ADs (`AD-5`, `AD-6`, `AD-8`, `AD-10`) and `Structural Seed`. The remaining four `Deferred` entries (`OQ-1` PO telemetry metric pick, `v0.3.0` vs `v0.4.0` release train sequencing, `COULD` enhancements, and single-user desktop deployment) carry zero cross-unit architectural divergence risk.
+
+### 4. AD-1..AD-13 IDs remained stable while AD-14..AD-17 extend the spine for Cockpit HUD vNext
+**PASS.**
+
+- `AD-1` through `AD-12` retain their exact original numbering and domain scopes.
+- `AD-13` occupies the turn-handoff / model-agnostic clarification slot.
+- `AD-14` (`Declarative Multi-Grammar Diagram Spec`), `AD-15` (`Dual-Coded X-Ray Payload & Composable Micro-Blocks`), `AD-16` (`5-State Waiting-On-You Radar & ui/message Action Dispatch`), and `AD-17` (`Two-Stage Concept Deep Dive Bridge & Mandatory Missing-Plugin HTML Fallback`) extend the spine for Cockpit HUD vNext without renumbering any upstream reference in `initiative-vibe-debrief.md`.
+
+### 5. Ratifies rather than contradicts the brownfield codebase
+**PASS (with 1 low-severity brownfield alignment note).**
+
+The spine accurately ratifies:
+- `scripts/debrief-engine.mjs`: All 21 existing functions/constants, file classification heuristics, STE-80 scoring (`40–99`, `STE-80` / `Clear` / `Dense`), collection caps (`15`/`15`/`50`), `ensureDebriefEnriched` pipeline, HTML payload `<` escaping (`\u003c`), ZCode memory path resolution (`~/.zcode/cli/memories/projects/<slug>/memory/` -> `<workspaceRoot>/.zcode/memory/`), and `~/.zcode/v2/` model discovery.
+- `scripts/mcp-server.mjs`: All 8 `vibe_debrief_*` tools, `protocolVersion: "2025-11-25"`, `ui://vibe-debrief/panel.html`, MIME `text/html;profile=mcp-app`, and `_meta["zcode/csp"].unsafeEval: false`.
+- `scripts/hook-runner.mjs`: All 4 lifecycle modes (`session-start`, `user-prompt`, `post-tool`, `stop`), `readStdinJson()`, `agentPublishedThisTurn` check, `synthesizeHeuristicDebrief`, and `tryOptionalAiDebriefSynthesis` (`AbortSignal.timeout(4500)`).
+- `assets/panel.html`: `PROTOCOL_VERSION = "2026-01-26"`, `15,000ms` `pendingRequests` timeout, `renderPanelState`, `applyHostTheme`, and `window.speechSynthesis`.
+
+**Minor brownfield note:**
+- **[LOW] Workspace root env var precedence in `scripts/hook-runner.mjs`:** Consistency Conventions (line 358) specifies `ZCODE_WORKSPACE_ROOT` -> `ZCODE_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> `process.cwd()` (with `payload.cwd` first in `hook-runner.mjs`). In brownfield `scripts/hook-runner.mjs:96-101`, `ZCODE_WORKSPACE_ROOT` is currently omitted between `payload.cwd` and `process.env.ZCODE_PROJECT_DIR`. Adding `process.env.ZCODE_WORKSPACE_ROOT` in `hook-runner.mjs` during the test/hardening wave will make both entrypoints 100% identical.
+
+### 6. Covers every requirement in the initiative ticket (`R1`-`R12`, `C1`-`C7`) and UX spines (`OQ-5`)
+**PASS — 100% traceability.**
+
+- **Frontmatter `binds:` (line 11):** Explicitly binds `R1`–`R12`, `C1`–`C7`, `FR-1`–`FR-28` (including `FR-8a`), `RULE-1`–`RULE-6`, and `OQ-5`.
+- **Capability -> Architecture Map (lines 497–527):** Maps every requirement (`R1`–`R12`, `FR-1`–`FR-28`, `FR-8a`, `OQ-5`) to concrete files, functions, and governing ADs.
+- **Canonical Data Contracts (`OQ-5` Schema Seed, lines 253–343):** Provides a concrete, copy-ready JSON contract for `panelState` and `currentDebrief` covering `verdict`, `minimalMode`, `heuristicConfidence`, `rawQuote`, `xray` (`plain` + `tech`), `waitingOnYou` (with `chips`), `diagramSpec` (5 grammars, `viewBoxWidth: 460`), `microBlocks` (`string[]` block keys), and `concepts` (`stage1` + `stage2Prompt`).
+
+### 7. Every dimension the altitude owns (including operational/environmental envelope) is decided, deferred, or an open question
+**PASS.**
+
+- **Runtime & dependency envelope:** Node.js `>= 20` ESM (`node:test`, built-in `fetch`), zero npm packages, single-file MCP App iframe (`unsafeEval: false`).
+- **Performance & concurrency budget:** Stop hook heuristic synthesis `<= 50ms` (`< 20ms` nominal, `C6`), atomic state write via temp-file + `renameSync` (`R9`), client-side X-Ray flip `< 16ms`, Stage 1 concept drawer `< 100ms`, optional AI synthesis timeout `4,500ms`, panel RPC timeout `15,000ms`.
+- **Failure & degradation envelope:** Read-only workspaces degrade silently; missing/corrupt state file seeds `createWelcomeDebrief`; unwritable `~/.zcode/cli/memories` falls back to `<workspaceRoot>/.zcode/memory/`; low heuristic confidence (`< 0.55`) renders `unclear-box` with model-agnostic `Clarify`; missing external Stage 2 visual plugins automatically fall back to the built-in Standalone HTML Explainer + `missing-banner`.
+- **Deployment & release sequencing:** Explicitly addressed in `Deferred`.
+
+---
+
+## Summary of Findings
+
+| ID | Severity | Location | Finding & Recommendation |
+| --- | --- | --- | --- |
+| **F-1** | **Medium** | `AD-12` vs. `R5`/`R8` (`scripts/debrief-engine.mjs:366, 713`) | `AD-12` evolves `assessWorkflowComplexity` to `"minimal" \| "focused" \| "complex"` and synthesizes `explainerScenes` on every non-minimal turn, whereas `R5`/`R8` (`v0.3.0`) tests `level: "simple" \| "complex"` and gates `explainerScenes` on `level === "complex"`. Keep `buildExplainerScenesIfComplex` intact for `R8` unit tests and drive tiny-turn collapse from `debrief.minimalMode` so `v0.3.0` and `v0.4.0` tests do not conflict. |
+| **F-2** | **Low** | `AD-15`, `AD-17` vs. `scripts/mcp-server.mjs:193-504` | Brownfield `TOOLS` schemas specify `additionalProperties: false` (`vibe_debrief_export_html` currently has `properties: {}`). Stories implementing `AD-14`–`AD-17` must widen `inputSchema.properties` on `vibe_debrief_export_html` (`conceptSlug`, `targetPlugin`), `vibe_debrief_set_persona` (`language`, `preferredModel`), and `vibe_debrief_publish` (optional `OQ-5` fields). |
+| **F-3** | **Low** | Consistency Conventions (line 358) vs. `scripts/hook-runner.mjs:96-101` | Consistency Conventions states workspace root resolves `ZCODE_WORKSPACE_ROOT` -> `ZCODE_PROJECT_DIR` -> `CLAUDE_PROJECT_DIR` -> `process.cwd()` (after `payload.cwd` in `hook-runner.mjs`), but brownfield `hook-runner.mjs` currently omits `process.env.ZCODE_WORKSPACE_ROOT`. Add `process.env.ZCODE_WORKSPACE_ROOT` to `hook-runner.mjs` during `R8` transport tests. |

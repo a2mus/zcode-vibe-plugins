@@ -1,0 +1,57 @@
+# Epic 7: Two-stage concept deep dive, fallback HTML & v0.4.0 release — story breakdown.
+# Table order is build order. `id` is permanent, never reused.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Concept pills & <100ms Stage 1 inline micro-drawer tracer"
+description = "Builds on Epic 4's ARIA/Escape conventions (4.1, 4.2), Epic 5's concepts OQ-5 enrichment (5.1), and Epic 6's microBlocks slot registry, transient renderPanelState state, and refactor sweep (6.1, 6.2, 6.7) to render clickable concept-pills (<= 6) and the <100ms inline stage1-drawer (target-tag, STE-80 definition, analogy, 104px micro-canvas/SVG for loop-3node/pipeline-3node/split-compare across Dark HUD and Field Desk Light, Deep Dive & Pop Out CTA) with zero RPC calls and node:test checks. Hands off stage1-drawer and activeConceptSlug state to stories 2 and 3."
+verify = "Run `node --test tests/` and click a concept-pill in the panel to see stage1-drawer open in < 100ms with its 104px micro-visual in both themes and collapse cleanly on Escape or re-click with zero RPCs."
+covers = ["R1"]
+after = ["4.1", "4.2", "5.1", "6.1", "6.2", "6.7"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Stage 2 Pop-Out routing for installed external visual plugins"
+description = "Builds on Story 1's stage1-drawer CTA, Epic 5's installedVisualPlugins discovery (5.3), and Epic 6's powerup-dock triggers and ui/message helper (6.2, 6.4) to route Deep Dive & Pop Out and powerup-dock clicks (conceptSlug: null) via structured ui/message (diagramSpec, stage2 summary, stage2Prompt) with hud-toast confirmation when the target plugin is installed and node:test assertions. Hands off the Stage 2 installed/missing branch point to Story 3."
+verify = "Run `node --test tests/` and confirm Deep Dive & Pop Out and powerup-dock clicks emit valid ui/message payloads and hud-toast confirmation when installedVisualPlugins contains the target plugin."
+covers = ["R2"]
+after = [1, "5.3", "6.2", "6.4"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Mandatory 3-column Stage 2 HTML fallback & persistent missing-banner"
+description = "Builds on Story 1's activeConceptSlug state, Story 2's Stage 2 branch point, Epic 5's widened export_html contract (5.5), and Epic 6's shared HTML export template (6.6) to render stage2-popout (3-column How It Works / Key Trade-off / In Your Codebase cards, using concept stage2 or debrief fallback when conceptSlug is null, floating telemetry pill, missing-banner) in generateStandaloneHtmlArtifact and preserve transient missingPluginFallback + Escape/ARIA + missing-banner + Install CTA across tool-result pushes with node:test checks. Hands off complete Stage 1/2 fallback behavior to stories 4 and 5."
+verify = "Run `node --test tests/` and trigger Deep Dive & Pop Out on an uninstalled plugin to confirm vibe_debrief_export_html produces the 3-column Stage 2 HTML and missing-banner + Install CTA survive tool-result pushes."
+covers = ["R3"]
+after = [1, 2, "5.5", "6.6"]
+hitl = false
+risk = "high"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Refactor sweep"
+description = "Builds on Stories 1-3 to perform a cleanup-only pass across panel UI, Core Engine export code, and tests/ resolving deferred plan and review findings without altering behavior. Hands off the clean Epic 7 codebase to Story 5."
+verify = "Run `node --check scripts/*.mjs` and `node --test tests/` and confirm zero regressions."
+covers = ["R1", "R2", "R3"]
+after = [1, 2, 3]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 5
+type = "story"
+title = "End-to-end Cockpit HUD suite & v0.4.0 4-file version stamp"
+description = "Builds on Epic 1's test harness (1.3, 1.4), Epic 4's check-version-sync.mjs (4.3), Epic 5's refactor sweep (5.6), and Stories 1-4 to verify UJ-1..UJ-4 end-to-end (10s Radar, Waiting On You, X-Ray, 5-grammar SVG, Anytime Tour, Minimal Mode, Clarify, Stage 1/2 installed + fallback, MEMORY.md persistence, v0.2.0/v0.3.0 snapshot compatibility) and stamp 0.4.0 across .zcode-plugin/plugin.json, scripts/mcp-server.mjs, assets/panel.html, and scripts/hook-runner.mjs."
+verify = "Run `node --test tests/` and `node scripts/check-version-sync.mjs` and confirm both exit 0 with all 4 version locations reporting 0.4.0 and all UJ-1..UJ-4 end-to-end tests green."
+covers = ["R4"]
+after = ["1.3", "1.4", "4.3", "5.6", 1, 2, 3, 4]
+hitl = false
+risk = "high"

@@ -1,18 +1,18 @@
-# v0.3.0 hardening wave — epic set, in build order.
+# Wave 1 (v0.3.0 hardening) + Wave 2 (v0.4.0 Cockpit HUD vNext) — epic set, in build order.
 # Table order is build order. `id` is permanent, never reused.
 
 [[epic]]
 id = 1
 slug = "epic-test-suite"
 title = "Zero-dependency test suite"
-description = "`node --test tests/` runs green on Node >= 20 with one command and is the recorded verification gate for engine, state, export and transport behavior. It hands off the spawned-process harness and temp-workspace fixtures to epics 2-4, and the diagram/export regression tests to epic 3."
+description = "`node --test tests/` runs green on Node >= 20 with one command and is the recorded verification gate for engine, state, export and transport behavior. Hands off the spawned-process harness and temp-workspace fixtures to epics 2-7, and the diagram/export regression tests to epic 3."
 covers = ["R8"]
 
 [[epic]]
 id = 2
 slug = "epic-atomic-state"
 title = "Atomic state writes"
-description = "Concurrent MCP and hook processes never leave a torn or partial state file; a write lands whole or the previous state survives, with Stop-hook latency at or under 50ms. It hands off the finished write path in scripts/debrief-engine.mjs."
+description = "Builds on Epic 1's spawned-process harness and temp-workspace fixtures so concurrent MCP and hook processes never leave a torn or partial state file; a write lands whole or the previous state survives, with Stop-hook latency at or under 50ms. Hands off the finished atomic write path in scripts/debrief-engine.mjs to epics 3-5."
 covers = ["R9"]
 after = [{ epic = 1, needs = "the spawned-process harness and temp-workspace fixtures" }]
 
@@ -20,7 +20,7 @@ after = [{ epic = 1, needs = "the spawned-process harness and temp-workspace fix
 id = 3
 slug = "epic-theme-parity"
 title = "Light-theme parity"
-description = "One theme-token contract drives the panel SVG diagram, the Canvas explainer and the standalone export, so both themes render legibly. It hands off the final panel markup and the theme-token contract."
+description = "Builds on Epic 1's diagram/export regression tests and Epic 2's finished write path in scripts/debrief-engine.mjs so one theme-token contract drives the panel SVG diagram, Canvas explainer and standalone HTML export legibly in light and dark themes. Hands off the final v0.3.0 panel markup, shared generateStandaloneHtmlArtifact baseline, and theme-token contract to epics 4-6."
 covers = ["R10"]
 after = [
   { epic = 1, needs = "the diagram and export regression tests" },
@@ -30,11 +30,50 @@ after = [
 [[epic]]
 id = 4
 slug = "epic-panel-a11y"
-title = "Keyboard and assistive-tech panel"
-description = "The panel works by keyboard alone, announces changes to assistive technology, honors reduced motion, and ships as v0.3.0 with all four version locations synced, checked by scripts/check-version-sync.mjs and the full suite."
+title = "Keyboard and assistive-tech panel (v0.3.0 release)"
+description = "Builds on Epic 1's test suite, Epic 2's shipped atomic write path, and Epic 3's panel markup and theme-token contract so the panel works by keyboard alone, announces changes to assistive technology, honors reduced motion, and ships as v0.3.0 with all four version locations synced. Hands off the v0.3.0 baseline, ARIA/keyboard/reduced-motion baseline in assets/panel.html, and scripts/check-version-sync.mjs gate to epics 5-7."
 covers = ["R11", "R12"]
 after = [
   { epic = 1, needs = "the suite the release gate runs" },
   { epic = 2, needs = "the shipped atomic write path" },
   { epic = 3, needs = "the final panel markup and theme token contract" }
+]
+
+[[epic]]
+id = 5
+slug = "epic-cockpit-contract"
+title = "Cockpit HUD OQ-5 engine, MCP & hook contract"
+description = "Builds on Epic 1's test harnesses, Epic 2's atomic savePersistedState path, Epic 3's generateStandaloneHtmlArtifact baseline, and Epic 4's v0.3.0 release and check-version-sync.mjs baseline. Delivers additive OQ-5 schema enrichment (verdict, waitingOnYou, choices, xray, diagramSpec, microBlocks, concepts, minimalMode, heuristicConfidence, rawQuote), installedVisualPlugins discovery, widened publish/set_persona/export_html MCP schemas, SKILL.md OQ-5 hints, and the backend half of R17 (discoverCheapestEnabledModels, heuristicConfidence < 0.55 rawQuote, Clarify/Distill UserPromptSubmit delegation). Hands off the frozen OQ-5 payload contract, widened MCP tools, Clarify hook wiring, and installedVisualPlugins/export_html contract to epics 6 and 7."
+covers = ["R13", "R17"]
+after = [
+  { epic = 1, needs = "the node:test engine, MCP, and hook test harnesses" },
+  { epic = 2, needs = "the atomic savePersistedState write path in scripts/debrief-engine.mjs" },
+  { epic = 3, needs = "the updated generateStandaloneHtmlArtifact baseline in scripts/debrief-engine.mjs" },
+  { epic = 4, needs = "the v0.3.0 release baseline and check-version-sync.mjs gate" }
+]
+
+[[epic]]
+id = 6
+slug = "epic-cockpit-hud-core"
+title = "Cockpit HUD shell, 10s Radar, X-Ray & 5-grammar visuals"
+description = "Builds on Epic 1's test suite, Epic 3's shared theme tokens and generateStandaloneHtmlArtifact baseline, Epic 4's ARIA/keyboard/reduced-motion baseline in assets/panel.html, and Epic 5's frozen OQ-5 contract, widened MCP schemas, and Clarify hook delegation. Delivers the 1-strip header, gear-popover, 10s Radar with 5-state Waiting On You ui/message chips, <16ms client-side X-Ray Plain (STE-80 in state.language) <-> Tech swap, composable microBlocks, 5-grammar inline SVG with kinetic dash-flow, Anytime Visual tour + Minimal Mode strip, and the UI half of R17 (unclear-box, Show Raw Reply, Clarify ui/message trigger) across Dark HUD and Field Desk Light. Hands off the 1-strip Cockpit HUD layout, microBlocks renderer, and shared HTML export template to epic 7."
+covers = ["R14", "R15", "R16", "R17"]
+after = [
+  { epic = 1, needs = "the node:test verification suite" },
+  { epic = 3, needs = "the shared Dark HUD and Field Desk Light theme-token contract and generateStandaloneHtmlArtifact baseline" },
+  { epic = 4, needs = "the ARIA, keyboard, and prefers-reduced-motion baseline in assets/panel.html" },
+  { epic = 5, needs = "the frozen OQ-5 payload contract, widened MCP schemas, and Clarify hook delegation" }
+]
+
+[[epic]]
+id = 7
+slug = "epic-concept-deep-dive"
+title = "Two-stage concept deep dive, fallback HTML & v0.4.0 release"
+description = "Builds on Epic 1's test suite, Epic 4's scripts/check-version-sync.mjs, Epic 5's installedVisualPlugins discovery and conceptSlug/targetPlugin export_html contract, and Epic 6's 1-strip Cockpit HUD layout, microBlocks renderer, and shared HTML export template. Delivers clickable concept-pills opening the <100ms inline stage1-drawer (STE-80 definition, analogy, 104px micro-visual), Stage 2 Pop-Out routing installedVisualPlugins via ui/message or triggering vibe_debrief_export_html rendering the 3-column Stage 2 HTML fallback + persistent missing-banner, and stamps Wave 2 as v0.4.0 across all four version locations verified by the full suite."
+covers = ["R18"]
+after = [
+  { epic = 1, needs = "the node:test verification suite" },
+  { epic = 4, needs = "scripts/check-version-sync.mjs for the v0.4.0 stamp" },
+  { epic = 5, needs = "installedVisualPlugins discovery and conceptSlug/targetPlugin export_html contract" },
+  { epic = 6, needs = "the 1-strip Cockpit HUD layout, microBlocks renderer, and shared HTML export template" }
 ]

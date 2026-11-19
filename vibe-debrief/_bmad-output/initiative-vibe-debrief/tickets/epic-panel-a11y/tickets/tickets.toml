@@ -1,0 +1,35 @@
+# Epic 4: Keyboard and assistive-tech panel (v0.3.0 release) — story breakdown.
+# Table order is build order. `id` is permanent, never reused.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Panel ARIA landmarks, live regions, focus rings & tab keyboard navigation tracer"
+description = "Builds on Epic 1's test harness (1.1, 1.4) and Epic 3's themed panel markup (3.1, 3.2) to add semantic ARIA landmarks and states (tablist/tab/tabpanel roles, aria-selected, aria-pressed on toggle controls, polite live regions on toast and node inspector updates), >=3:1 :focus-visible outlines, ArrowLeft/ArrowRight tab/scene-pill navigation, and Escape dismissing the inline lesson form with node:test checks; hands off the ARIA landmark and keyboard focus baseline to Stories 2-3 and Epics 6-7."
+verify = "Run `node --test tests/` and navigate the panel header, mode/persona toggles, tabs, and inline lesson form by keyboard (Tab, ArrowLeft/ArrowRight, Enter/Space, Escape) to confirm visible focus rings and ARIA state updates."
+covers = ["R1"]
+after = ["1.1", "1.4", "3.1", "3.2"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Keyboard-operable SVG nodes, history rows & prefers-reduced-motion support"
+description = "Builds on Story 1's ARIA and focus-ring baseline to add tabindex='0', role='button', escaped aria-label attributes, and Enter/Space keyboard handlers to SVG diagram nodes, turn history rows, and complexity triggers, and honor prefers-reduced-motion: reduce across CSS transitions and the Canvas explainer loop (rendering static highlighted scene frames instead of continuous rAF pulsing) with node:test checks; hands off the fully accessible v0.3.0 panel baseline to Story 3 and Epics 6-7."
+verify = "Run `node --test tests/` and press Tab + Enter/Space across SVG diagram nodes and history rows with prefers-reduced-motion enabled to confirm node inspection, turn loading, and static Canvas scene rendering."
+covers = ["R2"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+type = "story"
+title = "4-file version sync verifier (check-version-sync.mjs) & v0.3.0 release stamp"
+description = "Builds on Epic 1's transport test suite (1.3, 1.4), Epic 2's atomic state race suite (2.2), Epic 3's theme parity (3.2), and Stories 1-2 to create zero-dependency scripts/check-version-sync.mjs verifying .zcode-plugin/plugin.json, scripts/mcp-server.mjs, assets/panel.html, and scripts/hook-runner.mjs declare identical versions, wire it into the node:test suite, and stamp all 4 version locations to 0.3.0; hands off the v0.3.0 release baseline and check-version-sync.mjs gate to Epics 5, 6, and 7."
+verify = "Run `node scripts/check-version-sync.mjs` and `node --test tests/` and confirm both exit 0 with all 4 version locations synced to 0.3.0."
+covers = ["R3"]
+after = ["1.3", "1.4", "2.2", "3.2", 1, 2]
+hitl = false
+risk = "medium"

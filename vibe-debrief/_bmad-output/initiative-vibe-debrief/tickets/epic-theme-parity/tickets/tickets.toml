@@ -1,0 +1,24 @@
+# Epic 3: Light-theme parity — story breakdown.
+# Table order is build order. `id` is permanent, never reused.
+
+[[entry]]
+id = 1
+type = "story"
+title = "Shared Dark HUD & Field Desk Light CSS tokens & panel SVG diagram parity tracer"
+description = "Builds on Epic 1's test harness and diagram/export suite (1.1, 1.2, 1.4) to align the panel's Dark HUD (:root) and Field Desk Light (body.theme-light / html[data-theme='light']) CSS custom properties with DESIGN.md, refactor the panel SVG diagram renderer to use resolved CSS tokens instead of hardcoded dark hexes, and re-render visuals on host-context-changed with node:test theme-token checks; hands off the panel theme-token resolver to Story 2 and Epics 4 and 6."
+verify = "Run `node --test tests/` and switch host theme between dark and light in the panel to confirm SVG diagram nodes, edges, and labels render with legible theme-resolved tokens and zero hardcoded dark-only fills."
+covers = ["R1"]
+after = ["1.1", "1.2", "1.4"]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Panel Canvas explainer & standalone HTML export light/dark theme parity"
+description = "Builds on Story 1's panel theme-token resolver, Epic 1's export regression tests (1.2), and Epic 2's completed engine write path (2.1, 2.2) to drive the panel Canvas explainer and standalone HTML export generator from resolved Dark HUD and @media (prefers-color-scheme: light) Field Desk Light tokens with \\u003c escaping and node:test assertions; hands off the final v0.3.0 themed panel markup and standalone HTML export baseline to Epics 4, 5, and 6."
+verify = "Run `node --test tests/` and inspect both the panel Canvas explainer and an exported HTML artifact in light and dark modes to confirm @media (prefers-color-scheme: light) parity and theme-resolved SVG/Canvas rendering."
+covers = ["R2"]
+after = [1, "1.2", "2.1", "2.2"]
+hitl = false
+risk = "medium"
