@@ -11,6 +11,7 @@ export const ENGINE_PATH = join(REPO_ROOT, "scripts", "bmad-engine.mjs");
 export const MCP_SERVER_PATH = join(REPO_ROOT, "scripts", "mcp-server.mjs");
 export const HOOK_RUNNER_PATH = join(REPO_ROOT, "scripts", "hook-runner.mjs");
 export const PANEL_HTML_PATH = join(REPO_ROOT, "assets", "panel.html");
+export const CHECK_VERSION_SYNC_PATH = join(REPO_ROOT, "scripts", "check-version-sync.mjs");
 
 /**
  * Create a disposable temp workspace with file helpers and rmSync cleanup.
