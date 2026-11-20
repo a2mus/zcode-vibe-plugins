@@ -1,23 +1,43 @@
 ---
-title: "node:test harness + temp-workspace fixture tracer"
+title: 'node:test harness + temp-workspace fixture tracer'
+type: feature
 ticket: 1
-status: blocked
-blocked_at: "2026-11-19"
-blocked_reason: "dirty working tree: commit or stash before re-running. Modified: bmad-companion/assets/panel.html, scripts/bmad-engine.mjs, scripts/hook-runner.mjs, scripts/mcp-server.mjs, skills/bmad-companion/SKILL.md (plus sibling vibe-debrief files). Untracked: bmad-companion/_bmad/ and _bmad-output/ artifacts."
+created: '2026-11-20'
+status: built
+baseline_revision: '72f7ca385cf61ea8159fb0daa9b0e0a0276a7043'
+route: oneshot
+route_source: pinned
+risk: low
+review: none
+review_source: pinned
+lenses_ran: []
+review_loop_iteration: 0
+context: []
 ---
 
-## Auto Run Result
+<frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
 
-Status: blocked
-Blocking condition: dirty working tree (step-01 version-control sanity check).
+## Intent
 
-Run details (2026-11-19, route: oneshot, review: none):
+**Problem:** `bmad-companion` currently has no automated test suite (`AGENTS.md` notes only manual `node --check` and stdio checks), leaving `scanBmadWorkspace` and future epic verification without a repeatable zero-dependency test harness or temp-workspace fixture helper.
 
-- BMAD runtime was missing in this project; first-time setup completed (`_bmad/` created, modules core-tools/founder/method/toolsmith all current at 6.13.0-next; founder `record_folder` answered with default `{project-root}/company`).
-- Ticket 1.1 resolved via `tickets.py find` in `epic-verification-harness`; epic read in full; no prior run folders or `after` plans to carry forward.
-- `git add --refresh -- .` succeeded (metadata writable) but the tree is not clean: repo root is `D:/Developpement/Projets/Zcode plugins`, branch `main`.
-  - Modified (tracked): `bmad-companion/assets/panel.html`, `bmad-companion/scripts/bmad-engine.mjs`, `bmad-companion/scripts/hook-runner.mjs`, `bmad-companion/scripts/mcp-server.mjs`, `bmad-companion/skills/bmad-companion/SKILL.md`, plus sibling `vibe-debrief/` files.
-  - Untracked: `bmad-companion/_bmad/`, `bmad-companion/_bmad-output/initiative-bmad-companion/`, `bmad-companion/_bmad-output/planning-artifacts/prd-bmad-companion/`, `bmad-companion/_bmad-output/planning-artifacts/ux-bmad-companion/`, plus sibling `vibe-debrief/` plans and tests.
-- No implementation was started; no runtime files were touched by this run.
+**Approach:** Stand up `tests/` using Node's built-in `node:test` and `node:assert/strict` (zero `package.json` or npm dependencies), provide a reusable temp-workspace fixture helper in `tests/helpers.mjs` that seeds `_bmad-output/`, `sprint-status.yaml`, `tickets.toml`, and story plans with cleanup, and add a `scanBmadWorkspace` smoke test proving the fixture -> engine import -> `ScanResult` (`metrics`, `phases`, `epics`, `artifacts`) tracer path.
 
-To unblock: commit or stash the pending changes (the modified runtime files are the very files the harness will test, so the suite needs a committed baseline), then re-invoke `/bmad-build-auto` for ticket 1.1. The plan keeps its `blocked` status until re-dispatched.
+</frozen-after-approval>
+
+## Implementation Notes
+
+- Route `oneshot` was pinned by invocation (`route: oneshot`) and fits this low-risk tracer bullet: it adds new isolated files under `tests/` without modifying any production `scripts/*.mjs` or `assets/panel.html` code.
+- Created `tests/helpers.mjs` (`createTempWorkspace`, `seedBmadWorkspace`, `REPO_ROOT`, script path constants) and `tests/engine-smoke.test.mjs` (`node:test` + `node:assert/strict` covering zero-`package.json` policy, v7 initiative + `tickets.toml` + `sprint-status.yaml` + story plan scan, and v6 `sprint-status.yaml` fallback).
+- Observation during test run: `normalizeStatus("built")` in `scripts/bmad-engine.mjs` currently maps `"built"` to `"backlog"`, whereas `"done"` maps to `"done"` and triggers smart reconciliation; seeded `story-seed-fixture-plan.md` with `status: done` without altering runtime `scripts/bmad-engine.mjs` (deferred to `epic-dual-progress-reconciliation`).
+- Verification: `node --test tests/` passed (3/3 tests, 0 failures) and `node --check` passed on `scripts/bmad-engine.mjs`, `scripts/mcp-server.mjs`, and `scripts/hook-runner.mjs`.
+
+## Plan Change Log
+
+## Review Triage Log
+
+## Verification
+
+**Commands:**
+- `node --test tests/` -- expected: all tests pass with exit code 0 on Node 18+ with zero npm dependencies (`package.json` absent), confirming `scanBmadWorkspace` returns valid `metrics`, `phases`, `epics`, and `artifacts` keys from a seeded temp workspace.
+- `node --check scripts/bmad-engine.mjs && node --check scripts/mcp-server.mjs && node --check scripts/hook-runner.mjs` -- expected: syntax checks pass with exit code 0.
