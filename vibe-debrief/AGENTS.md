@@ -31,16 +31,19 @@ Repository context and engineering guardrails for AI agents working on **vibe-de
 
 ## 3. Verified Build, Syntax & Smoke-Test Commands
 
-There is no bundler, compiler, or automated test suite (`package.json` is intentionally absent). Verify every edit to `.mjs` files or MCP/hook wiring with the following commands:
+There is no bundler or compiler, and `package.json` is intentionally absent. The zero-dependency `node:test` suite uses only `node:` built-ins. Verify every edit to `.mjs` files or MCP/hook wiring with the following commands:
 
 ```bash
-# 1. Verify ES module syntax across all backend scripts (verified: exits 0)
+# 1. Run the zero-dependency test suite (engine units, fixtures, MCP/hook transport)
+node --test tests/
+
+# 2. Verify ES module syntax across all backend scripts (verified: exits 0)
 node --check scripts/debrief-engine.mjs && node --check scripts/mcp-server.mjs && node --check scripts/hook-runner.mjs
 
-# 2. Smoke-test MCP server JSON-RPC handshake, tool registration, and UI resource (verified)
+# 3. Smoke-test MCP server JSON-RPC handshake, tool registration, and UI resource (verified)
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n{"jsonrpc":"2.0","id":3,"method":"resources/list","params":{}}\n' | node scripts/mcp-server.mjs
 
-# 3. Smoke-test lifecycle hook runner in session-start mode (verified)
+# 4. Smoke-test lifecycle hook runner in session-start mode (verified)
 echo '{}' | node scripts/hook-runner.mjs session-start
 ```
 

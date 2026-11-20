@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, extname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -1177,7 +1177,16 @@ export function loadPersistedState(workspaceRoot) {
     turnCount: 0,
     agentAdvisorOverride: null,
     storyOverrides: {},
-    lastLaunchedSession: null
+    lastLaunchedSession: null,
+    taskQueue: {
+      status: "idle",
+      executionMode: "dynamic-workflow",
+      defaultReviewMode: "none",
+      activeTaskId: null,
+      workflowPath: null,
+      updatedAt: null,
+      items: []
+    }
   };
 }
 
@@ -1190,17 +1199,39 @@ export function savePersistedState(workspaceRoot, partial) {
       ...(current.storyOverrides || {}),
       ...(partial.storyOverrides || {})
     },
+    taskQueue: partial.taskQueue
+      ? {
+          ...(current.taskQueue || {}),
+          ...partial.taskQueue
+        }
+      : current.taskQueue || {
+          status: "idle",
+          executionMode: "dynamic-workflow",
+          defaultReviewMode: "none",
+          activeTaskId: null,
+          workflowPath: null,
+          updatedAt: null,
+          items: []
+        },
     updatedAt: new Date().toISOString()
   };
   const file = getStateFilePath(workspaceRoot);
-  writeFileSync(file, JSON.stringify(merged, null, 2), "utf8");
+  const json = JSON.stringify(merged, null, 2);
+  const tmpFile = `${file}.tmp.${process.pid}.${Date.now()}`;
+  try {
+    writeFileSync(tmpFile, json, "utf8");
+    renameSync(tmpFile, file);
+  } catch {
+    try { unlinkSync(tmpFile); } catch {}
+    writeFileSync(file, json, "utf8");
+  }
   return merged;
 }
 
 export function scanBmadWorkspace(workspaceRoot) {
   const bmadOutputDir = join(workspaceRoot, "_bmad-output");
   const docsDir = join(workspaceRoot, "docs");
-  const outputFiles = walkFiles(bmadOutputDir, workspaceRoot, 4);
+  const outputFiles = walkFiles(bmadOutputDir, workspaceRoot, 6);
   const docFiles = walkFiles(docsDir, workspaceRoot, 3);
   const git = runGitInfo(workspaceRoot);
   const persisted = loadPersistedState(workspaceRoot);
@@ -1237,7 +1268,11 @@ export function scanBmadWorkspace(workspaceRoot) {
     const initMdPath = join(initPath, `${initDir.name}.md`);
     const initMd = safeReadText(initMdPath);
     const initMeta = parseFrontmatter(initMd);
-    const initTicketsToml = safeReadText(join(initPath, "tickets.toml"));
+    const nestedTicketsDir = join(initPath, "tickets");
+    const initTicketsTomlPath = existsSync(join(nestedTicketsDir, "tickets.toml"))
+      ? join(nestedTicketsDir, "tickets.toml")
+      : join(initPath, "tickets.toml");
+    const initTicketsToml = safeReadText(initTicketsTomlPath);
     const tomlEpics = parseTomlBlocks(initTicketsToml, "epic");
 
     const initObj = {
@@ -1251,7 +1286,13 @@ export function scanBmadWorkspace(workspaceRoot) {
     };
 
     const subEntries = readdirSync(initPath, { withFileTypes: true });
-    const epicDirs = subEntries.filter((e) => e.isDirectory() && e.name.startsWith("epic-"));
+    const nestedEntries = existsSync(nestedTicketsDir)
+      ? readdirSync(nestedTicketsDir, { withFileTypes: true })
+      : [];
+    const epicDirs = [
+      ...subEntries.filter((e) => e.isDirectory() && e.name.startsWith("epic-")),
+      ...nestedEntries.filter((e) => e.isDirectory() && e.name.startsWith("epic-"))
+    ];
 
     if (tomlEpics.length > 0 || epicDirs.length > 0) {
       const seenSlugs = new Set();
@@ -1267,6 +1308,7 @@ export function scanBmadWorkspace(workspaceRoot) {
       }
       for (const ed of epicDirs) {
         if (!seenSlugs.has(ed.name)) {
+          seenSlugs.add(ed.name);
           orderedEpicSpecs.push({
             num: orderedEpicSpecs.length + 1,
             slug: ed.name,
@@ -1276,8 +1318,14 @@ export function scanBmadWorkspace(workspaceRoot) {
         }
       }
 
+      const initPlanFiles = subEntries
+        .filter((e) => e.isFile() && (e.name.startsWith("plan-") || e.name.startsWith("story-")) && e.name.endsWith(".md"))
+        .map((e) => ({ dir: initPath, name: e.name }));
+
       for (const spec of orderedEpicSpecs) {
-        const epicFolder = join(initPath, spec.slug);
+        const epicFolder = existsSync(join(nestedTicketsDir, spec.slug))
+          ? join(nestedTicketsDir, spec.slug)
+          : join(initPath, spec.slug);
         const epicMdFile = join(epicFolder, `${spec.slug}.md`);
         const epicMd = safeReadText(epicMdFile);
         const epicMeta = parseFrontmatter(epicMd);
@@ -1289,11 +1337,25 @@ export function scanBmadWorkspace(workspaceRoot) {
         );
         const hasRetrospective = Boolean(retroInFolder || retroInInit);
 
-        const epicTickets = safeReadText(join(epicFolder, "tickets.toml"));
+        const epicTicketsPath = existsSync(join(epicFolder, "tickets", "tickets.toml"))
+          ? join(epicFolder, "tickets", "tickets.toml")
+          : join(epicFolder, "tickets.toml");
+        const epicTickets = safeReadText(epicTicketsPath);
         const tomlEntries = parseTomlBlocks(epicTickets, "entry");
-        const storyPlanFiles = existsSync(epicFolder)
-          ? readdirSync(epicFolder).filter((n) => n.startsWith("story-") && n.endsWith(".md"))
-          : [];
+        const epicTicketsDir = join(epicFolder, "tickets");
+        const folderPlanFiles = [
+          ...(existsSync(epicFolder)
+            ? readdirSync(epicFolder)
+                .filter((n) => (n.startsWith("story-") || n.startsWith("plan-")) && n.endsWith(".md"))
+                .map((n) => ({ dir: epicFolder, name: n }))
+            : []),
+          ...(existsSync(epicTicketsDir)
+            ? readdirSync(epicTicketsDir)
+                .filter((n) => (n.startsWith("story-") || n.startsWith("plan-")) && n.endsWith(".md"))
+                .map((n) => ({ dir: epicTicketsDir, name: n }))
+            : [])
+        ];
+        const storyPlanCandidates = [...folderPlanFiles, ...initPlanFiles];
 
         const epicStories = [];
         const matchedPlanFiles = new Set();
@@ -1303,14 +1365,20 @@ export function scanBmadWorkspace(workspaceRoot) {
           const trackerRaw = entry.status || sprintStatusMap[v6Key] || "backlog";
           const declaredStatus = normalizeStatus(trackerRaw);
 
-          const planFile = storyPlanFiles.find((pf) => {
-            const text = safeReadText(join(epicFolder, pf), 1500);
+          const planCandidate = storyPlanCandidates.find((pf) => {
+            const text = safeReadText(join(pf.dir, pf.name), 1500);
             const fm = parseFrontmatter(text);
-            return Number(fm.ticket) === Number(entry.id) || (v6Key && pf.includes(v6Key.slice(2, 16)));
+            const containerStr = String(fm.container || "");
+            const matchesContainer = !containerStr || containerStr.endsWith(spec.slug);
+            return (
+              (matchesContainer && Number(fm.ticket) === Number(entry.id)) ||
+              pf.name.startsWith(`plan-${spec.num}-${entry.id}-`) ||
+              (v6Key && pf.name.includes(v6Key.slice(2, 16)))
+            );
           });
-          if (planFile) matchedPlanFiles.add(planFile);
+          if (planCandidate) matchedPlanFiles.add(`${planCandidate.dir}::${planCandidate.name}`);
 
-          const planMeta = planFile ? parseFrontmatter(safeReadText(join(epicFolder, planFile), 2000)) : {};
+          const planMeta = planCandidate ? parseFrontmatter(safeReadText(join(planCandidate.dir, planCandidate.name), 2000)) : {};
           const planStatus = planMeta.status ? normalizeStatus(planMeta.status) : null;
 
           let smartStatus = planStatus || declaredStatus;
@@ -1322,17 +1390,17 @@ export function scanBmadWorkspace(workspaceRoot) {
             smartStatus = normalizeStatus(persisted.storyOverrides[overrideKey].status);
             smartEvidence = persisted.storyOverrides[overrideKey].reason || "Updated by BMAD AI Companion";
             aiReconciled = true;
-          } else if (declaredStatus !== "done" && planStatus === "done") {
+          } else if (declaredStatus !== "done" && (planStatus === "done" || planStatus === "built")) {
             smartStatus = "done";
-            smartEvidence = `Marked '${trackerRaw}' in sprint-status.yaml, but story plan (${planFile}) and epic status confirm 'done'.`;
+            smartEvidence = `Story plan (${planCandidate.name}) confirms '${planMeta.status}'.`;
             aiReconciled = true;
           } else if (declaredStatus !== "done" && normalizeStatus(epicMeta.status) === "done" && hasRetrospective) {
             smartStatus = "done";
-            smartEvidence = `Marked '${trackerRaw}' in sprint-status.yaml, but parent epic is 'done' with completed retrospective.`;
+            smartEvidence = `Marked '${trackerRaw}' in tracker, but parent epic is 'done' with completed retrospective.`;
             aiReconciled = true;
           }
 
-          const targetSkill = smartStatus === "done" ? "/bmad-code-review" : "/bmad-build";
+          const targetSkill = smartStatus === "done" ? "/bmad-code-review" : "/bmad-build-auto";
           const storyObj = {
             id: `${spec.num}.${entry.id}`,
             key: v6Key,
@@ -1347,25 +1415,25 @@ export function scanBmadWorkspace(workspaceRoot) {
             smartStatus,
             aiReconciled,
             smartEvidence,
-            planPath: planFile ? relative(workspaceRoot, join(epicFolder, planFile)).replace(/\\/g, "/") : null,
+            planPath: planCandidate ? relative(workspaceRoot, join(planCandidate.dir, planCandidate.name)).replace(/\\/g, "/") : null,
             recommendedModel: recommendModelForBmadSkill(targetSkill, availableModels)
           };
           epicStories.push(storyObj);
           allStories.push(storyObj);
         }
 
-        for (const pf of storyPlanFiles) {
-          if (matchedPlanFiles.has(pf)) continue;
-          const fm = parseFrontmatter(safeReadText(join(epicFolder, pf), 2000));
+        for (const pf of folderPlanFiles) {
+          if (matchedPlanFiles.has(`${pf.dir}::${pf.name}`)) continue;
+          const fm = parseFrontmatter(safeReadText(join(pf.dir, pf.name), 2000));
           const st = normalizeStatus(fm.status || "done");
-          const targetSkill = st === "done" ? "/bmad-code-review" : "/bmad-build";
+          const targetSkill = st === "done" ? "/bmad-code-review" : "/bmad-build-auto";
           const storyObj = {
             id: `${spec.num}.${epicStories.length + 1}`,
-            key: pf.replace(/\.md$/, ""),
-            overrideKey: `${spec.slug}#${pf}`,
+            key: pf.name.replace(/\.md$/, ""),
+            overrideKey: `${spec.slug}#${pf.name}`,
             epicSlug: spec.slug,
             epicTitle: epicMeta.title || spec.title,
-            title: fm.title || pf.replace(/^story-|-plan\.md$|\.md$/g, "").replace(/-/g, " "),
+            title: fm.title || pf.name.replace(/^story-|^plan-|-plan\.md$|\.md$/g, "").replace(/-/g, " "),
             description: "",
             verify: "",
             covers: [],
@@ -1373,7 +1441,7 @@ export function scanBmadWorkspace(workspaceRoot) {
             smartStatus: st,
             aiReconciled: false,
             smartEvidence: null,
-            planPath: relative(workspaceRoot, join(epicFolder, pf)).replace(/\\/g, "/"),
+            planPath: relative(workspaceRoot, join(pf.dir, pf.name)).replace(/\\/g, "/"),
             recommendedModel: recommendModelForBmadSkill(targetSkill, availableModels)
           };
           epicStories.push(storyObj);
@@ -1688,6 +1756,7 @@ export function scanBmadWorkspace(workspaceRoot) {
       kind = "Product Brief / Discovery";
     } else if (
       lower.includes("/prd") ||
+      lower.includes("initiative-") ||
       lower.includes("design.md") ||
       lower.includes("experience.md") ||
       lower.includes("ux-") ||
@@ -1700,6 +1769,7 @@ export function scanBmadWorkspace(workspaceRoot) {
       lower.includes("architecture") ||
       lower.includes("tickets.toml") ||
       lower.includes("epics.md") ||
+      lower.includes("epic-") ||
       lower.includes("sprint-status")
     ) {
       phaseId = "3-solutioning";
@@ -1710,11 +1780,11 @@ export function scanBmadWorkspace(workspaceRoot) {
       lower.includes("journal-defauts") ||
       lower.includes("retrospective") ||
       lower.includes("deferred-work") ||
-      lower.includes("plan-gh-") ||
+      lower.includes("plan-") ||
       lower.includes("story-")
     ) {
       phaseId = "4-implementation";
-      kind = lower.includes("retro") ? "Retrospective" : lower.includes("story-") ? "Story Plan" : "Implementation / QA";
+      kind = lower.includes("retro") ? "Retrospective" : lower.includes("story-") || lower.includes("plan-") ? "Story Plan" : "Implementation / QA";
     }
 
     if (!phaseId) continue;
@@ -1920,6 +1990,8 @@ export function scanBmadWorkspace(workspaceRoot) {
     recommendedModel: recommendModelForBmadSkill(a.skill, availableModels, a.modelProfile)
   }));
 
+  const taskQueue = buildTaskQueueView(persisted.taskQueue, allStories, availableModels);
+
   return {
     scannedAt: new Date().toISOString(),
     workspaceRoot,
@@ -1928,6 +2000,7 @@ export function scanBmadWorkspace(workspaceRoot) {
     availableModels,
     providerState,
     git,
+    taskQueue,
     metrics: {
       totalEpics: epics.length,
       completedEpics: epics.filter((e) => e.smartStatus === "done").length,
@@ -2542,3 +2615,621 @@ export function reconcileWorkspaceTrackers(workspaceRoot, options = {}) {
     newScan: postScan
   };
 }
+
+// ============================================================================
+// Multi-Task Execution Queue, Per-Task Model Selector & Workflow Generator
+// ============================================================================
+
+export function buildEffectiveTaskPrompt(item, defaultReviewMode = "none") {
+  const basePrompt = String(item.prompt || item.fullCommand || "").trim();
+  const reviewMode = item.reviewMode || defaultReviewMode || "none";
+  if (!basePrompt) return "";
+
+  const isBuildSkill = /^\/bmad-build(?:-auto)?\b/i.test(basePrompt);
+  if (!isBuildSkill) {
+    if (reviewMode === "none" && !/skip review|no review|review=none/i.test(basePrompt)) {
+      return `${basePrompt} [Execution Policy: oneshot route, skip multi-lens LLM review, verify via deterministic tests only]`;
+    }
+    return basePrompt;
+  }
+
+  // Upgrade /bmad-build to /bmad-build-auto when running unattended in a queue
+  let normalized = basePrompt.replace(/^\/bmad-build\b(?!-auto)/i, "/bmad-build-auto");
+  normalized = normalized
+    .replace(/\s*\[Execution Policy:[^\]]*\]\s*$/i, "")
+    .replace(/\s*\(route:\s*(?:oneshot|full),\s*review:\s*(?:none|quick|thorough)\)\s*"$/i, '"');
+
+  const routeHint =
+    reviewMode === "none"
+      ? " (route: oneshot, review: none — skip review lenses, run deterministic verification commands only)"
+      : reviewMode === "quick"
+        ? " (route: oneshot, review: quick — single quick review pass)"
+        : " (route: full, review: thorough — full multi-lens review)";
+
+  if (normalized.endsWith('"')) {
+    return `${normalized.slice(0, -1)}${routeHint}"`;
+  }
+  return `${normalized}${routeHint}`;
+}
+
+export function buildTaskQueueView(rawQueue, allStories = [], availableModels = []) {
+  const q = rawQueue && typeof rawQueue === "object" ? rawQueue : {};
+  const defaultModelId =
+    availableModels.find((m) => m.current)?.id ||
+    availableModels[0]?.id ||
+    "new-provider/claude-sonnet-5-5-high";
+  const defaultReviewMode = ["none", "quick", "thorough"].includes(q.defaultReviewMode)
+    ? q.defaultReviewMode
+    : "none";
+  const executionMode = ["dynamic-workflow", "separate-sessions"].includes(q.executionMode)
+    ? q.executionMode
+    : "dynamic-workflow";
+
+  const storyMapByOverride = new Map();
+  const storyMapById = new Map();
+  for (const s of allStories) {
+    if (s.overrideKey) storyMapByOverride.set(s.overrideKey, s);
+    if (s.id) storyMapById.set(String(s.id), s);
+  }
+
+  const rawItems = Array.isArray(q.items) ? q.items : [];
+  const items = rawItems.map((it, idx) => {
+    const reviewMode = ["none", "quick", "thorough"].includes(it.reviewMode)
+      ? it.reviewMode
+      : defaultReviewMode;
+    const model = String(it.model || it.recommendedModel || defaultModelId).trim() || defaultModelId;
+    const matchedStory =
+      (it.overrideKey && storyMapByOverride.get(it.overrideKey)) ||
+      (it.storyId && storyMapById.get(String(it.storyId))) ||
+      null;
+    let status = ["queued", "running", "done", "failed", "skipped"].includes(it.status)
+      ? it.status
+      : "queued";
+    if (matchedStory && matchedStory.smartStatus === "done" && status === "queued") {
+      status = "done";
+    }
+    const prompt = String(it.prompt || it.fullCommand || "").trim();
+    return {
+      id: it.id || `qtask-${idx + 1}`,
+      order: idx + 1,
+      title: it.title || (matchedStory ? `Story ${matchedStory.id}: ${matchedStory.title}` : `Task ${idx + 1}`),
+      skill: it.skill || "/bmad-build-auto",
+      prompt,
+      effectivePrompt: buildEffectiveTaskPrompt({ ...it, prompt, reviewMode }, defaultReviewMode),
+      model,
+      modelShort: model.split("/").pop(),
+      reviewMode,
+      status,
+      storyId: it.storyId || matchedStory?.id || null,
+      overrideKey: it.overrideKey || matchedStory?.overrideKey || null,
+      epicSlug: it.epicSlug || matchedStory?.epicSlug || null,
+      verifyCommand: it.verifyCommand || matchedStory?.verify || "",
+      startedAt: it.startedAt || null,
+      completedAt: it.completedAt || null,
+      resultSummary: it.resultSummary || null
+    };
+  });
+
+  const activeTask =
+    items.find((it) => it.id === q.activeTaskId && it.status === "running") ||
+    items.find((it) => it.status === "running") ||
+    null;
+  const queuedItems = items.filter((it) => it.status === "queued");
+  const completedItems = items.filter((it) => it.status === "done");
+  const failedItems = items.filter((it) => it.status === "failed");
+
+  let overallStatus = q.status || "idle";
+  if (activeTask) {
+    overallStatus = "running";
+  } else if (items.length > 0 && queuedItems.length === 0 && completedItems.length > 0) {
+    overallStatus = "completed";
+  } else if (items.length === 0) {
+    overallStatus = "idle";
+  }
+
+  const totalCount = items.length;
+  const doneCount = completedItems.length;
+  const progressPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+
+  return {
+    status: overallStatus,
+    executionMode,
+    defaultReviewMode,
+    activeTaskId: activeTask ? activeTask.id : null,
+    activeTask,
+    nextQueuedTask: queuedItems[0] || null,
+    workflowPath: q.workflowPath || ".zcode/workflows/bmad-task-queue.dwf.ts",
+    updatedAt: q.updatedAt || null,
+    counts: {
+      total: totalCount,
+      running: activeTask ? 1 : 0,
+      queued: queuedItems.length,
+      done: doneCount,
+      failed: failedItems.length,
+      progressPct
+    },
+    items
+  };
+}
+
+export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
+  const companionDir = join(workspaceRoot, ".zcode", "bmad-companion");
+  if (!existsSync(companionDir)) mkdirSync(companionDir, { recursive: true });
+  const workflowsDir = join(workspaceRoot, ".zcode", "workflows");
+  if (!existsSync(workflowsDir)) mkdirSync(workflowsDir, { recursive: true });
+
+  const updaterRelPath = ".zcode/bmad-companion/queue-step-updater.mjs";
+  const updaterFullPath = join(workspaceRoot, ".zcode", "bmad-companion", "queue-step-updater.mjs");
+
+  const updaterCode = [
+    `import { existsSync, readFileSync, writeFileSync } from "node:fs";`,
+    `import { join } from "node:path";`,
+    ``,
+    `const [, , action, taskId, overrideKey = "", summaryText = ""] = process.argv;`,
+    `const stateFile = join(process.cwd(), ".zcode", "bmad-companion", "state.json");`,
+    `if (existsSync(stateFile)) {`,
+    `  const state = JSON.parse(readFileSync(stateFile, "utf8"));`,
+    `  const q = state.taskQueue || { items: [] };`,
+    `  const items = Array.isArray(q.items) ? q.items : [];`,
+    `  const now = new Date().toISOString();`,
+    `  const target = items.find((it) => it.id === taskId);`,
+    `  if (action === "start" && target) {`,
+    `    items.forEach((it) => { if (it.status === "running") it.status = "queued"; });`,
+    `    target.status = "running";`,
+    `    target.startedAt = now;`,
+    `    q.activeTaskId = target.id;`,
+    `    q.status = "running";`,
+    `    if (overrideKey) {`,
+    `      state.storyOverrides = state.storyOverrides || {};`,
+    `      state.storyOverrides[overrideKey] = { status: "in-progress", reason: "Active in BMAD Companion Queue (" + target.title + ")" };`,
+    `    }`,
+    `  } else if ((action === "done" || action === "fail") && target) {`,
+    `    target.status = action === "done" ? "done" : "failed";`,
+    `    target.completedAt = now;`,
+    `    if (summaryText) target.resultSummary = summaryText;`,
+    `    if (action === "done" && overrideKey) {`,
+    `      state.storyOverrides = state.storyOverrides || {};`,
+    `      state.storyOverrides[overrideKey] = { status: "done", reason: summaryText || ("Completed via BMAD Queue (" + target.title + ")") };`,
+    `    }`,
+    `    const nextTask = items.find((it) => it.status === "queued");`,
+    `    if (nextTask) {`,
+    `      q.activeTaskId = nextTask.id;`,
+    `      q.status = "running";`,
+    `    } else {`,
+    `      q.activeTaskId = null;`,
+    `      q.status = "completed";`,
+    `    }`,
+    `  }`,
+    `  q.updatedAt = now;`,
+    `  state.taskQueue = q;`,
+    `  state.updatedAt = now;`,
+    `  writeFileSync(stateFile, JSON.stringify(state, null, 2), "utf8");`,
+    `}`
+  ].join("\n");
+
+  writeFileSync(updaterFullPath, updaterCode, "utf8");
+
+  const runnableItems = queueView.items.filter((it) => it.status !== "done");
+  const targetItems = runnableItems.length > 0 ? runnableItems : queueView.items;
+
+  // Build unique model declarations using compile-time string literals
+  const uniqueModels = [...new Set(targetItems.map((it) => it.model).filter(Boolean))];
+  const modelVarByModelId = new Map();
+  const modelDecls = uniqueModels.map((mId, idx) => {
+    const varName = `model_${idx + 1}`;
+    modelVarByModelId.set(mId, varName);
+    return `const ${varName} = model(${JSON.stringify(mId)});`;
+  });
+
+  const taskBlocks = targetItems.map((it, idx) => {
+    const stepNum = idx + 1;
+    const modelVar = modelVarByModelId.get(it.model);
+    const phaseLabel = `Task ${stepNum}: ${String(it.title).replace(/["\\]/g, "").slice(0, 68)}`;
+    const agentName = `Task ${stepNum} (${String(it.storyId || it.id).replace(/["\\]/g, "")})`;
+    const reviewPolicyDesc =
+      it.reviewMode === "none"
+        ? "Token-saving mode (route=oneshot, review=none): implement directly in this session without spawning nested review subagents, run deterministic tests/checks directly, and leave the repository clean."
+        : it.reviewMode === "quick"
+          ? "Quick review mode (route=oneshot, review=quick): implement directly, run deterministic verification commands, and perform one concise self-review pass."
+          : "Thorough mode (route=full, review=thorough): follow full BMAD plan, implementation, verification, and review gates.";
+
+    const askInstruction = [
+      `Execute BMAD Queue Task #${stepNum}: ${it.title}`,
+      `Command / Intent: ${it.effectivePrompt}`,
+      it.verifyCommand ? `Verification Gate: ${it.verifyCommand}` : `Verification Gate: Run the repository's syntax and test verification commands.`,
+      `Execution Policy: ${reviewPolicyDesc}`,
+      `Tracker Sync (Required): After verification passes, update the repository's BMAD tracker (for BMAD v7, create or update \`plan-<ticketId>-*.md\` with \`status: done\` in the epic's \`tickets/\` folder or run \`tickets.py mark\`; for BMAD v6, set the story to \`done\` in \`sprint-status.yaml\`) so progress persists across sessions.`,
+      `Return a concise structured outcome confirming what files changed and which verification command passed.`
+    ].join("\n");
+
+    return [
+      `// --- Queued Task ${stepNum}: ${it.title} ---`,
+      `phase(${JSON.stringify(phaseLabel)});`,
+      `log(${JSON.stringify(`Starting Task ${stepNum}/${targetItems.length}: ${it.title} [${it.model}] (review: ${it.reviewMode})`)});`,
+      `await world.run("node", [${JSON.stringify(updaterRelPath)}, "start", ${JSON.stringify(it.id)}, ${JSON.stringify(it.overrideKey || "")}]);`,
+      `report({ taskId: ${JSON.stringify(it.id)}, title: ${JSON.stringify(it.title)}, status: "running", model: ${JSON.stringify(it.modelShort)}, reviewMode: ${JSON.stringify(it.reviewMode)}, summary: "Running in isolated subagent session..." }, "queue");`,
+      `const outcome_${stepNum} = await agent(${JSON.stringify(agentName)}, {`,
+      modelVar ? `  model: ${modelVar},` : ``,
+      `  system: "You are a BMAD execution specialist running an isolated task from the BMAD Companion Queue. Implement the requested story or workflow task cleanly, run its verification commands, and report truthful evidence."`,
+      `}).ask<TaskOutcome>(${JSON.stringify(askInstruction)});`,
+      `await world.run("node", [${JSON.stringify(updaterRelPath)}, outcome_${stepNum}.passed ? "done" : "fail", ${JSON.stringify(it.id)}, ${JSON.stringify(it.overrideKey || "")}, outcome_${stepNum}.summary]);`,
+      `report({ taskId: ${JSON.stringify(it.id)}, title: ${JSON.stringify(it.title)}, status: outcome_${stepNum}.passed ? "done" : "failed", model: ${JSON.stringify(it.modelShort)}, reviewMode: ${JSON.stringify(it.reviewMode)}, summary: outcome_${stepNum}.summary }, "queue");`,
+      `verifiedCommands.push(outcome_${stepNum}.verificationCommand);`,
+      `if (!outcome_${stepNum}.passed) {`,
+      `  findings.push({`,
+      `    where: outcome_${stepNum}.primaryFile || ${JSON.stringify(it.epicSlug || "workspace")},`,
+      `    what: ${JSON.stringify(`Task ${stepNum} (${it.title}) reported a verification failure: `)} + outcome_${stepNum}.summary,`,
+      `    evidence: outcome_${stepNum}.verificationCommand,`,
+      `    status: "verified",`,
+      `    severity: "high"`,
+      `  });`,
+      `}`,
+      `summaryLines.push(${JSON.stringify(`- **${it.title}** (\`${it.model}\`, review: \`${it.reviewMode}\`): `)} + (outcome_${stepNum}.passed ? "PASSED — " : "FAILED — ") + outcome_${stepNum}.summary);`
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
+
+  const workflowRelPath = ".zcode/workflows/bmad-task-queue.dwf.ts";
+  const workflowFullPath = join(workspaceRoot, ".zcode", "workflows", "bmad-task-queue.dwf.ts");
+
+  const workflowScript = [
+    `interface TaskOutcome {`,
+    `  /** True if implementation and deterministic verification succeeded. */`,
+    `  passed: boolean;`,
+    `  /** Primary file or artifact path created or updated. */`,
+    `  primaryFile: string;`,
+    `  /** Exact verification command executed and its exit result. */`,
+    `  verificationCommand: string;`,
+    `  /** One-sentence summary of what was delivered and verified. */`,
+    `  summary: string;`,
+    `}`,
+    `interface Finding {`,
+    `  /** Workspace-relative path, with a line when it applies: "src/a.ts:42". */`,
+    `  where: string;`,
+    `  /** One sentence: what is wrong, or what was found. */`,
+    `  what: string;`,
+    `  /** What showed it: the lines read, or the command and the output that proved it. */`,
+    `  evidence: string;`,
+    `  /** "verified" when an independent subagent or a deterministic check confirmed it; "unconfirmed" when confirmation failed or was not attempted. */`,
+    `  status: "verified" | "unconfirmed";`,
+    `  /** How much it matters. Reserve "high" for data loss, a crash, or a wrong result. */`,
+    `  severity: "low" | "medium" | "high";`,
+    `}`,
+    `interface WorkflowReport {`,
+    `  /** Two or three sentences answering what the user asked for. */`,
+    `  conclusion: string;`,
+    `  findings: Finding[];`,
+    `  /** What the run checked and how: the commands it ran, the files it covered. */`,
+    `  verified: string[];`,
+    `  /** What the run did not look at or could not check, and why. */`,
+    `  notCovered: string[];`,
+    `}`,
+    ``,
+    `artifact.board("queue", {`,
+    `  title: "BMAD Companion Task Queue",`,
+    `  key: "taskId",`,
+    `  status: "status",`,
+    `  columns: ["queued", "running", "done", "failed"],`,
+    `  cardTitle: "title",`,
+    `  detail: [`,
+    `    { field: "model", label: "Model" },`,
+    `    { field: "reviewMode", label: "Review" },`,
+    `    { field: "summary", label: "Outcome" }`,
+    `  ]`,
+    `});`,
+    ``,
+    ...modelDecls,
+    ``,
+    `const findings: Finding[] = [];`,
+    `const verifiedCommands: string[] = [];`,
+    `const summaryLines: string[] = ["# BMAD Companion Queue Execution Report", ""];`,
+    ``,
+    ...targetItems.map((it) =>
+      `report({ taskId: ${JSON.stringify(it.id)}, title: ${JSON.stringify(it.title)}, status: "queued", model: ${JSON.stringify(it.modelShort)}, reviewMode: ${JSON.stringify(it.reviewMode)}, summary: "Waiting in queue" }, "queue");`
+    ),
+    ``,
+    ...taskBlocks,
+    ``,
+    `phase("Publish BMAD queue report and synchronize companion");`,
+    `await world.run("node", [${JSON.stringify(updaterRelPath)}, "finish"]);`,
+    `await artifact.markdown("report", summaryLines.join("\\n"), {`,
+    `  title: "BMAD Queue Execution Summary",`,
+    `  description: ${JSON.stringify(`Executed ${targetItems.length} queued BMAD task(s) with per-task models and live companion updates.`)},`,
+    `  primary: true`,
+    `});`,
+    ``,
+    `const finalReport: WorkflowReport = {`,
+    `  conclusion: ${JSON.stringify(`Completed ${targetItems.length} queued BMAD task(s) and updated BMAD Companion state after every task.`)},`,
+    `  findings,`,
+    `  verified: verifiedCommands,`,
+    `  notCovered: ["Multi-lens human review lenses when reviewMode=none was selected for token efficiency"]`,
+    `};`,
+    `return finalReport;`
+  ].join("\n");
+
+  writeFileSync(workflowFullPath, workflowScript, "utf8");
+
+  const workflowLaunchPrompt = `/workflow "Run the generated BMAD Companion task queue workflow at ${workflowRelPath} using CreateWorkflow({ name: 'BMAD Companion Task Queue (${targetItems.length} tasks)', path: '${workflowRelPath}' }) so each queued task runs with its selected model and updates @bmad-companion state live at the start and end of each task."`;
+
+  const separateSessionsPrompt = [
+    `Execute the active @bmad-companion Task Queue (${targetItems.length} tasks) sequentially across separate ZCode sessions/conversations using CreateSession + WaitSessions:`,
+    ...targetItems.map(
+      (it, idx) =>
+        `${idx + 1}. Call bmad_queue_manage({ action: "start-task", taskId: "${it.id}" }), then call CreateSession with model="${it.model}" and prompt=${JSON.stringify(it.effectivePrompt)}, wait for completion with WaitSessions, and then call bmad_queue_manage({ action: "complete-task", taskId: "${it.id}", storyStatus: "done", summary: "Completed in dedicated session" }) so the @bmad-companion panel updates live.`
+    )
+  ].join("\n");
+
+  return {
+    workflowRelPath,
+    workflowFullPath,
+    updaterRelPath,
+    tasksCount: targetItems.length,
+    workflowLaunchPrompt,
+    separateSessionsPrompt
+  };
+}
+
+export function manageBmadTaskQueue(workspaceRoot, options = {}) {
+  const action = String(options.action || "get").trim();
+  const scan = scanBmadWorkspace(workspaceRoot);
+  const persisted = loadPersistedState(workspaceRoot);
+  const currentView = buildTaskQueueView(persisted.taskQueue, scan.epics.flatMap((e) => e.stories), scan.availableModels);
+
+  let items = [...currentView.items];
+  let status = currentView.status;
+  let executionMode = options.executionMode || currentView.executionMode;
+  let defaultReviewMode = options.reviewMode || currentView.defaultReviewMode;
+  let activeTaskId = currentView.activeTaskId;
+  const storyOverrides = { ...(persisted.storyOverrides || {}) };
+
+  const defaultModelId =
+    scan.availableModels.find((m) => m.current)?.id ||
+    scan.availableModels[0]?.id ||
+    "new-provider/claude-sonnet-5-5-high";
+
+  if (action === "add") {
+    const incoming = Array.isArray(options.items) ? options.items : options.item ? [options.item] : [];
+    for (const raw of incoming) {
+      if (!raw) continue;
+      const prompt = String(raw.prompt || raw.fullCommand || "").trim();
+      const title = String(raw.title || prompt.slice(0, 60) || "BMAD Task").trim();
+      const existingIdx = items.findIndex(
+        (it) =>
+          (raw.overrideKey && it.overrideKey === raw.overrideKey) ||
+          (raw.storyId && it.storyId === raw.storyId) ||
+          (prompt && it.prompt === prompt)
+      );
+      const revMode = ["none", "quick", "thorough"].includes(raw.reviewMode)
+        ? raw.reviewMode
+        : defaultReviewMode;
+      const newItem = {
+        id: raw.id || `qtask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        title,
+        skill: raw.skill || "/bmad-build-auto",
+        prompt,
+        model: raw.model || raw.recommendedModel || defaultModelId,
+        reviewMode: revMode,
+        status: "queued",
+        storyId: raw.storyId || null,
+        overrideKey: raw.overrideKey || null,
+        epicSlug: raw.epicSlug || null,
+        verifyCommand: raw.verifyCommand || ""
+      };
+      if (existingIdx >= 0) {
+        items[existingIdx] = {
+          ...items[existingIdx],
+          model: newItem.model,
+          reviewMode: newItem.reviewMode,
+          prompt: newItem.prompt || items[existingIdx].prompt,
+          status: items[existingIdx].status === "done" ? "queued" : items[existingIdx].status
+        };
+      } else {
+        items.push(newItem);
+      }
+    }
+    if (status === "completed") status = "idle";
+  } else if (action === "add-epic") {
+    const targetEpicSlug = String(options.epicSlug || "").trim();
+    const epic = scan.epics.find((e) => e.slug === targetEpicSlug || e.id === targetEpicSlug || String(e.number) === targetEpicSlug);
+    if (epic) {
+      const storiesToQueue = epic.stories.filter((s) => options.includeDone || s.smartStatus !== "done");
+      for (const st of storiesToQueue) {
+        const storyPrompt = `/bmad-build-auto "Implement ticket ${st.id} (${st.title}) in ${epic.slug}: ${st.verify || st.description || "satisfy all acceptance criteria and tests"}"`;
+        const existingIdx = items.findIndex((it) => it.overrideKey === st.overrideKey || it.storyId === st.id);
+        const entry = {
+          id: `qtask-${epic.slug}-${String(st.id).replace(/\./g, "-")}`,
+          title: `Story ${st.id}: ${st.title}`,
+          skill: "/bmad-build-auto",
+          prompt: storyPrompt,
+          model: options.model || st.recommendedModel?.modelId || defaultModelId,
+          reviewMode: defaultReviewMode,
+          status: "queued",
+          storyId: st.id,
+          overrideKey: st.overrideKey,
+          epicSlug: epic.slug,
+          verifyCommand: st.verify || ""
+        };
+        if (existingIdx >= 0) {
+          items[existingIdx] = { ...items[existingIdx], ...entry };
+        } else {
+          items.push(entry);
+        }
+      }
+      if (status === "completed") status = "idle";
+    }
+  } else if (action === "update-item") {
+    const targetId = String(options.taskId || "");
+    items = items.map((it) => {
+      if (it.id !== targetId) return it;
+      return {
+        ...it,
+        ...(options.model ? { model: options.model } : {}),
+        ...(options.reviewMode ? { reviewMode: options.reviewMode } : {}),
+        ...(options.prompt ? { prompt: options.prompt } : {}),
+        ...(options.status ? { status: options.status } : {})
+      };
+    });
+  } else if (action === "set-review-mode") {
+    if (["none", "quick", "thorough"].includes(options.reviewMode)) {
+      defaultReviewMode = options.reviewMode;
+      if (options.applyToAll !== false) {
+        items = items.map((it) => (it.status === "done" ? it : { ...it, reviewMode: defaultReviewMode }));
+      }
+    }
+  } else if (action === "set-execution-mode") {
+    if (["dynamic-workflow", "separate-sessions"].includes(options.executionMode)) {
+      executionMode = options.executionMode;
+    }
+  } else if (action === "reorder") {
+    const targetId = String(options.taskId || "");
+    const dir = options.direction; // "up" | "down"
+    const idx = items.findIndex((it) => it.id === targetId);
+    if (idx >= 0) {
+      const swapIdx = dir === "up" ? idx - 1 : dir === "down" ? idx + 1 : -1;
+      if (swapIdx >= 0 && swapIdx < items.length) {
+        const copy = [...items];
+        const tmp = copy[idx];
+        copy[idx] = copy[swapIdx];
+        copy[swapIdx] = tmp;
+        items = copy;
+      }
+    }
+  } else if (action === "remove") {
+    const targetId = String(options.taskId || "");
+    items = items.filter((it) => it.id !== targetId);
+    if (activeTaskId === targetId) {
+      activeTaskId = null;
+    }
+  } else if (action === "clear") {
+    if (options.onlyCompleted) {
+      items = items.filter((it) => it.status !== "done");
+    } else {
+      items = [];
+      activeTaskId = null;
+      status = "idle";
+    }
+  } else if (action === "start-queue") {
+    if (["dynamic-workflow", "separate-sessions"].includes(options.executionMode)) {
+      executionMode = options.executionMode;
+    }
+    // Reset any stale running item back to queued before starting
+    items = items.map((it) => (it.status === "running" ? { ...it, status: "queued" } : it));
+    const firstQueued = items.find((it) => it.status === "queued");
+    if (firstQueued) {
+      firstQueued.status = "running";
+      firstQueued.startedAt = new Date().toISOString();
+      activeTaskId = firstQueued.id;
+      status = "running";
+      if (firstQueued.overrideKey) {
+        storyOverrides[firstQueued.overrideKey] = {
+          status: "in-progress",
+          reason: `Currently active in BMAD Companion Task Queue (${firstQueued.title})`
+        };
+      }
+    }
+  } else if (action === "start-task") {
+    const targetId = String(options.taskId || "");
+    const now = new Date().toISOString();
+    items = items.map((it) => {
+      if (it.id === targetId) {
+        activeTaskId = it.id;
+        status = "running";
+        if (it.overrideKey) {
+          storyOverrides[it.overrideKey] = {
+            status: "in-progress",
+            reason: `Currently active in BMAD Companion Task Queue (${it.title})`
+          };
+        }
+        return { ...it, status: "running", startedAt: now };
+      }
+      if (it.status === "running") {
+        return { ...it, status: "queued" };
+      }
+      return it;
+    });
+  } else if (action === "complete-task") {
+    const targetId = String(options.taskId || activeTaskId || "");
+    const outcomeStatus = options.failed ? "failed" : "done";
+    const now = new Date().toISOString();
+    items = items.map((it) => {
+      if (it.id !== targetId) return it;
+      if (it.overrideKey && outcomeStatus === "done") {
+        storyOverrides[it.overrideKey] = {
+          status: options.storyStatus || "done",
+          reason: options.summary || `Completed via BMAD Companion Task Queue (${it.title})`
+        };
+      }
+      return {
+        ...it,
+        status: outcomeStatus,
+        completedAt: now,
+        resultSummary: options.summary || (outcomeStatus === "done" ? "Completed & verified" : "Failed verification")
+      };
+    });
+    const nextQueued = items.find((it) => it.status === "queued");
+    if (nextQueued && status === "running") {
+      nextQueued.status = "running";
+      nextQueued.startedAt = now;
+      activeTaskId = nextQueued.id;
+      if (nextQueued.overrideKey) {
+        storyOverrides[nextQueued.overrideKey] = {
+          status: "in-progress",
+          reason: `Currently active in BMAD Companion Task Queue (${nextQueued.title})`
+        };
+      }
+    } else {
+      activeTaskId = null;
+      status = items.some((it) => it.status === "queued") ? "paused" : "completed";
+    }
+  } else if (action === "pause-queue") {
+    status = "paused";
+    items = items.map((it) => (it.status === "running" ? { ...it, status: "queued" } : it));
+    activeTaskId = null;
+  }
+
+  const allStories = scan.epics.flatMap((e) => e.stories);
+  const updatedQueueView = buildTaskQueueView(
+    {
+      status,
+      executionMode,
+      defaultReviewMode,
+      activeTaskId,
+      workflowPath: ".zcode/workflows/bmad-task-queue.dwf.ts",
+      updatedAt: new Date().toISOString(),
+      items
+    },
+    allStories,
+    scan.availableModels
+  );
+
+  let generatedWorkflow = null;
+  if (
+    updatedQueueView.items.length > 0 &&
+    ["start-queue", "generate-workflow", "add", "add-epic", "update-item", "set-review-mode", "reorder"].includes(action)
+  ) {
+    generatedWorkflow = generateQueueWorkflowFiles(workspaceRoot, updatedQueueView);
+  }
+
+  savePersistedState(workspaceRoot, {
+    storyOverrides,
+    taskQueue: {
+      status: updatedQueueView.status,
+      executionMode: updatedQueueView.executionMode,
+      defaultReviewMode: updatedQueueView.defaultReviewMode,
+      activeTaskId: updatedQueueView.activeTaskId,
+      workflowPath: updatedQueueView.workflowPath,
+      updatedAt: updatedQueueView.updatedAt,
+      items: updatedQueueView.items
+    }
+  });
+
+  const freshScan = scanBmadWorkspace(workspaceRoot);
+  return {
+    action,
+    taskQueue: freshScan.taskQueue,
+    generatedWorkflow,
+    scan: freshScan
+  };
+}
+

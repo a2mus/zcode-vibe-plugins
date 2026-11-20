@@ -1,0 +1,111 @@
+---
+type: initiative
+title: bmad-companion
+parent: none
+sources:
+  - _bmad-output/planning-artifacts/prd-bmad-companion/prd-bmad-companion.md
+companions:
+  - _bmad-output/planning-artifacts/ux-bmad-companion/DESIGN.md
+  - _bmad-output/planning-artifacts/ux-bmad-companion/EXPERIENCE.md
+  - _bmad-output/initiative-bmad-companion/architecture-bmad-companion/architecture-bmad-companion.md
+risk: medium
+---
+
+# bmad-companion
+
+## Description
+
+BMAD Companion turns ZCode's right-side panel (`ui://bmad-companion/panel.html`, surface `bmad-companion`) into an ambient, zero-dependency command cockpit for any workspace: four lifecycle hooks (`SessionStart`, `UserPromptSubmit`, `PostToolUse`, `Stop`) and a 9-tool MCP stdio server inspect repository artifacts, test reports, and turn outcomes to synthesize contextual `/bmad-<skill> "<prompt>"` commands paired with the top-ranked enabled model, reconcile lagging BMAD v6/v7 trackers against verified delivery with `.bak` backups, and enqueue epics for automated execution. The `v0.5.2` baseline already ships the four runtime layers (`scripts/bmad-engine.mjs`, `scripts/mcp-server.mjs`, `scripts/hook-runner.mjs`, `assets/panel.html`), the plugin wiring, and the 5-tab UI; this initiative lifts the PRD's `FR-1`–`FR-22` capabilities (`R1`–`R22`) and `RULE-1`–`RULE-10` constraints (`C1`–`C10`) into a hardening delta that adds the one-command deterministic verification suite the baseline lacks (`R23`, per `AGENTS.md` "no automated test suite"), closes the tracked UX accessibility/contrast debt, and proves the five success metrics (`SM-1`–`SM-5`). Deferred post-MVP scope (`AST` drift checker, cross-plugin event bus, headless CI gate, `OQ-1`–`OQ-3`) carries no epic here.
+
+## Outcome
+
+Solo vibe-coders, tech leads, and multi-agent orchestrators get ambient next-step guidance, cost-optimal model routing, 1-click clean-session launching, drift-free dual progress tracking, and token-saving queued execution — regression-tested with one command, measured by `SM-1`–`SM-5` (100% contextual-prompt completeness, 0 dropped keystrokes during 5s polling, 100% reconciled-tracker validity + `.bak` creation, <5s clean-session launch, 100% review-gate fidelity).
+
+## Requirements
+
+1. **R1** (prd FR-1): `bmad_open_companion` opens the right-side `bmad-companion` surface, optionally persists a `focus` string to `state.json`, scans the workspace, and returns both a Markdown summary (`content`) and full workspace state (`structuredContent`).
+2. **R2** (prd FR-2): `bmad_get_state` scans on demand (`refresh?: boolean`) and returns `structuredContent` with project metadata, 4-phase progress, epic/story trees, dual progress metrics (`declaredOverallPct` vs. `smartOverallPct`), active models, ranked recommendations, artifacts, and `taskQueue`.
+3. **R3** (prd FR-3): `bmad_update_advisor` pushes post-turn analysis (`headline`, `turnSummary`, `recommendations[]`), synchronizes live `hostModels[]` from `ListModels` (overriding disk `~/.zcode/v2/provider_config.json`), and persists `storyStatusUpdates[]` (`overrideKey`, `status`, `reason`).
+4. **R4** (prd FR-4): `bmad_prepare_new_session` copies a `/bmad-<skill> "<prompt>"` command to the OS clipboard, persists `preparedSession` metadata, and when `openDirectly !== false` triggers OS keystroke automation (`win32` PowerShell `SendKeys` `^n`+`^v`, `darwin` `pbcopy`+`osascript`, `linux` `wl-copy`/`xclip`/`xsel`+`xdotool`) to open a clean ZCode session with the prompt pre-pasted, falling back cleanly to clipboard copy when keystrokes are blocked.
+5. **R5** (prd FR-5): `bmad_reconcile_trackers` synchronizes BMAD v6 (`sprint-status.yaml`/`.yml`) and/or v7 (`tickets.toml` + epic frontmatter) files with Smart AI-verified story statuses, supporting `dryRun?: boolean`, `target?: "all"|"v6-yaml"|"v7-tickets"`, and `backup?: boolean` (default `true`).
+6. **R6** (prd FR-6): `bmad_recommend_next` returns up to 6 topic-filtered `/bmad-<skill> "<contextual prompt>"` recommendations with paired `recommendedModel` objects for any requested `topic`.
+7. **R7** (prd FR-7): `bmad_inspect_artifact` reads any BMAD artifact by workspace-relative `relPath` and returns metadata, content preview, and live `git diff`, rejecting paths outside `workspaceRoot`.
+8. **R8** (prd FR-8): `bmad_open_artifact_file` opens a workspace-confined BMAD artifact in the desktop editor (`cmd /c start`, `open`, or `xdg-open`) and returns its content preview and `git diff`.
+9. **R9** (prd FR-9): `bmad_queue_manage` manages the Multi-Task Execution Queue across 14 actions (`get`, `add`, `add-epic`, `update-item`, `set-review-mode`, `set-execution-mode`, `reorder`, `remove`, `clear`, `start-queue`, `start-task`, `complete-task`, `pause-queue`, `generate-workflow`) with per-task `model`, `reviewMode` (`none`|`quick`|`thorough`), and `executionMode` (`dynamic-workflow`|`separate-sessions`).
+10. **R10** (prd FR-10): On every scan the engine parses BMAD v6/v7 artifacts with zero-dependency parsers (`parseFrontmatter`, `parseTomlBlocks`, `parseSprintStatusYaml`) to compute both Static Tracker Progress (`declaredDoneStories`, `declaredOverallPct`) and Smart AI Progress (`smartDoneStories`, `smartOverallPct`, `reconciledStoriesCount`) with an evidence string (`smartReason`) per upgraded story.
+11. **R11** (prd FR-11): With `dryRun: false`, `reconcileWorkspaceTrackers` writes `<tracker>.bak` before modifying any file (unless `backup: false`), updates story keys and summary headers in `sprint-status.yaml`/`tickets.toml` in place preserving comments and indentation, and appends an audit record to `.zcode/bmad-companion/reconciliation-log.json`.
+12. **R12** (prd FR-12): The panel polls `bmad_get_state({ refresh: true })` every `5000ms` only when `document.visibilityState === "visible"`, serialized by an `isRefreshing` lock.
+13. **R13** (prd FR-13): Whenever focus is inside `<textarea>`/`<input>` or within `15000ms` of opening/navigating a `<select>` (`isUserInteractingWithForm()`), the panel suppresses DOM re-renders from background polls or `ui/notifications/tool-result`, stashes payloads in `pendingWorkspaceState`, and flushes via `flushPendingState()` on `focusout`, `change`, `Escape`, or `Tab`.
+14. **R14** (prd FR-14): The panel preserves user edits in `userEditedPrompts`/`userSelectedModels` across polls whenever the server base command/model is unchanged, and compares JSON signatures (`lastSectionSignatures`) before updating `innerHTML` on any tab container.
+15. **R15** (prd FR-15): The engine compiles each queued task's `effectivePrompt` per `reviewMode`: `none` (oneshot + deterministic verification only), `quick` (oneshot + single self-review pass), `thorough` (multi-lens BMAD code review gate).
+16. **R16** (prd FR-16): On `start-queue`/`generate-workflow` the engine compiles `.zcode/workflows/bmad-task-queue.dwf.ts` + `.zcode/bmad-companion/queue-step-updater.mjs` (`dynamic-workflow`) or emits a sequential `CreateSession` + `WaitSessions` orchestration plan (`separate-sessions`).
+17. **R17** (prd FR-17): The scanner walks `_bmad-output/`, `docs/`, `AGENTS.md`, and `CONTEXT.md` (max depth 4) and computes per-artifact git status and `git diff` previews with normalized `/` paths confined to `workspaceRoot`.
+18. **R18** (prd FR-18): The engine resolves enabled models from `state.json -> hostModels` (via `ListModels`) or `~/.zcode/v2/provider_config.json`, scores each against the skill's `modelProfile` (`deep-reasoning`, `creative-ux`, `coding`, `planning-fast`), and returns the top `providerId/modelId`, tier label, and rationale.
+19. **R19** (prd FR-19): On `SessionStart`, `hook-runner.mjs` scans the workspace and outputs `additionalContext` with smart-vs-static metrics, active provider counts, top 3 `/bmad-<skill> "<prompt>"` commands with recommended models, and companion rules.
+20. **R20** (prd FR-20): On `UserPromptSubmit`, `hook-runner.mjs` stores `lastUserPrompt`, resets `recentTouchedFiles`, and auto-transitions a matching queued task to `running` (`start-task`).
+21. **R21** (prd FR-21): On `PostToolUse` (`Write`, `Edit`, `MultiEdit`), `hook-runner.mjs` records up to 15 workspace-relative paths in `recentTouchedFiles`.
+22. **R22** (prd FR-22): On `Stop`, `hook-runner.mjs` increments `turnCount`, stores `lastAssistantMessage`, auto-completes a running single-session queued task (`complete-task`), and optionally invokes `BMAD_COMPANION_OPENAI_KEY` (`4500ms` timeout) for LLM turn synthesis.
+23. **R23** (prd Developer experience; SM-1–SM-5): A zero-dependency `node:test` suite verifies the engine, MCP stdio transport, hook stdout isolation, queue, and version tri-sync contracts behind `R1`–`R22` with one command (`node --test tests/`), automating the PRD's `node --check` + stdio smoke verification gate and the `SM-1`–`SM-5` checks. PO-added hardening scope: the `v0.5.2` baseline ships the runtime but no automated suite (`AGENTS.md`).
+
+## Constraints
+
+- **C1** (prd RULE-1): Zero external dependencies — runtime `scripts/*.mjs` use only Node 18+ `node:*` built-ins; tests use `node:test` only; no `package.json` or npm packages; panel and exports stay self-contained.
+- **C2** (prd RULE-2): Never emit bare skill names — every recommendation matches `/^\/bmad-[a-z0-9-]+\s+".+"$/` paired with a `providerId/modelId`.
+- **C3** (prd RULE-3): Workspace path confinement — all artifact reads, external opens, and tracker writes resolve inside `workspaceRoot` with normalized `/` paths, rejecting `..` traversal.
+- **C4** (prd RULE-4): Single state persistence gateway — all `.zcode/bmad-companion/state.json` writes pass through `savePersistedState(workspaceRoot, partial)`.
+- **C5** (prd RULE-5): Upstream skill immutability — never hand-edit `.agents/skills/`, `.zcode/skills/`, or `skills-lock.json`; plugin-owned skills live only in `skills/bmad-companion/`.
+- **C6** (prd RULE-6): Version tri-sync — `version` and descriptions stay synchronized across `.zcode-plugin/plugin.json`, `../marketplace.json`, and `serverInfo.version` in `scripts/mcp-server.mjs`.
+- **C7** (prd RULE-7): Strict MCP App CSP compliance — `assets/panel.html` runs under `csp.unsafeEval: false` with zero external CDN dependencies, zero `eval()`, and `escapeHtml()` on all dynamic content.
+- **C8** (prd RULE-8): Tracker backup & dry-run guarantee — `reconcileWorkspaceTrackers` writes no disk files when `dryRun: true`, and writes `<file>.bak` before modifying any tracker when `backup !== false`.
+- **C9** (prd RULE-9): 5s polling non-interference — background polling skips execution if `isRefreshing`, hidden, or `isUserInteractingWithForm()`, and stashes mid-flight results in `pendingWorkspaceState`.
+- **C10** (prd RULE-10): Bounded file system & git scanning — `scanBmadWorkspace` caps directory depth at 4, heuristic file reads at 24KB–30KB, and enforces a 2500ms timeout on `git` subprocesses.
+- **C11** (prd SLOs and performance budgets): Latency budgets hold — workspace scan ≤250ms (p95, ≤500 artifacts), stdio tool calls ≤300ms (p95), new-session OS automation ≤1500ms (p95) with hard child-process timeouts (8000ms Win32 / 6000ms macOS / 2500ms Linux), deterministic hooks ≤350ms (p95) and ≤4800ms with optional `Stop` LLM synthesis.
+- **C12** (prd AI behavior and evaluation): Deterministic primary path — scanning, evidence reconciliation, and 4-tier scoring run offline; smart `done` only on verified evidence (`storyOverrides` done, plan `done`/`completed`/`shipped`, passing report `failCount === 0`, or completed retrospective); failing reports (`failCount > 0`) hold `in-progress`/`review` and trigger a remediation recommendation; optional LLM synthesis runs only on `Stop` with `BMAD_COMPANION_OPENAI_KEY`/`OPENAI_API_KEY`, bounded by `AbortSignal.timeout(4500)`, falling back silently.
+- **C13** (prd API contract and versioning): JSON-RPC 2.0 over stdio (`protocolVersion: "2024-11-05"`, resource `ui://bmad-companion/panel.html`, `mimeType: "text/html;profile=mcp-app"`, `_meta.ui.csp.unsafeEval: false`); additive optional inputs/output keys are non-breaking (`0.5.x`); renaming tools, removing `structuredContent.metrics` fields, or altering `overrideKey` format requires a `0.x.0` minor bump with state migration in `loadPersistedState`.
+
+## Done when
+
+1. `node --test tests/` runs green with one command on Node 18+ and is the recorded verification gate, automating `node --check scripts/bmad-engine.mjs && node --check scripts/mcp-server.mjs && node --check scripts/hook-runner.mjs` plus the `initialize`/`tools/list`/`resources/read` stdio smoke (`R23`).
+2. 100% of recommendations match `/^\/bmad-[a-z0-9-]+\s+".+"$/` with a valid `providerId/modelId` (`SM-1`, `C2`).
+3. Zero dropped keystrokes, focus losses, or lost prompt/model edits during 5s polling, with deferred flush after `focusout`/`change` ≤100ms (`SM-2`, `C9`).
+4. 100% syntactic validity of reconciled tracker files + 100% `.bak` creation when `backup !== false`, with zero deletion of existing comments or unrelated keys (`SM-3`, `C8`).
+5. Clean-session launch <5s from turn end to pre-pasted prompt in a new ZCode session, with zero unconfirmed auto-submissions in single-launch mode (`SM-4`).
+6. 100% adherence to `reviewMode` (`none`/`quick`/`thorough`) in generated plans and 100% state synchronization between `taskQueue` and `storyOverrides` (`SM-5`).
+
+## Boundaries
+
+- Out: autonomous git commits/branching/pushes (reads git metadata only); `window.zcode` bridge in the panel (MCP Apps `window.parent.postMessage` only); cloud telemetry (state stays local under `.zcode/bmad-companion/`); non-ZCode webview ports in v0.5.x (VS Code/JetBrains extensions). Deferred post-MVP: AST architecture drift checker (v1.0), cross-plugin event bus with Vibe Debrief (v1.0), headless CI CLI gate `--verify-trackers` (v0.6, `OQ-2`), branch-scoped `state.json` (`OQ-1`), and workspace model routing policy file (`OQ-3`).
+- Touch point: `~/.zcode/v2/provider_config.json` — read-only enabled-model input to the scorer; owner: epic-hooks-model-router.
+- Touch point: OS clipboard/keystroke utilities (`powershell.exe`, `pbcopy`, `wl-copy`/`xclip`/`xsel`, `SendKeys`/`osascript`/`xdotool`) — consumed by clean-session launch with graceful fallback; owner: epic-mcp-surface.
+- Touch point: `git` subprocess — read-only status/diff metadata under a 2500ms timeout; owner: epic-hooks-model-router (discovery) and epic-dual-progress-reconciliation (evidence).
+- Touch point: ZCode host App Surfaces + `ListModels` — consumed via `window.parent.postMessage` (`ui/initialize`, `tools/call`, `ui/message`, `ui/update-model-context`); owner: epic-mcp-surface and epic-panel-polling-safety.
+- Touch point: BMAD v6/v7 tracker files (`sprint-status.yaml`/`.yml`, `tickets.toml`, epic frontmatter) in target workspaces — read on scan, written only by explicit reconcile with `.bak`; owner: epic-dual-progress-reconciliation.
+- Touch point: `.zcode/workflows/bmad-task-queue.dwf.ts` + `.zcode/bmad-companion/queue-step-updater.mjs` — generated execution artifacts; owner: epic-execution-queue.
+- Touch point: optional OpenAI-compatible API (`BMAD_COMPANION_OPENAI_KEY`/`OPENAI_API_KEY`, 4500ms timeout) — optional `Stop` synthesis fallback; owner: epic-hooks-model-router.
+- Tracer path: epic-verification-harness (one-command suite + fixtures) → epic-mcp-surface (9-tool contract + clean-session launch) → epic-dual-progress-reconciliation (dual metrics + safe reconcile) → epic-panel-polling-safety (5s guards + a11y/contrast) → epic-execution-queue (14 actions + workflow compiler) → epic-hooks-model-router (4 hooks + 4-tier scorer + closing end-to-end suite).
+
+## References
+
+- prd — `_bmad-output/planning-artifacts/prd-bmad-companion/prd-bmad-companion.md` (Features and requirements `FR-1`–`FR-22`; Rules `RULE-1`–`RULE-6`; Quality and constraints `RULE-7`–`RULE-10`; Success metrics `SM-1`–`SM-5`; SLOs and performance budgets; AI behavior and evaluation; API contract and versioning; Developer experience; Non-goals; MVP scope; Decisions `DEC-1`–`DEC-5`; Assumptions `A-1`–`A-4`; Open questions `OQ-1`–`OQ-3`)
+- design — `_bmad-output/planning-artifacts/ux-bmad-companion/EXPERIENCE.md` (Live Polling & Form-Focus Guards; Accessibility Floor `AD-1`–`AD-6`; Interaction Primitives; Key Flows `UJ-1`–`UJ-4`)
+- design — `_bmad-output/planning-artifacts/ux-bmad-companion/DESIGN.md` (Colors measured contrast `CD-1`–`CD-5`; Components; Do's and Don'ts)
+- architecture — `_bmad-output/initiative-bmad-companion/architecture-bmad-companion/architecture-bmad-companion.md` (spine `AD-1`–`AD-16`; capability map for `R1`–`R23` / `C1`–`C13`; PRD-vs-code drift register `OQ-A`–`OQ-H`; memlog alongside)
+
+## Notes
+
+- Assumption: `A-1` (prd) — ZCode Desktop supports `ui.surfaces` (`surface: "bmad-companion"`) and relays `window.parent.postMessage` JSON-RPC 2.0 calls to `scripts/mcp-server.mjs`.
+- Assumption: `A-2` (prd) — host OS user space permits clipboard utilities and falls back gracefully when synthetic keystrokes are restricted.
+- Assumption: `A-3` (prd) — target workspaces use BMAD v6 (`sprint-status.yaml`, `epics.md`) or v7 (`tickets.toml`, `initiative-*/`, `tickets/epic-*/`) layouts.
+- Assumption: `A-4` (prd) — host models are discoverable via `ListModels` passed to `bmad_update_advisor({ hostModels })` or `~/.zcode/v2/provider_config.json`.
+- Assumption: `R23` automated `node:test` suite is PO-added hardening scope derived from the PRD Developer experience section and `SM-1`–`SM-5`; the `v0.5.2` baseline ships the runtime but no automated suite (`AGENTS.md`).
+- Assumption: panel guard logic is verified with a stubbed-document `node:test` harness (zero-dep, no jsdom) plus a `web-gui-tester` checklist; settles at epic-panel-polling-safety refinement.
+- Assumption: the initiative ships as one hardening wave over the shipped `v0.5.2` baseline; epics sharing `scripts/bmad-engine.mjs` / `scripts/mcp-server.mjs` are chained via `after` so the same file is edited once per lane.
+- Open question: `OQ-1` (prd) — branch-scoped `state.json` partitioning of `storyOverrides`/`taskQueue`; owner Architect (`bmad-architecture`), needed by v0.6.0, blocks a multi-branch state isolation epic (deferred, not in this slice).
+- Open question: `OQ-2` (prd) — headless CI `--verify-trackers` drift flag; owner QA (`bmad-qa-generate-e2e-tests`), needed by v0.6.0, blocks a CI verification story (deferred).
+- Open question: `OQ-3` (prd) — workspace `.zcode/bmad-companion/routing.json` model governance; owner PM (`bmad-agent-pm`), needed by v1.0.0 (deferred).
+- Open question: BMAD v7 `_bmad/` setup is absent in bmad-companion, so `active_initiative` is not registered in `_bmad/custom/config.user.toml` and the skill renderer/memlog.py are unavailable; this tree was authored from the `bmad-agent-po` references plus the sibling `initiative-vibe-debrief` convention and validated with `tickets.py status` on the absolute folder. Owner: run owner; register the initiative when BMAD is set up.
+- Decision: 2026-11-19 — Epic boundary rule: one epic per PRD feature capability (default `slice.md` rule); six epics in build order; engine/MCP same-file epics chained via `after` to avoid code collisions.
+- Decision: 2026-11-19 — Opening epic is the verification harness (platform baseline); no separate scaffold epic because `v0.5.2` already ships the four runtime layers, plugin wiring, and UI.
+- Decision: 2026-11-19 — `R1`–`R22` lift `FR-1`–`FR-22` one-to-one and `C1`–`C10` lift `RULE-1`–`RULE-10` one-to-one; `R23`/`C11`/`C12`/`C13` added from the PRD Developer experience, SLOs, AI behavior, and API contract sections.
+- Decision: 2026-11-19 — Deferred scope (AST drift v1.0, event bus v1.0, CI CLI v0.6, `OQ-1`–`OQ-3`) carries no epic in this slice.
+- Decision: 2026-11-19 — Refactor sweeps included in every epic with more than three entries; a closing end-to-end suite lands in epic-hooks-model-router (the PRD states verification commands and an `SM` test plan).

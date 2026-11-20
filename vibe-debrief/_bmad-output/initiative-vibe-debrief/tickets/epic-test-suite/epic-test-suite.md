@@ -1,5 +1,6 @@
 ---
 type: epic
+status: done
 title: Zero-dependency test suite
 parent: initiative-vibe-debrief
 covers: [R8]

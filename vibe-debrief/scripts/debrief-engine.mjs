@@ -37,6 +37,44 @@ function getStateFilePath(workspaceRoot) {
   return join(workspaceRoot, ".zcode", "vibe-debrief-state.json");
 }
 
+const STATE_COLLECTION_LIMITS = Object.freeze({
+  history: 15,
+  recentTouchedFiles: 15,
+  confirmedLessons: 50
+});
+
+/**
+ * Enforce the documented collection caps at the persistence boundary.
+ * history and confirmedLessons are newest-first, so keep the head.
+ * recentTouchedFiles is append-ordered, so keep the tail.
+ * Non-array values are treated as empty so corrupt state degrades cleanly.
+ */
+function boundStateCollections(state) {
+  const history = Array.isArray(state.history) ? state.history : [];
+  const recentTouchedFiles = Array.isArray(state.recentTouchedFiles)
+    ? state.recentTouchedFiles
+    : [];
+  const confirmedLessons = Array.isArray(state.confirmedLessons)
+    ? state.confirmedLessons
+    : [];
+  return {
+    ...state,
+    history: history.slice(0, STATE_COLLECTION_LIMITS.history),
+    recentTouchedFiles: recentTouchedFiles.slice(-STATE_COLLECTION_LIMITS.recentTouchedFiles),
+    confirmedLessons: confirmedLessons.slice(0, STATE_COLLECTION_LIMITS.confirmedLessons)
+  };
+}
+
+/**
+ * Resolve the ZCode home directory. Tests set ZCODE_HOME_DIR to a temp folder so
+ * memory and model-discovery reads never touch the developer's live ~/.zcode.
+ * The override is read per call, so concurrent test files stay isolated.
+ */
+function getZCodeHomeDir() {
+  const override = String(process.env.ZCODE_HOME_DIR || "").trim();
+  return override || homedir();
+}
+
 export function loadPersistedState(workspaceRoot) {
   const path = getStateFilePath(workspaceRoot);
   try {
@@ -51,7 +89,7 @@ export function loadPersistedState(workspaceRoot) {
     if (merged.currentDebrief) {
       merged.currentDebrief = ensureDebriefEnriched(merged.currentDebrief, merged);
     }
-    return merged;
+    return boundStateCollections(merged);
   } catch {
     return createDefaultState(workspaceRoot);
   }
@@ -60,11 +98,11 @@ export function loadPersistedState(workspaceRoot) {
 export function savePersistedState(workspaceRoot, patch) {
   const path = getStateFilePath(workspaceRoot);
   const current = loadPersistedState(workspaceRoot);
-  const next = {
+  const next = boundStateCollections({
     ...current,
     ...patch,
     updatedAt: new Date().toISOString()
-  };
+  });
   try {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(next, null, 2), "utf8");
@@ -1208,6 +1246,13 @@ export function generateStandaloneHtmlArtifact(panelState) {
   var totalW = boxW * cols + gap * (cols - 1);
   var startX = Math.floor((w - totalW) / 2);
   var pos = {};
+  function esc(v){
+    return String(v == null ? "" : v)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
   var html = '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/></marker></defs>';
   nodes.forEach(function(n, i){
     pos[n.id] = { x: startX + i*(boxW+gap), y: 58, w: boxW, h: 86 };
@@ -1219,16 +1264,16 @@ export function generateStandaloneHtmlArtifact(panelState) {
     var mx = (x1+x2)/2;
     html += '<path d="M '+x1+' '+y1+' L '+x2+' '+y2+'" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>';
     html += '<circle cx="'+mx+'" cy="'+(y1-16)+'" r="10" fill="#182030" stroke="#38bdf8"/>';
-    html += '<text x="'+mx+'" y="'+(y1-12)+'" text-anchor="middle" fill="#f0f6fc" font-size="11" font-weight="700">'+e.stepNumber+'</text>';
+    html += '<text x="'+mx+'" y="'+(y1-12)+'" text-anchor="middle" fill="#f0f6fc" font-size="11" font-weight="700">'+esc(e.stepNumber)+'</text>';
   });
   nodes.forEach(function(n){
     var p = pos[n.id];
     var stroke = n.risk === "high" ? "#fb7185" : n.risk === "medium" ? "#fbbf24" : "#34d399";
-    html += '<g class="dnode" data-id="'+n.id+'" style="cursor:pointer">';
+    html += '<g class="dnode" data-id="'+esc(n.id)+'" style="cursor:pointer">';
     html += '<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="10" fill="#131a26" stroke="'+stroke+'" stroke-width="2"/>';
-    html += '<text x="'+(p.x+10)+'" y="'+(p.y+26)+'" fill="#f0f6fc" font-size="12.5" font-weight="700">'+(n.label||"").slice(0,22)+'</text>';
-    html += '<text x="'+(p.x+10)+'" y="'+(p.y+46)+'" fill="#9ba7b8" font-size="11">'+(n.sublabel||"").slice(0,26)+'</text>';
-    html += '<text x="'+(p.x+10)+'" y="'+(p.y+68)+'" fill="'+stroke+'" font-size="10" font-weight="700">'+(n.risk||"low").toUpperCase()+' · '+(n.role||"")+'</text>';
+    html += '<text x="'+(p.x+10)+'" y="'+(p.y+26)+'" fill="#f0f6fc" font-size="12.5" font-weight="700">'+esc((n.label||"").slice(0,22))+'</text>';
+    html += '<text x="'+(p.x+10)+'" y="'+(p.y+46)+'" fill="#9ba7b8" font-size="11">'+esc((n.sublabel||"").slice(0,26))+'</text>';
+    html += '<text x="'+(p.x+10)+'" y="'+(p.y+68)+'" fill="'+stroke+'" font-size="10" font-weight="700">'+esc((n.risk||"low").toUpperCase())+' · '+esc(n.role||"")+'</text>';
     html += '</g>';
   });
   svg.innerHTML = html;
@@ -1313,7 +1358,7 @@ export function saveStandaloneHtmlArtifact(workspaceRoot, panelState) {
 // ============================================================================
 
 export function resolveZCodeMemoryDirectory(workspaceRoot) {
-  const home = homedir();
+  const home = getZCodeHomeDir();
   const projectsMemRoot = join(home, ".zcode", "cli", "memories", "projects");
   const wsSlug = basename(workspaceRoot || process.cwd())
     .toLowerCase()
@@ -1473,7 +1518,7 @@ export function confirmAndSaveLessonToZCodeMemory(workspaceRoot, lessonInput) {
 }
 
 export function discoverLightweightGeminiModels() {
-  const zcodeV2Dir = join(homedir(), ".zcode", "v2");
+  const zcodeV2Dir = join(getZCodeHomeDir(), ".zcode", "v2");
   const providerCfgPath = join(zcodeV2Dir, "provider_config.json");
   const settingPath = join(zcodeV2Dir, "setting.json");
   const credsPath = join(zcodeV2Dir, "credentials.json");

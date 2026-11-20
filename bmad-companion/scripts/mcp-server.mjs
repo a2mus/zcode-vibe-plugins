@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   inspectWorkspaceArtifact,
+  manageBmadTaskQueue,
   openWorkspaceArtifactExternally,
   reconcileWorkspaceTrackers,
   savePersistedState,
@@ -178,6 +179,23 @@ function getWorkspaceRoot() {
 
 function formatStateMarkdown(scan) {
   const m = scan.metrics;
+  const q = scan.taskQueue;
+  const queueLines =
+    q && q.items && q.items.length > 0
+      ? [
+          ``,
+          `## Active & Queued BMAD Tasks (${q.counts.done}/${q.counts.total} complete · Status: ${q.status.toUpperCase()} · Mode: ${q.executionMode} · Review: ${q.defaultReviewMode})`,
+          q.activeTask
+            ? `- 🟢 **ACTIVE TASK:** **${q.activeTask.title}** — Model: \`${q.activeTask.model}\` · Review: \`${q.activeTask.reviewMode}\`\n  - Prompt: \`${q.activeTask.effectivePrompt}\``
+            : `- ⏸ **Active Task:** None currently running`,
+          ...q.items
+            .filter((it) => it.status === "queued")
+            .map(
+              (it, i) =>
+                `- ⏳ **In Queue #${i + 1}:** **${it.title}** — Model: \`${it.model}\` · Review: \`${it.reviewMode}\``
+            )
+        ]
+      : [];
   const lines = [
     `# BMAD Companion — ${scan.projectName} (${scan.techStack})`,
     ``,
@@ -185,6 +203,7 @@ function formatStateMarkdown(scan) {
     `- **Static Tracker Progress:** ${m.declaredDoneStories}/${m.totalStories} stories (**${m.declaredOverallPct}%**) · **${m.reconciledStoriesCount} stories smart-reconciled**`,
     `- **Current Breakdown:** ${m.smartDoneStories} Done · ${m.reviewStories} In Review · ${m.inProgressStories} In Progress · ${m.backlogStories} Backlog`,
     `- **Latest Turn Insight:** ${scan.turnAnalysis.aiSummaryHeadline}`,
+    ...queueLines,
     ``,
     `## Top Recommended Next BMAD Prompts & Models`,
     ...scan.recommendations.slice(0, 5).map(
@@ -482,6 +501,121 @@ const TOOLS = [
         visibility: ["model", "app"]
       }
     }
+  },
+  {
+    name: "bmad_queue_manage",
+    description:
+      "Manage the BMAD Companion Multi-Task Execution Queue: add tasks or entire epics with per-task AI models and configurable review modes (none/quick/thorough), reorder/remove tasks, mark tasks active or completed (auto-advancing the queue and updating story completion in the panel), and generate an executable ZCode Dynamic Workflow (.dwf.ts) or Separate-Sessions execution plan.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: [
+            "get",
+            "add",
+            "add-epic",
+            "update-item",
+            "set-review-mode",
+            "set-execution-mode",
+            "reorder",
+            "remove",
+            "clear",
+            "start-queue",
+            "start-task",
+            "complete-task",
+            "pause-queue",
+            "generate-workflow"
+          ],
+          description: "Queue operation to perform."
+        },
+        items: {
+          type: "array",
+          description: "Tasks to add when action='add'.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              title: { type: "string" },
+              skill: { type: "string" },
+              prompt: { type: "string" },
+              model: { type: "string", description: "Selected model ID (providerId/modelId) for this task." },
+              reviewMode: { type: "string", enum: ["none", "quick", "thorough"] },
+              storyId: { type: "string" },
+              overrideKey: { type: "string" },
+              epicSlug: { type: "string" },
+              verifyCommand: { type: "string" }
+            }
+          }
+        },
+        epicSlug: {
+          type: "string",
+          description: "Epic slug or ID when action='add-epic' (enqueues all incomplete stories in the epic)."
+        },
+        includeDone: {
+          type: "boolean",
+          description: "If true with action='add-epic', also enqueue stories already marked done."
+        },
+        taskId: {
+          type: "string",
+          description: "Target task ID for update-item, reorder, remove, start-task, or complete-task."
+        },
+        model: {
+          type: "string",
+          description: "Model ID (providerId/modelId) when updating a task or queueing an epic."
+        },
+        reviewMode: {
+          type: "string",
+          enum: ["none", "quick", "thorough"],
+          description: "Review mode: 'none' (oneshot + deterministic tests only, lowest token cost), 'quick' (oneshot + 1 quick review), or 'thorough' (full multi-lens review)."
+        },
+        applyToAll: {
+          type: "boolean",
+          description: "When action='set-review-mode', apply the new reviewMode to all queued items (default true)."
+        },
+        executionMode: {
+          type: "string",
+          enum: ["dynamic-workflow", "separate-sessions"],
+          description: "Execution engine for running the queue: 'dynamic-workflow' (.dwf.ts via CreateWorkflow) or 'separate-sessions' (CreateSession + WaitSessions loop)."
+        },
+        prompt: {
+          type: "string",
+          description: "Updated prompt string when action='update-item'."
+        },
+        direction: {
+          type: "string",
+          enum: ["up", "down"],
+          description: "Move task up or down when action='reorder'."
+        },
+        onlyCompleted: {
+          type: "boolean",
+          description: "When action='clear', only remove completed tasks if true."
+        },
+        failed: {
+          type: "boolean",
+          description: "When action='complete-task', mark the task as failed instead of done."
+        },
+        storyStatus: {
+          type: "string",
+          enum: ["done", "review", "in-progress", "backlog"],
+          description: "When action='complete-task', status to record on the linked story (default 'done')."
+        },
+        summary: {
+          type: "string",
+          description: "Outcome summary when completing a task."
+        }
+      },
+      required: ["action"],
+      additionalProperties: false
+    },
+    annotations: { readOnlyHint: false },
+    _meta: {
+      ui: {
+        resourceUri: PANEL_URI,
+        surface: SURFACE_ID,
+        visibility: ["model", "app"]
+      }
+    }
   }
 ];
 
@@ -660,6 +794,37 @@ async function handleToolCall(name, args = {}) {
       structuredContent: {
         ...info,
         openedExternally: openedResult.opened
+      }
+    };
+  }
+
+  if (name === "bmad_queue_manage") {
+    const res = manageBmadTaskQueue(workspaceRoot, args);
+    const q = res.taskQueue;
+    const wf = res.generatedWorkflow;
+    const summaryLines = [
+      `# BMAD Companion Task Queue (${res.action})`,
+      `- **Queue Status:** ${q.status.toUpperCase()} (${q.counts.done}/${q.counts.total} complete · ${q.counts.queued} in queue · ${q.counts.running} active)`,
+      `- **Execution Mode:** \`${q.executionMode}\` · **Default Review Gate:** \`${q.defaultReviewMode}\``,
+      q.activeTask
+        ? `- 🟢 **Active Task:** **${q.activeTask.title}** (\`${q.activeTask.model}\` · review: \`${q.activeTask.reviewMode}\`)`
+        : `- ⏸ **Active Task:** None`,
+      ...(wf
+        ? [
+            `- ⚡ **Generated Dynamic Workflow:** \`${wf.workflowRelPath}\` (${wf.tasksCount} tasks)`,
+            `  - Workflow Launch Command: \`${wf.workflowLaunchPrompt}\``
+          ]
+        : [])
+    ];
+    return {
+      content: [{ type: "text", text: summaryLines.join("\n") }],
+      structuredContent: {
+        ...res.scan,
+        queueActionResult: {
+          action: res.action,
+          taskQueue: res.taskQueue,
+          generatedWorkflow: res.generatedWorkflow
+        }
       }
     };
   }

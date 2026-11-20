@@ -1,0 +1,57 @@
+# Epic 1: Zero-dependency verification harness — story breakdown.
+# Table order is build order. `id` is permanent, never reused.
+
+[[entry]]
+id = 1
+type = "story"
+title = "node:test harness + temp-workspace fixture tracer"
+description = "Tracer bullet: stands up tests/ with a node:test runner and a reusable temp-workspace fixture helper (seeds _bmad-output/, sprint-status.yaml, tickets.toml, story plans), then proves the thinnest path — fixture -> import scanBmadWorkspace -> assert a valid ScanResult. Hands off the fixture helper and engine smoke pattern to Stories 2-4 and Epics 2-6."
+verify = "Run `node --test tests/` and confirm the engine smoke test seeds a temp workspace, calls scanBmadWorkspace, and asserts metrics/phases/epics/artifacts keys without any npm dependency."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 2
+type = "story"
+title = "MCP stdio transport smoke harness"
+description = "Builds on Story 1's fixture helper to add a spawned-process harness that drives scripts/mcp-server.mjs over stdin (initialize, tools/list, resources/read) and asserts the JSON-RPC 2.0 contract: protocolVersion 2024-11-05, serverInfo.name/version, all 9 tool names, and the ui://bmad-companion/panel.html resource with mimeType text/html;profile=mcp-app and _meta.ui.csp.unsafeEval:false. Hands off the MCP transport helper to Epics 2, 3, and 5."
+verify = "Run `node --test tests/` and confirm the spawned MCP handshake test asserts protocolVersion, the 9 tool names, and the panel resource CSP metadata, with stdout staying JSON-RPC only."
+covers = ["R1"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Hook stdout-isolation harness"
+description = "Builds on Story 1's fixture helper to add a spawned-process harness that runs scripts/hook-runner.mjs for SessionStart, UserPromptSubmit, PostToolUse, and Stop against a seeded workspace and asserts each emits exactly one JSON line on stdout with the expected additionalContext shape and no stray output. Hands off the hook transport helper to Epic 6."
+verify = "Run `node --test tests/` and confirm each of the four hook invocations emits a single parseable JSON stdout line with additionalContext and zero non-JSON output."
+covers = ["R1"]
+after = [1]
+hitl = false
+risk = "medium"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Version tri-sync gate"
+description = "Constraint C6 work: adds scripts/check-version-sync.mjs comparing version across .zcode-plugin/plugin.json, ../marketplace.json, and serverInfo.version in scripts/mcp-server.mjs, plus a suite test that passes when synced and fails on a deliberate mismatch. Hands off the release gate to Epics 2-6."
+verify = "Run `node --test tests/` and confirm the version-sync test passes on the synced tree and a fixture with a bumped plugin.json version makes scripts/check-version-sync.mjs exit non-zero."
+covers = []
+after = [1]
+hitl = false
+risk = "low"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Refactor sweep"
+description = "Cleanup only, after Stories 1-4: deduplicate fixture/transport helpers, normalize temp-workspace teardown, and tighten harness naming; scope is set at start from deferred review findings. No new behavior."
+verify = "Run `node --test tests/` green and confirm no duplicated fixture or spawn helper remains across tests/."
+covers = []
+after = [1, 2, 3, 4]
+hitl = false
+risk = "low"

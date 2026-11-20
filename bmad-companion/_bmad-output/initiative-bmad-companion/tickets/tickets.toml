@@ -1,0 +1,60 @@
+# bmad-companion hardening delta over the shipped v0.5.2 baseline — epic set, in build order.
+# Table order is build order. `id` is permanent, never reused.
+# R1-R22 lift prd FR-1-FR-22; R23 is the PO-added one-command verification suite.
+
+[[epic]]
+id = 1
+slug = "epic-verification-harness"
+title = "Zero-dependency verification harness"
+description = "Stands up the one-command node --test tests/ suite the v0.5.2 baseline lacks: temp-workspace fixtures, an engine smoke tracer, spawned MCP stdio and hook stdout-isolation harnesses, and a version tri-sync gate. Hands off the fixtures and transport harnesses to epics 2-6 and the closing end-to-end suite to epic 6."
+covers = ["R23"]
+
+[[epic]]
+id = 2
+slug = "epic-mcp-surface"
+title = "9-tool MCP contract & clean-session launch"
+description = "Builds on Epic 1's MCP stdio harness to harden the read-only tool contract (open_companion/get_state/recommend_next), advisor hostModels sync + storyOverrides persistence, clean-session OS automation with clipboard fallback, and workspace-confined artifact inspect/open with git diff. Hands off the frozen ScanResult/polling payload contract to epics 3-5 and the panel to epic 4."
+covers = ["R1", "R2", "R3", "R4", "R6", "R7", "R8"]
+after = [{ epic = 1, needs = "the MCP stdio transport harness and temp-workspace fixtures" }]
+
+[[epic]]
+id = 3
+slug = "epic-dual-progress-reconciliation"
+title = "Dual progress tracking & safe tracker reconciliation"
+description = "Builds on Epic 1's fixtures and Epic 2's hardened engine state/advisor lane in scripts/bmad-engine.mjs (same file edited once) to prove dual static-vs-smart metrics, the smart evidence evaluator, non-destructive reconcile with .bak + audit ledger, and the reconcile MCP tool contract. Hands off the reconciled engine scan/state baseline to epic 5."
+covers = ["R5", "R10", "R11"]
+after = [
+  { epic = 1, needs = "the temp-workspace fixtures and engine test harness" },
+  { epic = 2, needs = "the hardened engine state/advisor lane in scripts/bmad-engine.mjs, so the same file is edited once" }
+]
+
+[[epic]]
+id = 4
+slug = "epic-panel-polling-safety"
+title = "5s polling safety, accessibility & contrast parity"
+description = "Builds on Epic 2's frozen ScanResult/polling payload contract to harden the panel's visibility-gated 5s poll, form-interaction guard stash/flush, edit preservation + signature diffing, and to close the tracked UX accessibility deviations AD-1-AD-5 and contrast debt CD-1-CD-5 in assets/panel.html. Touches only panel.html, so it runs beside epics 3 and 5."
+covers = ["R12", "R13", "R14"]
+after = [{ epic = 2, needs = "the frozen ScanResult/polling payload contract the panel renders" }]
+
+[[epic]]
+id = 5
+slug = "epic-execution-queue"
+title = "Multi-task execution queue & workflow compiler"
+description = "Builds on Epic 1's harness, Epic 3's reconciled engine lane in scripts/bmad-engine.mjs, and Epic 2's mcp-server handler lane to harden the 14-action queue lifecycle, review-mode prompt shaping, dual execution-engine generation (.dwf.ts + step-updater / CreateSession plan), and the queue MCP contract with taskQueue/storyOverrides sync. Hands off the queue start-task/complete-task actions to epic 6's hooks."
+covers = ["R9", "R15", "R16"]
+after = [
+  { epic = 1, needs = "the node:test verification harness" },
+  { epic = 3, needs = "the reconciled engine queue/state lane in scripts/bmad-engine.mjs, so the same file is edited once" },
+  { epic = 2, needs = "the mcp-server.mjs tool handler lane" }
+]
+
+[[epic]]
+id = 6
+slug = "epic-hooks-model-router"
+title = "Lifecycle hooks, 4-tier model router & closing end-to-end suite"
+description = "Builds on Epic 1's hook stdout harness and Epic 5's queue start-task/complete-task actions to harden the four lifecycle hooks (SessionStart/UserPromptSubmit/PostToolUse/Stop), the 4-tier enabled-model scorer, workspace-confined artifact discovery, and optional Stop LLM synthesis; closes with the cross-epic end-to-end suite proving UJ-1-UJ-4 and the SM-1-SM-5 gate."
+covers = ["R17", "R18", "R19", "R20", "R21", "R22"]
+after = [
+  { epic = 1, needs = "the hook stdout-isolation harness" },
+  { epic = 5, needs = "the taskQueue start-task/complete-task actions the hooks auto-advance, and the engine scorer/discovery lane" }
+]

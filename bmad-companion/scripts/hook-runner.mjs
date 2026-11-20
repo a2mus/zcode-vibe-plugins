@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import {
   loadPersistedState,
+  manageBmadTaskQueue,
   savePersistedState,
   scanBmadWorkspace
 } from "./bmad-engine.mjs";
@@ -106,11 +107,30 @@ async function main() {
         promptText = last?.message?.content?.[0]?.text || "";
       } catch {}
     }
+    const cleanPrompt = String(promptText || "").slice(0, 4000);
     savePersistedState(workspaceRoot, {
-      lastUserPrompt: String(promptText || "").slice(0, 4000),
+      lastUserPrompt: cleanPrompt,
       lastUserPromptAt: new Date().toISOString(),
       recentTouchedFiles: []
     });
+
+    // If this prompt matches a queued task (and is not the queue orchestrator command itself), mark it active
+    try {
+      const state = loadPersistedState(workspaceRoot);
+      const qItems = state.taskQueue?.items || [];
+      if (qItems.length > 0 && !/Execute the active @bmad-companion Task Queue|bmad-task-queue\.dwf\.ts/i.test(cleanPrompt)) {
+        const matched = qItems.find(
+          (it) =>
+            it.status === "queued" &&
+            ((it.prompt && cleanPrompt.includes(it.prompt.slice(0, 45))) ||
+              (it.storyId && new RegExp(`\\b(?:ticket|story)\\s+${String(it.storyId).replace(".", "\\.")}\\b`, "i").test(cleanPrompt)))
+        );
+        if (matched) {
+          manageBmadTaskQueue(workspaceRoot, { action: "start-task", taskId: matched.id });
+        }
+      }
+    } catch {}
+
     process.stdout.write("{}\n");
     return;
   }
@@ -146,6 +166,33 @@ async function main() {
       lastTurnAnalyzedAt: new Date().toISOString(),
       turnCount: nextTurnCount
     });
+
+    // Auto-complete active queued task when a single-task session finishes
+    try {
+      const q = state.taskQueue;
+      const lastPrompt = String(state.lastUserPrompt || "");
+      if (
+        q &&
+        q.activeTaskId &&
+        Array.isArray(q.items) &&
+        !/Execute the active @bmad-companion Task Queue|bmad-task-queue\.dwf\.ts/i.test(lastPrompt)
+      ) {
+        const activeItem = q.items.find((it) => it.id === q.activeTaskId && it.status === "running");
+        if (
+          activeItem &&
+          ((activeItem.prompt && lastPrompt.includes(activeItem.prompt.slice(0, 40))) ||
+            (activeItem.storyId &&
+              new RegExp(`\\b(?:ticket|story)\\s+${String(activeItem.storyId).replace(".", "\\.")}\\b`, "i").test(lastPrompt)))
+        ) {
+          manageBmadTaskQueue(workspaceRoot, {
+            action: "complete-task",
+            taskId: activeItem.id,
+            storyStatus: "done",
+            summary: assistantMsg ? assistantMsg.replace(/\s+/g, " ").slice(0, 140) : "Completed in session"
+          });
+        }
+      }
+    } catch {}
 
     const scan = scanBmadWorkspace(workspaceRoot);
     const aiSynth = await tryOptionalAiTurnSynthesis(

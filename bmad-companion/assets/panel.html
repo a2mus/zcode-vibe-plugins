@@ -692,6 +692,68 @@
         overflow-y: auto;
         margin-top: 8px;
       }
+
+      .live-queue-banner {
+        display: none;
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(139, 92, 246, 0.14));
+        border-bottom: 1px solid var(--accent);
+        padding: 7px 11px;
+        font-size: 11.2px;
+      }
+
+      .live-queue-banner.visible {
+        display: block;
+      }
+
+      .pulse-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--success);
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: pulseGlow 1.6s infinite;
+        margin-right: 5px;
+      }
+
+      @keyframes pulseGlow {
+        0% {
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        70% {
+          box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+      }
+
+      .queue-item-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 9px 10px;
+        margin-bottom: 7px;
+        transition: border-color 0.15s ease;
+      }
+
+      .queue-item-card.is-active {
+        border-color: var(--success);
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), var(--bg-secondary));
+      }
+
+      .queue-item-card.is-done {
+        opacity: 0.78;
+        border-color: var(--border-subtle);
+      }
+
+      .queue-cb {
+        width: 14px;
+        height: 14px;
+        accent-color: var(--accent);
+        cursor: pointer;
+        flex-shrink: 0;
+      }
     </style>
   </head>
   <body>
@@ -728,10 +790,15 @@
 
       <nav class="tabs-nav">
         <button class="tab-btn active" data-tab="advisor">⚡ Next Prompts</button>
+        <button class="tab-btn" data-tab="queue" id="tabBtnQueue">⛓️ Queue <span class="pill pill-purple" id="queueTabCount" style="margin-left:3px;padding:0 5px;">0</span></button>
         <button class="tab-btn" data-tab="progress">📊 Phases & Epics</button>
         <button class="tab-btn" data-tab="catalog">🧭 Skills & Agents</button>
         <button class="tab-btn" data-tab="artifacts">🗂️ Artifacts</button>
       </nav>
+
+      <div class="live-queue-banner" id="liveQueueBanner">
+        <div id="liveQueueBannerContent"></div>
+      </div>
 
       <div class="toast-banner" id="toastBanner">
         <span id="toastText">Opening a new conversation with your prompt pre-pasted…</span>
@@ -756,8 +823,13 @@
             </div>
           </div>
 
-          <div class="section-header" style="margin: 8px 2px 6px;">
-            <div class="section-title">🚀 Next BMAD Prompts (Opens New Conversation + Pre-Pastes Prompt)</div>
+          <div class="section-header" style="margin: 8px 2px 6px; flex-wrap: wrap; gap: 6px;">
+            <div class="section-title">🚀 Next BMAD Prompts (Select Multiple to Queue or Launch Directly)</div>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              <button class="btn" id="btnSelectAllRecs" style="padding:2px 7px;font-size:10.5px;" title="Select or deselect all recommended tasks">☑️ Select All</button>
+              <button class="btn btn-purple" id="btnQueueSelectedRecs" style="padding:2px 8px;font-size:10.5px;" title="Add checked recommendations with their selected models to the execution queue">➕ Add Checked to Queue</button>
+              <button class="btn btn-primary" id="btnGoToQueueFromAdvisor" style="padding:2px 8px;font-size:10.5px;" title="Open the Multi-Task Queue Runner">⛓️ Open Queue</button>
+            </div>
           </div>
           <div id="recommendationsList"></div>
 
@@ -767,6 +839,75 @@
             </div>
             <div id="insightsList"></div>
           </div>
+        </section>
+
+        <!-- Tab 1.5: Multi-Task Execution Queue & Workflow Orchestrator -->
+        <section id="tab-queue" style="display: none;">
+          <div class="section-card">
+            <div class="section-header" style="flex-wrap: wrap; gap: 6px;">
+              <div>
+                <div class="section-title">⛓️ Multi-Task Execution Queue & Per-Task Model Orchestrator</div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+                  Queue multiple recommended tasks or an entire epic, pick an AI model & token-saving review gate per task, and run them automatically in separate sessions or as a compiled ZCode Dynamic Workflow (<code>.dwf.ts</code>).
+                </div>
+              </div>
+              <span class="pill pill-accent" id="queueStatusBadge">IDLE · 0/0</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+              <div>
+                <label style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
+                  🛡️ Default Review & Token Gate (Applies to Queue)
+                </label>
+                <select class="model-select" id="queueDefaultReviewSelect" style="width: 100%;">
+                  <option value="none">⚡ Minimal: Oneshot + Deterministic Tests (review=none · ~70% token savings)</option>
+                  <option value="quick">🔍 Quick: Oneshot + 1 Quick Pass (review=quick · ~45% token savings)</option>
+                  <option value="thorough">🛡️ Thorough: Full Route + Multi-Lens Review (review=thorough)</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
+                  📦 Quick-Enqueue Entire Epic (Build Order)
+                </label>
+                <div style="display: flex; gap: 4px;">
+                  <select class="model-select" id="queueEpicPicker" style="flex: 1; min-width: 0;">
+                    <option value="">Select an epic to enqueue…</option>
+                  </select>
+                  <button class="btn btn-purple" id="btnQueueEntireEpic" title="Add all open stories of this epic to the queue in build order">
+                    ➕ Queue Epic
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center;">
+              <button class="btn btn-primary" id="btnRunQueueWorkflow" title="Compile .zcode/workflows/bmad-task-queue.dwf.ts with per-task models and world.run state updates, then launch it via CreateWorkflow">
+                ⚡ Run Queue via ZCode Workflow (.dwf.ts)
+              </button>
+              <button class="btn btn-purple" id="btnRunQueueSessions" title="Orchestrate each queued task sequentially in its own separate ZCode conversation via CreateSession + WaitSessions with live companion state updates">
+                🚀 Run Queue in Separate Sessions (Auto-Loop)
+              </button>
+              <button class="btn" id="btnCompleteActiveTask" title="Mark the currently active task as Done, reconcile its story status, and promote the next task in queue">
+                ✓ Complete Active & Next
+              </button>
+              <button class="btn" id="btnPauseQueue" title="Pause active queue execution">
+                ⏸ Pause
+              </button>
+              <button class="btn" id="btnClearDoneQueue" title="Remove completed tasks from the queue">
+                🧹 Clear Done
+              </button>
+              <button class="btn" id="btnClearAllQueue" title="Empty the entire task queue">
+                🗑️ Clear All
+              </button>
+            </div>
+          </div>
+
+          <div id="queueActiveSpotlight"></div>
+
+          <div class="section-header" style="margin: 10px 2px 6px;">
+            <div class="section-title" id="queueListHeaderTitle">📋 Queued & Completed Tasks (0)</div>
+          </div>
+          <div id="queueItemsList"></div>
         </section>
 
         <!-- Tab 2: Phases, Epics & Stories -->
@@ -894,6 +1035,7 @@
         let initialEpicsExpanded = false;
         const userSelectedModels = new Map();
         const userEditedPrompts = new Map();
+        const selectedRecIndices = new Set();
         const lastSectionSignatures = {
           providerBar: "",
           recommendations: "",
@@ -902,7 +1044,8 @@
           epics: "",
           skillsCatalog: "",
           agentsCatalog: "",
-          artifacts: ""
+          artifacts: "",
+          taskQueue: ""
         };
         let selectOpenUntil = 0;
         let pendingWorkspaceState = null;
@@ -1290,6 +1433,7 @@
           document.getElementById("turnSummary").textContent =
             turn.lastAssistantSummary || "";
 
+          renderLiveQueueBannerAndTab();
           renderRecommendations(state.recommendations || []);
           renderInsights(state.smartInsights || []);
           renderPhases(state.phases || []);
@@ -1298,10 +1442,350 @@
           renderArtifactsDirectory(state.phases || []);
         }
 
+        function isPromptOrStoryInQueue(promptText, overrideKey) {
+          const items = currentState?.taskQueue?.items || [];
+          return items.find(
+            (it) =>
+              (overrideKey && it.overrideKey === overrideKey) ||
+              (promptText && it.prompt === promptText)
+          );
+        }
+
+        async function manageQueue(payload, toastMessage) {
+          try {
+            if (toastMessage) showToast(toastMessage);
+            const res = await callServerTool("bmad_queue_manage", payload);
+            if (res && res.structuredContent) {
+              renderWorkspaceState(res.structuredContent);
+              return res.structuredContent;
+            }
+          } catch (err) {
+            showToast("❌ Queue action failed: " + err.message);
+          }
+          return null;
+        }
+
+        function renderLiveQueueBannerAndTab() {
+          if (!currentState) return;
+          const q = currentState.taskQueue || {
+            status: "idle",
+            executionMode: "dynamic-workflow",
+            defaultReviewMode: "none",
+            counts: { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 },
+            items: []
+          };
+          const counts = q.counts || { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 };
+
+          const tabCountEl = document.getElementById("queueTabCount");
+          if (tabCountEl) {
+            tabCountEl.textContent = counts.running > 0 ? `🟢 ${counts.queued + counts.running}` : String(counts.total || 0);
+          }
+
+          const banner = document.getElementById("liveQueueBanner");
+          const bannerContent = document.getElementById("liveQueueBannerContent");
+          if (banner && bannerContent) {
+            if ((q.items || []).length === 0) {
+              banner.classList.remove("visible");
+            } else {
+              banner.classList.add("visible");
+              const active = q.activeTask;
+              const nextUp = q.nextQueuedTask;
+              const statusLabel =
+                q.status === "running"
+                  ? `<span class="pill pill-success"><span class="pulse-dot"></span>ACTIVE QUEUE</span>`
+                  : q.status === "completed"
+                    ? `<span class="pill pill-success">✓ QUEUE COMPLETE</span>`
+                    : `<span class="pill pill-accent">⏳ QUEUED (${counts.queued})</span>`;
+
+              bannerContent.innerHTML = `
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                  <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
+                    ${statusLabel}
+                    <span style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                      ${
+                        active
+                          ? `🟢 Running: ${escapeHtml(active.title)} <span class="pill pill-purple">🤖 ${escapeHtml(active.modelShort)} · review=${escapeHtml(active.reviewMode)}</span>`
+                          : nextUp
+                            ? `Next in Queue: ${escapeHtml(nextUp.title)} <span class="pill pill-purple">🤖 ${escapeHtml(nextUp.modelShort)}</span>`
+                            : `All ${counts.done} queued task(s) finished`
+                      }
+                    </span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+                    <span class="pill pill-accent">${counts.done}/${counts.total} Done · ${counts.queued} In Queue</span>
+                    ${
+                      active
+                        ? `<button class="btn btn-primary" id="bannerBtnCompleteActive" style="padding:2px 7px;font-size:10.3px;" title="Mark active task Done, update story tracker, and advance to next task">✓ Done & Next</button>`
+                        : counts.queued > 0
+                          ? `<button class="btn btn-primary" id="bannerBtnRunWorkflow" style="padding:2px 7px;font-size:10.3px;" title="Run queue via ZCode Dynamic Workflow">⚡ Run Workflow</button>`
+                          : ""
+                    }
+                    <button class="btn" id="bannerBtnOpenQueue" style="padding:2px 7px;font-size:10.3px;">⛓️ View Queue</button>
+                  </div>
+                </div>
+                <div class="dual-bar" style="height:4px;margin-top:5px;">
+                  <div class="bar-smart" style="width:${counts.progressPct || 0}%"></div>
+                </div>
+              `;
+
+              document.getElementById("bannerBtnOpenQueue")?.addEventListener("click", () => switchTab("queue"));
+              document.getElementById("bannerBtnCompleteActive")?.addEventListener("click", async () => {
+                await manageQueue(
+                  { action: "complete-task", taskId: active.id, storyStatus: "done" },
+                  `✓ Completed ${active.title} & advancing queue…`
+                );
+              });
+              document.getElementById("bannerBtnRunWorkflow")?.addEventListener("click", async () => {
+                await launchQueueExecution("dynamic-workflow");
+              });
+            }
+          }
+
+          // Render Epic picker in Queue Tab
+          const epicPicker = document.getElementById("queueEpicPicker");
+          if (epicPicker) {
+            const currentVal = epicPicker.value;
+            const epics = currentState.epics || [];
+            epicPicker.innerHTML =
+              `<option value="">Select an epic to enqueue all open stories…</option>` +
+              epics
+                .map((ep) => {
+                  const openCount = (ep.stories || []).filter((s) => s.smartStatus !== "done").length;
+                  const totalCount = (ep.stories || []).length;
+                  return `<option value="${escapeHtml(ep.slug)}" ${ep.slug === currentVal ? "selected" : ""}>Epic ${escapeHtml(ep.number)}: ${escapeHtml(ep.title)} (${openCount}/${totalCount} open)</option>`;
+                })
+                .join("");
+          }
+
+          const revSel = document.getElementById("queueDefaultReviewSelect");
+          if (revSel && q.defaultReviewMode) {
+            revSel.value = q.defaultReviewMode;
+          }
+
+          const qBadge = document.getElementById("queueStatusBadge");
+          if (qBadge) {
+            qBadge.textContent = `${(q.status || "idle").toUpperCase()} · ${counts.done}/${counts.total} Done · ${counts.queued} Queued`;
+            qBadge.className = `pill ${q.status === "running" ? "pill-success" : counts.queued > 0 ? "pill-accent" : "pill-purple"}`;
+          }
+
+          const qHeaderTitle = document.getElementById("queueListHeaderTitle");
+          if (qHeaderTitle) {
+            qHeaderTitle.textContent = `📋 Task Queue (${counts.running} Active · ${counts.queued} In Queue · ${counts.done} Done)`;
+          }
+
+          const queueSig = JSON.stringify({
+            q,
+            models: currentState.availableModels || []
+          });
+          if (lastSectionSignatures.taskQueue === queueSig) return;
+          lastSectionSignatures.taskQueue = queueSig;
+
+          const spotlightEl = document.getElementById("queueActiveSpotlight");
+          if (spotlightEl) {
+            if (q.activeTask) {
+              const act = q.activeTask;
+              spotlightEl.innerHTML = `
+                <div class="section-card" style="border-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), var(--bg-secondary));">
+                  <div class="section-header">
+                    <div class="section-title" style="color: var(--success);">
+                      <span class="pulse-dot"></span>🟢 ACTIVE TASK NOW RUNNING
+                    </div>
+                    <div style="display:flex;gap:4px;">
+                      <span class="pill pill-purple">🤖 ${escapeHtml(act.model)}</span>
+                      <span class="pill pill-accent">review: ${escapeHtml(act.reviewMode)}</span>
+                    </div>
+                  </div>
+                  <div style="font-weight:700;font-size:12.2px;margin-bottom:4px;">${escapeHtml(act.title)}</div>
+                  <div style="font-family:var(--font-mono);font-size:10.8px;color:var(--text-secondary);background:var(--bg-primary);padding:6px 8px;border-radius:5px;border:1px solid var(--border-subtle);">
+                    ${escapeHtml(act.effectivePrompt)}
+                  </div>
+                </div>
+              `;
+            } else {
+              spotlightEl.innerHTML = "";
+            }
+          }
+
+          const listEl = document.getElementById("queueItemsList");
+          if (!listEl) return;
+
+          if (!(q.items || []).length) {
+            listEl.innerHTML = `
+              <div class="section-card" style="text-align:center;padding:16px 12px;color:var(--text-secondary);">
+                <div style="font-weight:700;font-size:12px;color:var(--text-primary);margin-bottom:4px;">Your BMAD Execution Queue is Empty</div>
+                <div style="font-size:11px;">
+                  Select an Epic above and click <b>➕ Queue Epic</b>, or check multiple tasks in <b>⚡ Next Prompts</b> / <b>📊 Phases & Epics</b> to enqueue them with per-task AI models.
+                </div>
+              </div>
+            `;
+            return;
+          }
+
+          listEl.innerHTML = q.items
+            .map((it, idx) => {
+              const isAct = it.status === "running";
+              const isDone = it.status === "done";
+              const isFailed = it.status === "failed";
+              const stPill = isAct
+                ? `<span class="pill pill-success"><span class="pulse-dot"></span>ACTIVE</span>`
+                : isDone
+                  ? `<span class="pill pill-success">✓ DONE</span>`
+                  : isFailed
+                    ? `<span class="pill pill-danger">✗ FAILED</span>`
+                    : `<span class="pill pill-accent">⏳ IN QUEUE #${idx + 1}</span>`;
+
+              return `
+                <div class="queue-item-card ${isAct ? "is-active" : ""} ${isDone ? "is-done" : ""}">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
+                    <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                      <span class="pill pill-purple">#${idx + 1}</span>
+                      <span style="font-weight:700;font-size:11.8px;">${escapeHtml(it.title)}</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:4px;">
+                      ${it.storyId ? `<span class="pill pill-purple">Story ${escapeHtml(it.storyId)}</span>` : ""}
+                      ${stPill}
+                    </div>
+                  </div>
+
+                  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:6px;margin-bottom:6px;">
+                    <div>
+                      <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">Assigned AI Model for this Task:</div>
+                      <select class="model-select" data-q-model="${escapeHtml(it.id)}" style="width:100%;">
+                        ${buildModelSelectOptions(it.model, it.model)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">Review & Token Gate:</div>
+                      <select class="model-select" data-q-review="${escapeHtml(it.id)}" style="width:100%;">
+                        <option value="none" ${it.reviewMode === "none" ? "selected" : ""}>⚡ Minimal (Oneshot + Tests · 0 LLM Review)</option>
+                        <option value="quick" ${it.reviewMode === "quick" ? "selected" : ""}>🔍 Quick (Oneshot + 1 Quick Pass)</option>
+                        <option value="thorough" ${it.reviewMode === "thorough" ? "selected" : ""}>🛡️ Thorough (Full Multi-Lens Review)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);background:var(--bg-primary);padding:5px 7px;border-radius:5px;border:1px solid var(--border-subtle);margin-bottom:6px;word-break:break-word;">
+                    ${escapeHtml(it.effectivePrompt)}
+                  </div>
+                  ${it.resultSummary ? `<div style="font-size:10.7px;color:var(--success);margin-bottom:5px;">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>` : ""}
+
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap;">
+                    <div style="display:flex;gap:4px;">
+                      <button class="btn" style="padding:2px 6px;font-size:10px;" data-q-move="up" data-q-id="${escapeHtml(it.id)}" ${idx === 0 ? "disabled" : ""} title="Move task earlier in queue">↑ Up</button>
+                      <button class="btn" style="padding:2px 6px;font-size:10px;" data-q-move="down" data-q-id="${escapeHtml(it.id)}" ${idx === q.items.length - 1 ? "disabled" : ""} title="Move task later in queue">↓ Down</button>
+                      <button class="btn" style="padding:2px 7px;font-size:10px;" data-q-activate="${escapeHtml(it.id)}" title="Mark this task as the currently active task">🟢 Set Active</button>
+                      <button class="btn" style="padding:2px 7px;font-size:10px;" data-q-done="${escapeHtml(it.id)}" title="Mark this task as Done and advance queue">✓ Mark Done</button>
+                    </div>
+                    <div style="display:flex;gap:4px;">
+                      <button class="btn btn-primary" style="padding:2px 7px;font-size:10px;" data-q-launch-single="${escapeHtml(it.id)}" title="Open a single new conversation for this task with its prompt pre-pasted">🚀 New Session</button>
+                      <button class="btn" style="padding:2px 7px;font-size:10px;color:var(--danger);" data-q-remove="${escapeHtml(it.id)}" title="Remove task from queue">✕</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+
+          listEl.querySelectorAll("[data-q-model]").forEach((sel) => {
+            sel.addEventListener("change", async () => {
+              const taskId = sel.getAttribute("data-q-model");
+              await manageQueue(
+                { action: "update-item", taskId, model: sel.value },
+                `🤖 Updated task model to ${sel.value.split("/").pop()}`
+              );
+            });
+          });
+
+          listEl.querySelectorAll("[data-q-review]").forEach((sel) => {
+            sel.addEventListener("change", async () => {
+              const taskId = sel.getAttribute("data-q-review");
+              await manageQueue(
+                { action: "update-item", taskId, reviewMode: sel.value },
+                `🛡️ Updated task review mode to '${sel.value}'`
+              );
+            });
+          });
+
+          listEl.querySelectorAll("[data-q-move]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              await manageQueue({
+                action: "reorder",
+                taskId: btn.getAttribute("data-q-id"),
+                direction: btn.getAttribute("data-q-move")
+              });
+            });
+          });
+
+          listEl.querySelectorAll("[data-q-activate]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              await manageQueue(
+                { action: "start-task", taskId: btn.getAttribute("data-q-activate") },
+                "🟢 Task set as Active"
+              );
+            });
+          });
+
+          listEl.querySelectorAll("[data-q-done]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              await manageQueue(
+                { action: "complete-task", taskId: btn.getAttribute("data-q-done"), storyStatus: "done" },
+                "✓ Task marked Done & next task promoted"
+              );
+            });
+          });
+
+          listEl.querySelectorAll("[data-q-launch-single]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              const taskId = btn.getAttribute("data-q-launch-single");
+              const item = (currentState?.taskQueue?.items || []).find((i) => i.id === taskId);
+              if (!item) return;
+              await manageQueue({ action: "start-task", taskId });
+              await launchPromptInNewSession(item.effectivePrompt, item.model, item.skill, item.title);
+            });
+          });
+
+          listEl.querySelectorAll("[data-q-remove]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              await manageQueue(
+                { action: "remove", taskId: btn.getAttribute("data-q-remove") },
+                "🗑️ Removed task from queue"
+              );
+            });
+          });
+        }
+
+        async function launchQueueExecution(mode) {
+          const items = currentState?.taskQueue?.items || [];
+          if (!items.length) {
+            showToast("⚠️ Queue is empty! Add tasks or an epic first.");
+            return;
+          }
+          const updated = await manageQueue(
+            { action: "start-queue", executionMode: mode },
+            mode === "dynamic-workflow"
+              ? "⚡ Generating ZCode Dynamic Workflow (.dwf.ts) & starting queue…"
+              : "🚀 Starting Separate-Sessions Queue Orchestrator…"
+          );
+          const wf = updated?.queueActionResult?.generatedWorkflow;
+          if (mode === "dynamic-workflow") {
+            const promptToSend =
+              wf?.workflowLaunchPrompt ||
+              `/workflow "Run the generated BMAD Companion task queue workflow at .zcode/workflows/bmad-task-queue.dwf.ts using CreateWorkflow({ name: 'BMAD Companion Task Queue', path: '.zcode/workflows/bmad-task-queue.dwf.ts' })"`;
+            await sendPromptToCurrentSession(promptToSend);
+          } else {
+            const promptToSend =
+              wf?.separateSessionsPrompt ||
+              `Execute the active @bmad-companion Task Queue sequentially across separate ZCode conversations using CreateSession + WaitSessions, calling bmad_queue_manage({ action: "start-task" }) before each task and bmad_queue_manage({ action: "complete-task", storyStatus: "done" }) after each task finishes.`;
+            await sendPromptToCurrentSession(promptToSend);
+          }
+        }
+
         function renderRecommendations(recs, force = false) {
           const recSig = JSON.stringify({
             recs,
-            models: currentState?.availableModels || []
+            models: currentState?.availableModels || [],
+            queueItems: (currentState?.taskQueue?.items || []).map((i) => i.prompt + ":" + i.status),
+            checked: [...selectedRecIndices]
           });
           if (!force && lastSectionSignatures.recommendations === recSig) {
             return;
@@ -1332,11 +1816,17 @@
               const displayCmd = resolveUserPrompt(recKey, serverCmd);
               const serverModelId = recModel.modelId || "";
               const displayModelId = resolveUserModel(recKey, serverModelId);
+              const qItem = isPromptOrStoryInQueue(displayCmd, null);
+              const isChecked = selectedRecIndices.has(idx);
               return `
                 <div class="rec-card">
                   <div class="rec-top">
-                    <span class="rec-title">${escapeHtml(r.title)}</span>
-                    <div style="display:flex;gap:4px;">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
+                      <input type="checkbox" class="queue-cb" data-rec-cb="${idx}" ${isChecked ? "checked" : ""} title="Select this recommendation to add to the Execution Queue" />
+                      <span class="rec-title">${escapeHtml(r.title)}</span>
+                    </label>
+                    <div style="display:flex;gap:4px;flex-shrink:0;">
+                      ${qItem ? `<span class="pill pill-success">${qItem.status === "running" ? "🟢 Active" : "✓ In Queue"}</span>` : ""}
                       <span class="pill ${prioClass}">${escapeHtml(r.badge || r.priority)}</span>
                       <span class="pill pill-purple">${escapeHtml(r.phase)}</span>
                     </div>
@@ -1352,13 +1842,16 @@
                   <div class="model-bar">
                     <div class="model-bar-top">
                       <span class="pill pill-purple">${escapeHtml(recModel.tier)}</span>
-                      <select class="model-select" id="rec-model-${idx}" title="Recommended model for the new session">
+                      <select class="model-select" id="rec-model-${idx}" title="Recommended model for the new session or queue task">
                         ${buildModelSelectOptions(displayModelId, serverModelId)}
                       </select>
                     </div>
                     <div class="model-reason">${escapeHtml(recModel.reason)}</div>
                   </div>
                   <div class="rec-actions">
+                    <button class="btn btn-purple" data-action="queue-rec" data-idx="${idx}" title="Add this task with its selected model to the Multi-Task Execution Queue">
+                      ${qItem ? "↻ Update in Queue" : "➕ Add to Queue"}
+                    </button>
                     <button class="btn btn-primary" data-action="launch-new-rec" data-idx="${idx}" title="Open a new conversation directly with this prompt pre-pasted (does not run in the current session)">
                       🚀 Launch in New Session
                     </button>
@@ -1376,6 +1869,14 @@
               `;
             })
             .join("");
+
+          container.querySelectorAll("[data-rec-cb]").forEach((cb) => {
+            cb.addEventListener("change", () => {
+              const idx = Number(cb.getAttribute("data-rec-cb"));
+              if (cb.checked) selectedRecIndices.add(idx);
+              else selectedRecIndices.delete(idx);
+            });
+          });
 
           recs.forEach((r, idx) => {
             const recKey = getRecOverrideKey(r, idx);
@@ -1404,7 +1905,22 @@
               const cmd = ta ? ta.value.trim() : rec.fullCommand;
               const chosenModel = modelSel ? modelSel.value : rec.recommendedModel?.modelId;
               const action = btn.getAttribute("data-action");
-              if (action === "launch-new-rec") {
+              if (action === "queue-rec") {
+                await manageQueue(
+                  {
+                    action: "add",
+                    items: [
+                      {
+                        title: rec.title,
+                        skill: rec.skill,
+                        prompt: cmd,
+                        model: chosenModel
+                      }
+                    ]
+                  },
+                  `➕ Added "${rec.title}" [${(chosenModel || "").split("/").pop()}] to Queue`
+                );
+              } else if (action === "launch-new-rec") {
                 await launchPromptInNewSession(cmd, chosenModel, rec.skill, rec.title);
               } else if (action === "send-current-rec") {
                 await sendPromptToCurrentSession(cmd);
@@ -1624,7 +2140,8 @@
             query,
             statusFilter,
             expanded: [...expandedEpics],
-            epics
+            epics,
+            queueItems: (currentState?.taskQueue?.items || []).map((i) => i.overrideKey + ":" + i.status)
           });
           if (lastSectionSignatures.epics === epicSig) return;
           lastSectionSignatures.epics = epicSig;
@@ -1649,6 +2166,7 @@
               epic.smartProgressPct === 100
                 ? `<span class="pill pill-success">100% Done</span>`
                 : `<span class="pill pill-accent">${epic.smartProgressPct}% Smart (${epic.declaredProgressPct}% Tracker)</span>`;
+            const openStoriesCount = (epic.stories || []).filter((s) => s.smartStatus !== "done").length;
 
             const storiesHtml = isExpanded
               ? `<div class="epic-stories">
@@ -1663,9 +2181,10 @@
                       const smartPrompt =
                         s.smartStatus === "done"
                           ? `/bmad-code-review "Verify story ${s.id} (${s.title}) implementation and acceptance criteria"`
-                          : `/bmad-build "Implement and verify story ${s.id} (${s.title}): ${s.verify || s.description || "complete all acceptance criteria and unit tests"}"`;
+                          : `/bmad-build-auto "Implement ticket ${s.id} (${s.title}) in ${epic.slug}: ${s.verify || s.description || "complete all acceptance criteria and unit tests"}"`;
                       const stModel = s.recommendedModel?.modelId || getFallbackModelId();
                       const stModelShort = s.recommendedModel?.shortName || (stModel ? stModel.split("/").pop() : "host-default");
+                      const qItem = isPromptOrStoryInQueue(null, s.overrideKey);
                       return `
                         <div class="story-row">
                           <div class="story-head">
@@ -1674,6 +2193,7 @@
                               ${escapeHtml(s.title)}
                             </div>
                             <div style="display:flex;gap:4px;flex-shrink:0;">
+                              ${qItem ? `<span class="pill pill-success">${qItem.status === "running" ? "🟢 Active in Queue" : qItem.status === "done" ? "✓ Queue Done" : "⏳ Queued"}</span>` : ""}
                               ${s.aiReconciled ? `<span class="pill pill-purple" title="Reconciled by Smart AI + Artifact check">✨ AI</span>` : ""}
                               <span class="pill ${sPill}">${escapeHtml(s.smartStatus)}</span>
                             </div>
@@ -1683,9 +2203,14 @@
                             <span class="pill pill-accent" title="Recommended Model: ${escapeHtml(stModel)}">
                               🤖 ${escapeHtml(stModelShort)}
                             </span>
-                            <button class="btn btn-primary" style="padding:2px 7px;font-size:10.5px;" data-story-prompt="${escapeHtml(smartPrompt)}" data-story-model="${escapeHtml(stModel)}" data-story-title="${escapeHtml(s.title)}">
-                              🚀 New Session: ${s.smartStatus === "done" ? "/bmad-code-review" : "/bmad-build"}
-                            </button>
+                            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                              <button class="btn btn-purple" style="padding:2px 7px;font-size:10.5px;" data-queue-story-id="${escapeHtml(s.id)}" data-queue-story-override="${escapeHtml(s.overrideKey)}" data-queue-story-epic="${escapeHtml(epic.slug)}" data-queue-story-title="${escapeHtml(`Story ${s.id}: ${s.title}`)}" data-queue-story-prompt="${escapeHtml(smartPrompt)}" data-queue-story-model="${escapeHtml(stModel)}" data-queue-story-verify="${escapeHtml(s.verify || "")}">
+                                ${qItem ? "↻ Queued" : "➕ Queue Story"}
+                              </button>
+                              <button class="btn btn-primary" style="padding:2px 7px;font-size:10.5px;" data-story-prompt="${escapeHtml(smartPrompt)}" data-story-model="${escapeHtml(stModel)}" data-story-title="${escapeHtml(s.title)}">
+                                🚀 New Session
+                              </button>
+                            </div>
                           </div>
                         </div>
                       `;
@@ -1705,7 +2230,12 @@
                       ${filteredStories.length} stories ${epic.hasRetrospective ? "· ✓ Retrospective complete" : ""}
                     </div>
                   </div>
-                  <div style="flex-shrink:0;">${statusPill}</div>
+                  <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
+                    <button class="btn btn-purple" style="padding:2px 7px;font-size:10.2px;" data-queue-epic-slug="${escapeHtml(epic.slug)}" title="Enqueue all open stories of Epic ${escapeHtml(epic.number)} in build order">
+                      ➕ Queue Epic (${openStoriesCount || filteredStories.length})
+                    </button>
+                    ${statusPill}
+                  </div>
                 </div>
                 ${storiesHtml}
               </div>
@@ -1721,6 +2251,41 @@
               if (expandedEpics.has(id)) expandedEpics.delete(id);
               else expandedEpics.add(id);
               renderEpics();
+            });
+          });
+
+          container.querySelectorAll("[data-queue-epic-slug]").forEach((btn) => {
+            btn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              const slug = btn.getAttribute("data-queue-epic-slug");
+              await manageQueue(
+                { action: "add-epic", epicSlug: slug, includeDone: false },
+                `➕ Queued all open stories of ${slug} in build order!`
+              );
+            });
+          });
+
+          container.querySelectorAll("[data-queue-story-id]").forEach((btn) => {
+            btn.addEventListener("click", async (e) => {
+              e.stopPropagation();
+              await manageQueue(
+                {
+                  action: "add",
+                  items: [
+                    {
+                      title: btn.getAttribute("data-queue-story-title"),
+                      skill: "/bmad-build-auto",
+                      prompt: btn.getAttribute("data-queue-story-prompt"),
+                      model: btn.getAttribute("data-queue-story-model"),
+                      storyId: btn.getAttribute("data-queue-story-id"),
+                      overrideKey: btn.getAttribute("data-queue-story-override"),
+                      epicSlug: btn.getAttribute("data-queue-story-epic"),
+                      verifyCommand: btn.getAttribute("data-queue-story-verify")
+                    }
+                  ]
+                },
+                `➕ Added ${btn.getAttribute("data-queue-story-title")} to Queue`
+              );
             });
           });
 
@@ -1794,6 +2359,7 @@
                       </div>
                     </div>
                     <div class="rec-actions">
+                      <button class="btn btn-purple" data-cat-queue="${idx}">➕ Add to Queue</button>
                       <button class="btn btn-primary" data-cat-launch="${idx}">🚀 Launch in New Session</button>
                       <button class="btn" data-cat-send="${idx}">💬 Run Here</button>
                       <button class="btn" data-cat-copy="${idx}">📋 Copy</button>
@@ -1819,6 +2385,30 @@
                   userSelectedModels.set(skillKey, { base: serverModelId, value: sel.value });
                 });
               }
+            });
+
+            skillsEl.querySelectorAll("[data-cat-queue]").forEach((btn) => {
+              btn.addEventListener("click", async () => {
+                const idx = Number(btn.getAttribute("data-cat-queue"));
+                const ta = document.getElementById(`cat-cmd-${idx}`);
+                const sel = document.getElementById(`cat-model-${idx}`);
+                const cmd = ta ? ta.value.trim() : skills[idx].contextualCommand;
+                const model = sel ? sel.value : skills[idx].recommendedModel?.modelId;
+                await manageQueue(
+                  {
+                    action: "add",
+                    items: [
+                      {
+                        title: skills[idx].displayName,
+                        skill: "/" + skills[idx].skill,
+                        prompt: cmd,
+                        model
+                      }
+                    ]
+                  },
+                  `➕ Added "${skills[idx].displayName}" to Queue`
+                );
+              });
             });
 
             skillsEl.querySelectorAll("[data-cat-launch]").forEach((btn) => {
@@ -2053,7 +2643,7 @@
           document.querySelectorAll(".tab-btn").forEach((b) => {
             b.classList.toggle("active", b.getAttribute("data-tab") === tabId);
           });
-          ["advisor", "progress", "catalog", "artifacts"].forEach((id) => {
+          ["advisor", "queue", "progress", "catalog", "artifacts"].forEach((id) => {
             const el = document.getElementById("tab-" + id);
             if (el) el.style.display = id === tabId ? "block" : "none";
           });
@@ -2061,6 +2651,102 @@
 
         document.querySelectorAll(".tab-btn").forEach((btn) => {
           btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+        });
+
+        document.getElementById("btnSelectAllRecs")?.addEventListener("click", () => {
+          const recs = currentState?.recommendations || [];
+          if (selectedRecIndices.size === recs.length) {
+            selectedRecIndices.clear();
+          } else {
+            recs.forEach((_, idx) => selectedRecIndices.add(idx));
+          }
+          renderRecommendations(recs, true);
+        });
+
+        document.getElementById("btnQueueSelectedRecs")?.addEventListener("click", async () => {
+          const recs = currentState?.recommendations || [];
+          if (!selectedRecIndices.size) {
+            showToast("⚠️ Check one or more recommended tasks first!");
+            return;
+          }
+          const itemsToAdd = [];
+          for (const idx of selectedRecIndices) {
+            const rec = recs[idx];
+            if (!rec) continue;
+            const ta = document.getElementById(`rec-cmd-${idx}`);
+            const modelSel = document.getElementById(`rec-model-${idx}`);
+            itemsToAdd.push({
+              title: rec.title,
+              skill: rec.skill,
+              prompt: ta ? ta.value.trim() : rec.fullCommand,
+              model: modelSel ? modelSel.value : rec.recommendedModel?.modelId
+            });
+          }
+          selectedRecIndices.clear();
+          await manageQueue(
+            { action: "add", items: itemsToAdd },
+            `➕ Added ${itemsToAdd.length} task(s) with selected models to Queue!`
+          );
+          switchTab("queue");
+        });
+
+        document.getElementById("btnGoToQueueFromAdvisor")?.addEventListener("click", () => {
+          switchTab("queue");
+        });
+
+        document.getElementById("queueDefaultReviewSelect")?.addEventListener("change", async (e) => {
+          const reviewMode = e.target.value;
+          await manageQueue(
+            { action: "set-review-mode", reviewMode, applyToAll: true },
+            `🛡️ Queue review gate updated to '${reviewMode}'`
+          );
+        });
+
+        document.getElementById("btnQueueEntireEpic")?.addEventListener("click", async () => {
+          const picker = document.getElementById("queueEpicPicker");
+          const slug = picker?.value;
+          if (!slug) {
+            showToast("⚠️ Select an epic from the dropdown first!");
+            return;
+          }
+          await manageQueue(
+            { action: "add-epic", epicSlug: slug, includeDone: false },
+            `➕ Queued all open stories of ${slug} in build order!`
+          );
+        });
+
+        document.getElementById("btnRunQueueWorkflow")?.addEventListener("click", async () => {
+          await launchQueueExecution("dynamic-workflow");
+        });
+
+        document.getElementById("btnRunQueueSessions")?.addEventListener("click", async () => {
+          await launchQueueExecution("separate-sessions");
+        });
+
+        document.getElementById("btnCompleteActiveTask")?.addEventListener("click", async () => {
+          const active = currentState?.taskQueue?.activeTask;
+          const firstQueued = currentState?.taskQueue?.nextQueuedTask;
+          const target = active || firstQueued;
+          if (!target) {
+            showToast("ℹ️ No active or queued task to complete.");
+            return;
+          }
+          await manageQueue(
+            { action: "complete-task", taskId: target.id, storyStatus: "done" },
+            `✓ Marked "${target.title}" Done & advanced queue!`
+          );
+        });
+
+        document.getElementById("btnPauseQueue")?.addEventListener("click", async () => {
+          await manageQueue({ action: "pause-queue" }, "⏸ Queue paused");
+        });
+
+        document.getElementById("btnClearDoneQueue")?.addEventListener("click", async () => {
+          await manageQueue({ action: "clear", onlyCompleted: true }, "🧹 Cleared completed tasks from queue");
+        });
+
+        document.getElementById("btnClearAllQueue")?.addEventListener("click", async () => {
+          await manageQueue({ action: "clear", onlyCompleted: false }, "🗑️ Cleared entire task queue");
         });
 
         document.getElementById("btnRefresh").addEventListener("click", async () => {
