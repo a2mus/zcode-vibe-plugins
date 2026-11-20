@@ -137,20 +137,23 @@ function isWindowsTransientRenameError(error) {
 }
 
 function isRenameFallbackError(error) {
-  return isWindowsTransientRenameError(error) || error?.code === "EXDEV";
+  return error?.code === "EXDEV";
 }
 
 /**
  * Write serialized state JSON to a uniquely named sibling temp file and
  * atomically replace targetPath via renameSync. Retries transient Windows
- * EPERM/EACCES locks briefly, falls back to direct write on persistent
- * EPERM/EACCES/EXDEV, and always removes the temp file when rename does not
+ * EPERM/EACCES locks briefly, falls back to direct write only on EXDEV,
+ * preserves prior state on persistent EPERM/EACCES instead of tearing via
+ * non-atomic overwrite, and always removes the temp file when rename does not
  * complete.
  */
 function atomicWriteStateFileSync(targetPath, serialized, options = {}) {
   const fsOps = { ...DEFAULT_STATE_FS_OPS, ...(options.fs || {}) };
   const sleepFn = typeof options.sleepSync === "function" ? options.sleepSync : sleepSyncMs;
-  const retryDelaysMs = Array.isArray(options.retryDelaysMs) ? options.retryDelaysMs : [2, 5];
+  const retryDelaysMs = Array.isArray(options.retryDelaysMs)
+    ? options.retryDelaysMs
+    : [2, 5, 10, 15, 25, 40];
   const tempPath = buildSiblingTempPath(targetPath);
   let renamed = false;
 
