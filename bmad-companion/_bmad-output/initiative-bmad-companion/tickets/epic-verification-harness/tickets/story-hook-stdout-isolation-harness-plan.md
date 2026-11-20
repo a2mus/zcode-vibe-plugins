@@ -3,7 +3,7 @@ title: 'Hook stdout-isolation harness'
 type: feature
 ticket: 3
 created: '2026-11-20'
-status: built
+status: done
 baseline_revision: '6003edcf74fcdd41ac10100c22aaf138bfe19878'
 route: full
 route_source: auto
