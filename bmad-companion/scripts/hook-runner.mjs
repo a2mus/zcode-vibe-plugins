@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import {
+  buildTaskSessionLaunchInstructions,
   loadPersistedState,
   manageBmadTaskQueue,
   savePersistedState,
@@ -68,6 +69,9 @@ async function tryOptionalAiTurnSynthesis(workspaceRoot, promptText, assistantTe
 async function main() {
   const mode = process.argv[2] || "session-start";
   const payload = readStdinJson();
+  const currentSessionId = String(
+    process.env.CLAUDE_SESSION_ID || process.env.ZCODE_SESSION_ID || ""
+  );
   const workspaceRoot = resolve(
     payload.cwd ||
       process.env.ZCODE_PROJECT_DIR ||
@@ -126,7 +130,11 @@ async function main() {
               (it.storyId && new RegExp(`\\b(?:ticket|story)\\s+${String(it.storyId).replace(".", "\\.")}\\b`, "i").test(cleanPrompt)))
         );
         if (matched) {
-          manageBmadTaskQueue(workspaceRoot, { action: "start-task", taskId: matched.id });
+          manageBmadTaskQueue(workspaceRoot, {
+            action: "start-task",
+            taskId: matched.id,
+            ...(currentSessionId ? { sessionId: currentSessionId } : {})
+          });
         }
       }
     } catch {}
@@ -167,7 +175,9 @@ async function main() {
       turnCount: nextTurnCount
     });
 
-    // Auto-complete active queued task when a single-task session finishes
+    // Auto-complete active queued task when a single-task session finishes,
+    // then hand off to the next task so the queue continues automatically.
+    let stopFrame = {};
     try {
       const q = state.taskQueue;
       const lastPrompt = String(state.lastUserPrompt || "");
@@ -178,18 +188,39 @@ async function main() {
         !/Execute the active @bmad-companion Task Queue|bmad-task-queue\.dwf\.ts/i.test(lastPrompt)
       ) {
         const activeItem = q.items.find((it) => it.id === q.activeTaskId && it.status === "running");
+        const ownsTask =
+          !activeItem?.sessionId ||
+          !currentSessionId ||
+          String(activeItem.sessionId) === currentSessionId;
         if (
           activeItem &&
+          ownsTask &&
           ((activeItem.prompt && lastPrompt.includes(activeItem.prompt.slice(0, 40))) ||
             (activeItem.storyId &&
               new RegExp(`\\b(?:ticket|story)\\s+${String(activeItem.storyId).replace(".", "\\.")}\\b`, "i").test(lastPrompt)))
         ) {
-          manageBmadTaskQueue(workspaceRoot, {
+          const completed = manageBmadTaskQueue(workspaceRoot, {
             action: "complete-task",
             taskId: activeItem.id,
             storyStatus: "done",
             summary: assistantMsg ? assistantMsg.replace(/\s+/g, " ").slice(0, 140) : "Completed in session"
           });
+          const updatedQueue = completed?.taskQueue;
+          if (
+            updatedQueue &&
+            updatedQueue.executionMode === "separate-sessions" &&
+            updatedQueue.status === "running" &&
+            updatedQueue.nextQueuedTask
+          ) {
+            stopFrame = {
+              decision: "block",
+              reason: [
+                `BMAD Companion queue continuation: "${activeItem.title}" is complete. ${updatedQueue.counts.queued} task(s) remain queued.`,
+                "Start the next task now; the bmad-companion Stop hook continues the chain after every finished task.",
+                buildTaskSessionLaunchInstructions(updatedQueue.nextQueuedTask)
+              ].join("\n")
+            };
+          }
         }
       }
     } catch {}
@@ -212,7 +243,7 @@ async function main() {
       });
     }
 
-    process.stdout.write("{}\n");
+    process.stdout.write(JSON.stringify(stopFrame) + "\n");
     return;
   }
 

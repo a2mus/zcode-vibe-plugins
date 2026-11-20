@@ -560,6 +560,10 @@ const TOOLS = [
           type: "string",
           description: "Target task ID for update-item, reorder, remove, start-task, or complete-task."
         },
+        sessionId: {
+          type: "string",
+          description: "When action='start-task', the ZCode session id launched for this task (records the queue-to-session link so the Stop-hook handoff can continue the chain)."
+        },
         model: {
           type: "string",
           description: "Model ID (providerId/modelId) when updating a task or queueing an epic."
@@ -576,7 +580,7 @@ const TOOLS = [
         executionMode: {
           type: "string",
           enum: ["dynamic-workflow", "separate-sessions"],
-          description: "Execution engine for running the queue: 'dynamic-workflow' (.dwf.ts via CreateWorkflow) or 'separate-sessions' (CreateSession + WaitSessions loop)."
+          description: "Execution engine for running the queue: 'dynamic-workflow' (.dwf.ts via CreateWorkflow) or 'separate-sessions' (CreateSession handoff chain — each finished task session starts the next with its own model)."
         },
         prompt: {
           type: "string",
@@ -872,7 +876,7 @@ rl.on("line", async (line) => {
         },
         serverInfo: {
           name: "bmad-companion",
-          version: "0.5.2"
+          version: "0.5.3"
         }
       });
       return;

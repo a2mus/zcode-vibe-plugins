@@ -2652,6 +2652,26 @@ export function buildEffectiveTaskPrompt(item, defaultReviewMode = "none") {
   return `${normalized}${routeHint}`;
 }
 
+/**
+ * Build the unattended launch instruction for one queued task in
+ * separate-sessions mode. The queue runs as a handoff chain: the orchestrator
+ * starts only the first task and ends its turn, and each finished task
+ * session's Stop hook starts the next task with its own model. This avoids a
+ * long-lived orchestrator turn that can be interrupted or left waiting on a
+ * host approval prompt.
+ */
+export function buildTaskSessionLaunchInstructions(item) {
+  const taskId = JSON.stringify(String(item?.id || ""));
+  const model = JSON.stringify(String(item?.model || ""));
+  const prompt = JSON.stringify(String(item?.effectivePrompt || item?.prompt || ""));
+  return [
+    `1. Call CreateSession({ project: <the ListProjects entry for this workspace>, model: ${model}, prompt: ${prompt} }).`,
+    `2. Call bmad_queue_manage({ action: "start-task", taskId: ${taskId}, sessionId: "<sessionId from the CreateSession result>" }).`,
+    `3. Do not call WaitSessions and do not create sessions for later tasks. End your turn after step 2; the new task session continues the queue when it finishes.`,
+    `If CreateSession fails or returns needs_attention without a sessionId, call bmad_queue_manage({ action: "complete-task", taskId: ${taskId}, failed: true, summary: "<blocker>" }) and stop with the blocker.`
+  ].join("\n");
+}
+
 export function buildTaskQueueView(rawQueue, allStories = [], availableModels = []) {
   const q = rawQueue && typeof rawQueue === "object" ? rawQueue : {};
   const defaultModelId =
@@ -2704,6 +2724,7 @@ export function buildTaskQueueView(rawQueue, allStories = [], availableModels = 
       overrideKey: it.overrideKey || matchedStory?.overrideKey || null,
       epicSlug: it.epicSlug || matchedStory?.epicSlug || null,
       verifyCommand: it.verifyCommand || matchedStory?.verify || "",
+      sessionId: it.sessionId || null,
       startedAt: it.startedAt || null,
       completedAt: it.completedAt || null,
       resultSummary: it.resultSummary || null
@@ -2791,12 +2812,11 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
     `      state.storyOverrides = state.storyOverrides || {};`,
     `      state.storyOverrides[overrideKey] = { status: "done", reason: summaryText || ("Completed via BMAD Queue (" + target.title + ")") };`,
     `    }`,
-    `    const nextTask = items.find((it) => it.status === "queued");`,
-    `    if (nextTask) {`,
-    `      q.activeTaskId = nextTask.id;`,
-    `      q.status = "running";`,
+    `    q.activeTaskId = null;`,
+    `    if (items.some((it) => it.status === "queued")) {`,
+    `      if (action === "fail") q.status = "paused";`,
+    `      else if (q.status !== "paused") q.status = "running";`,
     `    } else {`,
-    `      q.activeTaskId = null;`,
     `      q.status = "completed";`,
     `    }`,
     `  }`,
@@ -2952,13 +2972,13 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
 
   const workflowLaunchPrompt = `/workflow "Run the generated BMAD Companion task queue workflow at ${workflowRelPath} using CreateWorkflow({ name: 'BMAD Companion Task Queue (${targetItems.length} tasks)', path: '${workflowRelPath}' }) so each queued task runs with its selected model and updates @bmad-companion state live at the start and end of each task."`;
 
-  const separateSessionsPrompt = [
-    `Execute the active @bmad-companion Task Queue (${targetItems.length} tasks) sequentially across separate ZCode sessions/conversations using CreateSession + WaitSessions:`,
-    ...targetItems.map(
-      (it, idx) =>
-        `${idx + 1}. Call bmad_queue_manage({ action: "start-task", taskId: "${it.id}" }), then call CreateSession with model="${it.model}" and prompt=${JSON.stringify(it.effectivePrompt)}, wait for completion with WaitSessions, and then call bmad_queue_manage({ action: "complete-task", taskId: "${it.id}", storyStatus: "done", summary: "Completed in dedicated session" }) so the @bmad-companion panel updates live.`
-    )
-  ].join("\n");
+  const firstTask = targetItems[0];
+  const separateSessionsPrompt = firstTask
+    ? [
+        `Execute the @bmad-companion Task Queue (${targetItems.length} tasks) across separate ZCode sessions. Start only the first task now; each finished task session starts the next one automatically through the bmad-companion Stop hook.`,
+        buildTaskSessionLaunchInstructions(firstTask)
+      ].join("\n")
+    : "";
 
   return {
     workflowRelPath,
@@ -3113,24 +3133,21 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     if (["dynamic-workflow", "separate-sessions"].includes(options.executionMode)) {
       executionMode = options.executionMode;
     }
-    // Reset any stale running item back to queued before starting
+    // Reset stale running items, then engage the queue without claiming a
+    // task: an item becomes `running` only when start-task is called right
+    // before its session is launched. Promoting an item here would fake an
+    // active task that nothing is executing and wedge the resume paths.
     items = items.map((it) => (it.status === "running" ? { ...it, status: "queued" } : it));
-    const firstQueued = items.find((it) => it.status === "queued");
-    if (firstQueued) {
-      firstQueued.status = "running";
-      firstQueued.startedAt = new Date().toISOString();
-      activeTaskId = firstQueued.id;
-      status = "running";
-      if (firstQueued.overrideKey) {
-        storyOverrides[firstQueued.overrideKey] = {
-          status: "in-progress",
-          reason: `Currently active in BMAD Companion Task Queue (${firstQueued.title})`
-        };
-      }
-    }
+    activeTaskId = null;
+    const hasQueued = items.some((it) => it.status === "queued");
+    if (hasQueued) status = "running";
+    else if (items.length === 0) status = "idle";
+    else if (items.every((it) => it.status === "done")) status = "completed";
+    else status = "paused";
   } else if (action === "start-task") {
     const targetId = String(options.taskId || "");
     const now = new Date().toISOString();
+    const sessionId = options.sessionId ? String(options.sessionId) : null;
     items = items.map((it) => {
       if (it.id === targetId) {
         activeTaskId = it.id;
@@ -3141,7 +3158,7 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
             reason: `Currently active in BMAD Companion Task Queue (${it.title})`
           };
         }
-        return { ...it, status: "running", startedAt: now };
+        return { ...it, status: "running", startedAt: now, ...(sessionId ? { sessionId } : {}) };
       }
       if (it.status === "running") {
         return { ...it, status: "queued" };
@@ -3167,21 +3184,14 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
         resultSummary: options.summary || (outcomeStatus === "done" ? "Completed & verified" : "Failed verification")
       };
     });
-    const nextQueued = items.find((it) => it.status === "queued");
-    if (nextQueued && status === "running") {
-      nextQueued.status = "running";
-      nextQueued.startedAt = now;
-      activeTaskId = nextQueued.id;
-      if (nextQueued.overrideKey) {
-        storyOverrides[nextQueued.overrideKey] = {
-          status: "in-progress",
-          reason: `Currently active in BMAD Companion Task Queue (${nextQueued.title})`
-        };
-      }
-    } else {
-      activeTaskId = null;
-      status = items.some((it) => it.status === "queued") ? "paused" : "completed";
-    }
+    const hasQueued = items.some((it) => it.status === "queued");
+    // Never promote the next task here: it becomes `running` only when its
+    // session is launched via start-task. Keeping it `queued` makes the
+    // ledger honest and lets the Stop-hook handoff or the panel resume it.
+    activeTaskId = null;
+    if (!hasQueued) status = "completed";
+    else if (outcomeStatus === "failed") status = "paused";
+    else if (status !== "paused") status = "running";
   } else if (action === "pause-queue") {
     status = "paused";
     items = items.map((it) => (it.status === "running" ? { ...it, status: "queued" } : it));

@@ -884,11 +884,11 @@
               <button class="btn btn-primary" id="btnRunQueueWorkflow" title="Compile .zcode/workflows/bmad-task-queue.dwf.ts with per-task models and world.run state updates, then launch it via CreateWorkflow">
                 ⚡ Run Queue via ZCode Workflow (.dwf.ts)
               </button>
-              <button class="btn btn-purple" id="btnRunQueueSessions" title="Orchestrate each queued task sequentially in its own separate ZCode conversation via CreateSession + WaitSessions with live companion state updates">
-                🚀 Run Queue in Separate Sessions (Auto-Loop)
+              <button class="btn btn-purple" id="btnRunQueueSessions" title="Start each queued task in its own ZCode conversation; every finished task session hands off to the next one automatically with its own model">
+                🚀 Run Queue in Separate Sessions (Auto-Chain)
               </button>
-              <button class="btn" id="btnCompleteActiveTask" title="Mark the currently active task as Done, reconcile its story status, and promote the next task in queue">
-                ✓ Complete Active & Next
+              <button class="btn" id="btnCompleteActiveTask" title="Mark the currently active task as Done, reconcile its story status, and continue with the next queued task">
+                ✓ Complete Active & Continue
               </button>
               <button class="btn" id="btnPauseQueue" title="Pause active queue execution">
                 ⏸ Pause
@@ -1170,7 +1170,7 @@
         async function initMcpApp() {
           try {
             const res = await sendRpcRequest("ui/initialize", {
-              appInfo: { name: "bmad-companion", version: "0.5.2" },
+              appInfo: { name: "bmad-companion", version: "0.5.3" },
               appCapabilities: {
                 availableDisplayModes: ["inline", "fullscreen"]
               },
@@ -1395,7 +1395,7 @@
           }
 
           document.getElementById("projectTitle").textContent =
-            (state.projectName || "Workspace") + " · BMAD Companion v0.5.2";
+            (state.projectName || "Workspace") + " · BMAD Companion v0.5.3";
           document.getElementById("projectSubtitle").textContent =
             `${state.techStack || "Workspace"} · ${m.totalEpics || 0} Epics · ${m.smartDoneStories || 0}/${m.totalStories || 0} Stories · ${state.git?.branch || "main"}`;
 
@@ -1515,9 +1515,9 @@
                     <span class="pill pill-accent">${counts.done}/${counts.total} Done · ${counts.queued} In Queue</span>
                     ${
                       active
-                        ? `<button class="btn btn-primary" id="bannerBtnCompleteActive" style="padding:2px 7px;font-size:10.3px;" title="Mark active task Done, update story tracker, and advance to next task">✓ Done & Next</button>`
+                        ? `<button class="btn btn-primary" id="bannerBtnCompleteActive" style="padding:2px 7px;font-size:10.3px;" title="Mark the active task Done and continue with the next queued task in the current execution mode">✓ Done & Continue</button>`
                         : counts.queued > 0
-                          ? `<button class="btn btn-primary" id="bannerBtnRunWorkflow" style="padding:2px 7px;font-size:10.3px;" title="Run queue via ZCode Dynamic Workflow">⚡ Run Workflow</button>`
+                          ? `<button class="btn btn-primary" id="bannerBtnRunWorkflow" style="padding:2px 7px;font-size:10.3px;" title="Continue the queued tasks in the current execution mode">${q.executionMode === "separate-sessions" ? "▶ Continue Queue" : "⚡ Run Workflow"}</button>`
                           : ""
                     }
                     <button class="btn" id="bannerBtnOpenQueue" style="padding:2px 7px;font-size:10.3px;">⛓️ View Queue</button>
@@ -1530,13 +1530,17 @@
 
               document.getElementById("bannerBtnOpenQueue")?.addEventListener("click", () => switchTab("queue"));
               document.getElementById("bannerBtnCompleteActive")?.addEventListener("click", async () => {
-                await manageQueue(
+                const updated = await manageQueue(
                   { action: "complete-task", taskId: active.id, storyStatus: "done" },
-                  `✓ Completed ${active.title} & advancing queue…`
+                  `✓ Completed ${active.title}; continuing queue…`
                 );
+                const mode = updated?.taskQueue?.executionMode || q.executionMode || "separate-sessions";
+                if ((updated?.taskQueue?.counts?.queued || 0) > 0) {
+                  await launchQueueExecution(mode);
+                }
               });
               document.getElementById("bannerBtnRunWorkflow")?.addEventListener("click", async () => {
-                await launchQueueExecution("dynamic-workflow");
+                await launchQueueExecution(q.executionMode || "dynamic-workflow");
               });
             }
           }
@@ -1775,7 +1779,7 @@
           } else {
             const promptToSend =
               wf?.separateSessionsPrompt ||
-              `Execute the active @bmad-companion Task Queue sequentially across separate ZCode conversations using CreateSession + WaitSessions, calling bmad_queue_manage({ action: "start-task" }) before each task and bmad_queue_manage({ action: "complete-task", storyStatus: "done" }) after each task finishes.`;
+              `Execute the @bmad-companion Task Queue across separate ZCode sessions. Start only the first queued task with CreateSession + bmad_queue_manage({ action: "start-task", taskId, sessionId }), then end your turn; each finished task session continues the queue automatically through the bmad-companion Stop hook.`;
             await sendPromptToCurrentSession(promptToSend);
           }
         }
@@ -2731,10 +2735,14 @@
             showToast("ℹ️ No active or queued task to complete.");
             return;
           }
-          await manageQueue(
+          const updated = await manageQueue(
             { action: "complete-task", taskId: target.id, storyStatus: "done" },
-            `✓ Marked "${target.title}" Done & advanced queue!`
+            `✓ Marked "${target.title}" Done; continuing queue…`
           );
+          const mode = updated?.taskQueue?.executionMode || currentState?.taskQueue?.executionMode || "separate-sessions";
+          if ((updated?.taskQueue?.counts?.queued || 0) > 0) {
+            await launchQueueExecution(mode);
+          }
         });
 
         document.getElementById("btnPauseQueue")?.addEventListener("click", async () => {
