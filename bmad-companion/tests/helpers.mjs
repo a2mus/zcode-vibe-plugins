@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -160,4 +161,228 @@ export function seedBmadWorkspace(
   }
 
   return workspace;
+}
+
+/**
+ * Split text into lines, stripping at most one trailing newline without hiding
+ * intermediate or extra trailing blank lines.
+ */
+export function splitLines(text = "") {
+  if (!text) return [];
+  const normalized = String(text).replace(/\r?\n$/, "");
+  return normalized.split(/\r?\n/);
+}
+
+/**
+ * Serialize an array (or single item) of JSON-RPC messages or raw lines into
+ * LF-delimited JSON-lines input suitable for stdio transport.
+ */
+export function toJsonLines(messages = []) {
+  const list = Array.isArray(messages) ? messages : [messages];
+  if (list.length === 0) return "";
+  return list.map((item) => (typeof item === "string" ? item : JSON.stringify(item))).join("\n") + "\n";
+}
+
+/**
+ * Parse LF/CRLF-delimited JSON lines from stdout, throwing a diagnostic Error
+ * if any line (including a blank line) is not valid JSON.
+ */
+export function parseJsonLines(text = "") {
+  const lines = splitLines(text);
+  return lines.map((line, index) => {
+    try {
+      return JSON.parse(line);
+    } catch (err) {
+      const preview = line.length > 160 ? `${line.slice(0, 160)}...` : line;
+      throw new Error(`Invalid JSON on stdout line ${index + 1}: ${err.message} (line=${JSON.stringify(preview)})`);
+    }
+  });
+}
+
+/**
+ * Read and parse a UTF-8 JSON file.
+ */
+export function readJsonFile(filePath) {
+  return JSON.parse(readFileSync(filePath, "utf8"));
+}
+
+/**
+ * Spawn a Node ESM process with bounded timeout, isolated stdio pipes, and
+ * EPIPE-safe stdin writing.
+ */
+export function runNodeProcess(
+  scriptPath,
+  { args = [], cwd = REPO_ROOT, env = {}, stdin = "", keepStdinOpen = false, timeoutMs = 5000 } = {}
+) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    let settled = false;
+    let timedOut = false;
+    let stdout = "";
+    let stderr = "";
+
+    const mergedEnv = Object.fromEntries(
+      Object.entries({ ...process.env, ...env }).filter(([, value]) => value !== undefined)
+    );
+
+    const child = spawn(process.execPath, [scriptPath, ...args], {
+      cwd,
+      env: mergedEnv,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+
+    const cleanupStreams = () => {
+      try {
+        child.stdin?.destroy();
+      } catch {}
+      try {
+        child.stdout?.destroy();
+      } catch {}
+      try {
+        child.stderr?.destroy();
+      } catch {}
+    };
+
+    const rejectTimeout = () => {
+      if (settled) return;
+      settled = true;
+      cleanupStreams();
+      const err = new Error(
+        `Process timed out after ${timeoutMs}ms (${scriptPath})\nstdout: ${stdout || "<empty>"}\nstderr: ${stderr || "<empty>"}`
+      );
+      err.code = "ETIMEDOUT";
+      err.stdout = stdout;
+      err.stderr = stderr;
+      rejectPromise(err);
+    };
+
+    const timer =
+      timeoutMs > 0
+        ? setTimeout(() => {
+            if (settled || timedOut) return;
+            timedOut = true;
+            try {
+              child.stdin?.destroy();
+            } catch {}
+            try {
+              child.kill("SIGKILL");
+            } catch {
+              try {
+                child.kill();
+              } catch {}
+            }
+            // Wait for OS process termination so cwd/file locks are released before rejecting.
+            const killTimer = setTimeout(rejectTimeout, 500);
+            killTimer.unref?.();
+            child.once("close", () => {
+              clearTimeout(killTimer);
+              rejectTimeout();
+            });
+          }, timeoutMs)
+        : null;
+
+    const clearTimer = () => {
+      if (timer) clearTimeout(timer);
+    };
+
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+
+    child.stdout?.on("data", (chunk) => {
+      stdout += chunk;
+    });
+
+    child.stderr?.on("data", (chunk) => {
+      stderr += chunk;
+    });
+
+    // Guard against EPIPE / ERR_STREAM_DESTROYED if child exits before stdin completes.
+    child.stdin?.on("error", (err) => {
+      if (err && (err.code === "EPIPE" || err.code === "ERR_STREAM_DESTROYED")) return;
+    });
+
+    child.on("error", (err) => {
+      if (settled || timedOut) return;
+      settled = true;
+      clearTimer();
+      cleanupStreams();
+      rejectPromise(err);
+    });
+
+    child.on("close", (code, signal) => {
+      if (settled || timedOut) return;
+      settled = true;
+      clearTimer();
+      resolvePromise({
+        ok: code === 0,
+        code,
+        signal,
+        stdout,
+        stderr
+      });
+    });
+
+    if (child.stdin) {
+      if (stdin !== undefined && stdin !== null) {
+        const payload = Buffer.isBuffer(stdin) ? stdin : String(stdin);
+        if (payload.length > 0 && !child.stdin.destroyed && child.stdin.writable) {
+          try {
+            child.stdin.write(payload, "utf8");
+          } catch {}
+        }
+      }
+      if (!keepStdinOpen && stdin !== null && !child.stdin.destroyed) {
+        try {
+          child.stdin.end();
+        } catch {}
+      }
+    }
+  });
+}
+
+/**
+ * Spawn scripts/mcp-server.mjs against an isolated workspace root, send
+ * JSON-RPC requests over stdio, and return parsed stdout frames alongside raw streams.
+ */
+export async function runMcpServer({
+  workspaceRoot,
+  cwd,
+  requests = [],
+  stdin,
+  env = {},
+  keepStdinOpen = false,
+  timeoutMs = 5000
+} = {}) {
+  const isolatedRoot = resolve(workspaceRoot || cwd || tmpdir());
+  const resolvedCwd = resolve(cwd || isolatedRoot);
+  const input = stdin !== undefined ? stdin : toJsonLines(requests);
+
+  const result = await runNodeProcess(MCP_SERVER_PATH, {
+    cwd: resolvedCwd,
+    env: {
+      ZCODE_WORKSPACE_ROOT: isolatedRoot,
+      ZCODE_PROJECT_DIR: isolatedRoot,
+      CLAUDE_PROJECT_DIR: isolatedRoot,
+      ...env
+    },
+    stdin: input,
+    keepStdinOpen,
+    timeoutMs
+  });
+
+  const lines = splitLines(result.stdout);
+  let responses = [];
+  let parseError = null;
+  try {
+    responses = parseJsonLines(result.stdout);
+  } catch (err) {
+    parseError = err;
+  }
+
+  return {
+    ...result,
+    lines,
+    responses,
+    parseError
+  };
 }
