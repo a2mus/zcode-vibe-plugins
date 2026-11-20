@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync
+} from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -95,7 +103,101 @@ export function loadPersistedState(workspaceRoot) {
   }
 }
 
-export function savePersistedState(workspaceRoot, patch) {
+let stateWriteSeq = 0;
+
+function sleepSyncMs(ms) {
+  if (!(ms > 0)) return;
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+      // bounded spin fallback when SharedArrayBuffer is unavailable
+    }
+  }
+}
+
+function buildSiblingTempPath(targetPath) {
+  stateWriteSeq = (stateWriteSeq + 1) % 1_000_000_000;
+  return join(
+    dirname(targetPath),
+    `vibe-debrief-state.${process.pid}.${Date.now()}-${stateWriteSeq}.tmp`
+  );
+}
+
+const DEFAULT_STATE_FS_OPS = Object.freeze({
+  mkdirSync,
+  writeFileSync,
+  renameSync,
+  unlinkSync
+});
+
+function isWindowsTransientRenameError(error) {
+  return error?.code === "EPERM" || error?.code === "EACCES";
+}
+
+function isRenameFallbackError(error) {
+  return isWindowsTransientRenameError(error) || error?.code === "EXDEV";
+}
+
+/**
+ * Write serialized state JSON to a uniquely named sibling temp file and
+ * atomically replace targetPath via renameSync. Retries transient Windows
+ * EPERM/EACCES locks briefly, falls back to direct write on persistent
+ * EPERM/EACCES/EXDEV, and always removes the temp file when rename does not
+ * complete.
+ */
+function atomicWriteStateFileSync(targetPath, serialized, options = {}) {
+  const fsOps = { ...DEFAULT_STATE_FS_OPS, ...(options.fs || {}) };
+  const sleepFn = typeof options.sleepSync === "function" ? options.sleepSync : sleepSyncMs;
+  const retryDelaysMs = Array.isArray(options.retryDelaysMs) ? options.retryDelaysMs : [2, 5];
+  const tempPath = buildSiblingTempPath(targetPath);
+  let renamed = false;
+
+  try {
+    fsOps.mkdirSync(dirname(targetPath), { recursive: true });
+    fsOps.writeFileSync(tempPath, serialized, "utf8");
+
+    try {
+      fsOps.renameSync(tempPath, targetPath);
+      renamed = true;
+    } catch (renameErr) {
+      if (isWindowsTransientRenameError(renameErr)) {
+        for (const delayMs of retryDelaysMs) {
+          sleepFn(delayMs);
+          try {
+            fsOps.renameSync(tempPath, targetPath);
+            renamed = true;
+            break;
+          } catch (retryErr) {
+            renameErr = retryErr;
+            if (!isWindowsTransientRenameError(retryErr)) {
+              break;
+            }
+          }
+        }
+      }
+
+      if (!renamed) {
+        if (isRenameFallbackError(renameErr)) {
+          fsOps.writeFileSync(targetPath, serialized, "utf8");
+        } else {
+          throw renameErr;
+        }
+      }
+    }
+  } finally {
+    if (!renamed) {
+      try {
+        fsOps.unlinkSync(tempPath);
+      } catch {
+        // ignore cleanup errors if temp file was never created or already removed
+      }
+    }
+  }
+}
+
+export function savePersistedState(workspaceRoot, patch, options = {}) {
   const path = getStateFilePath(workspaceRoot);
   const current = loadPersistedState(workspaceRoot);
   const next = boundStateCollections({
@@ -104,8 +206,7 @@ export function savePersistedState(workspaceRoot, patch) {
     updatedAt: new Date().toISOString()
   });
   try {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, JSON.stringify(next, null, 2), "utf8");
+    atomicWriteStateFileSync(path, JSON.stringify(next, null, 2), options);
   } catch {
     // ignore read-only workspace errors
   }
