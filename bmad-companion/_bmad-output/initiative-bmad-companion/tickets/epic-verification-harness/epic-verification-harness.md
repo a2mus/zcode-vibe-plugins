@@ -7,6 +7,7 @@ sources:
   - _bmad-output/initiative-bmad-companion/initiative-bmad-companion.md
 companions: []
 after: []
+status: done
 refined: true
 risk: medium
 ---
@@ -50,5 +51,6 @@ Any engineer or agent verifies the engine, MCP transport, hook, and version cont
 
 - Decision: 2026-11-19 — Tracer bullet is Story 1 (`node:test harness + temp-workspace fixture tracer`), proving the thinnest fixture → engine import → assert path before Stories 2–3 add the spawned MCP/hook transports and Story 4 adds the version gate.
 - Decision: 2026-11-19 — Opening platform-baseline epic; no separate scaffold epic because `v0.5.2` already ships the runtime layers, plugin wiring, and UI (initiative Decision).
+- Decision: 2026-11-23 — Closed on user confirmation after all 5 stories (`1.1`–`1.5`) completed and all 3 retrospective test-harness fixes landed (`af5bd65`; `node --test tests/` 49/49 pass, `check-version-sync.mjs` OK at `0.5.3`). Recording `node --test tests/` in `AGENTS.md` and `README.md` (`Done when #1`) is handed off to `bmad-project-context`.
 - Risk reason (`medium`): establishes the spawned-process harness and temp-workspace fixtures every later epic depends on; a flawed fixture or transport helper propagates.
 - Layer files: `tests/`, `scripts/check-version-sync.mjs` (new), spawned `scripts/mcp-server.mjs` and `scripts/hook-runner.mjs`.

@@ -52,6 +52,7 @@ Devon queues an epic with per-task models and token-saving review gates and star
 ## Notes
 
 - Decision: 2026-11-19 — Tracer bullet is Story 1 (queue lifecycle tracer `add → start-task → complete-task → get`), proving the thinnest queue → state persistence → view path before Stories 2–5 add the full action set, prompt shaping, workflow generation, and tool contract.
+- Decision: 2026-11-23 — Settled `OQ-B` per user confirmation: `bmad_queue_manage` aligns to the shipped `{ ...ScanResult, queueActionResult: { action, taskQueue, generatedWorkflow } }` shape.
 - Risk reason (`high`): Story 4 generates executable `.dwf.ts` + step-updater artifacts that drive automated multi-task execution; a malformed compiler output could mis-route models or skip review gates (`SM-5`).
 - Waits on epic-verification-harness because: needs the node:test harness (`1.1`).
 - Waits on epic-dual-progress-reconciliation because: shares the `scripts/bmad-engine.mjs` queue/state lane; the same file is edited once.

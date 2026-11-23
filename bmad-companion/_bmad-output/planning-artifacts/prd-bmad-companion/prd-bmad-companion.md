@@ -4,7 +4,7 @@ template: prd
 version: 1.1.0
 status: final
 created: "2026-11-19"
-updated: "2026-11-19"
+updated: "2026-11-23"
 ---
 
 # BMAD Companion — Product Requirements Document
@@ -89,7 +89,7 @@ Developers can launch a recommended prompt into a clean session in one click (`C
 | **Static Tracker Progress** | Completion metrics (`declaredDoneStories`, `declaredOverallPct`) parsed from explicit statuses in BMAD v6 `sprint-status.yaml` / `sprint-status.yml` or BMAD v7 `tickets.toml` and epic frontmatter. |
 | **Smart AI Progress** | Reconciled metrics (`smartDoneStories`, `smartOverallPct`, `reconciledStoriesCount`) computed by combining Static Tracker Progress with story plan status, passing test reports, retrospectives, git commits, and `storyOverrides` in `state.json`. |
 | **Override Key** | Deterministic story key (`<epic-slug>#<story-num>`) used in `.zcode/bmad-companion/state.json` (`storyOverrides`) to persist AI-verified story statuses and evidence. |
-| **Model Profile Tier** | One of four capability buckets used to score host models: `deep-reasoning` (🧠), `creative-ux` (🎨), `coding` (💻), and `planning-fast` (⚡). |
+| **Model Profile Tier** | One of four capability buckets used to score host models: `deep-reasoning` (🧠), `creative-ux` (🎨), `agentic-coding` (💻), and `planning-fast` (⚡). |
 | **Form Interaction Guard** | Client-side state machine in `assets/panel.html` (`isUserInteractingWithForm()`, `selectOpenUntil`, `pendingWorkspaceState`, `userEditedPrompts`, `userSelectedModels`, `lastSectionSignatures`) preventing 5s polling from disrupting active user focus or edits. |
 | **Task Queue** | Persisted multi-task execution ledger (`state.json -> taskQueue`) managed by `bmad_queue_manage`, storing ordered tasks with `model`, `reviewMode` (`none` \| `quick` \| `thorough`), `status`, and `executionMode`. |
 
@@ -128,14 +128,14 @@ flowchart LR
 
 ### Feature 1: 9-Tool MCP Stdio Server & Panel Surface (`scripts/mcp-server.mjs`)
 
-Realizes `UJ-1`, `UJ-2`, `UJ-3`, `UJ-4`. Serves `ui://bmad-companion/panel.html` (`text/html;profile=mcp-app`, CSP `unsafeEval: false`) and 9 JSON-RPC tools over stdio.
+Realizes `UJ-1`, `UJ-2`, `UJ-3`, `UJ-4`. Serves `ui://bmad-companion/panel.html` (`text/html;profile=mcp-app`, `_meta["zcode/csp"].unsafeEval: false`) and 9 JSON-RPC tools over stdio.
 
 - **FR-1 (`bmad_open_companion`):** The MCP server can open the right-side `bmad-companion` surface, optionally persist a `focus` string to `state.json`, scan the workspace, and return both a Markdown summary (`content`) and full workspace state (`structuredContent`).
 - **FR-2 (`bmad_get_state`):** The MCP server can scan the workspace on demand (`refresh?: boolean`) and return `structuredContent` with project metadata, 4-phase progress, epic/story trees, dual progress metrics (`declaredOverallPct` vs. `smartOverallPct`), active models, ranked recommendations, artifacts, and `taskQueue`.
 - **FR-3 (`bmad_update_advisor`):** The agent can push post-turn analysis (`headline`, `turnSummary`, `recommendations[]`), synchronize live `hostModels[]` from `ListModels` (overriding disk `~/.zcode/v2/provider_config.json`), and persist `storyStatusUpdates[]` (`overrideKey`, `status`, `reason`).
-- **FR-4 (`bmad_prepare_new_session`):** The MCP server can copy a `/bmad-<skill> "<prompt>"` command to the OS clipboard, persist `preparedSession` metadata, and when `openDirectly !== false`, trigger OS keystroke automation (`win32` PowerShell `SendKeys` `^n` + `^v`, `darwin` `pbcopy` + `osascript`, `linux` `wl-copy`/`xclip`/`xsel` + `xdotool`) to open a clean ZCode session with the prompt pre-pasted in the composer.
+- **FR-4 (`bmad_prepare_new_session`):** The MCP server can copy a `/bmad-<skill> "<prompt>"` command to the OS clipboard, persist `lastLaunchedSession` metadata, and when `openDirectly !== false`, trigger OS keystroke automation (`win32` PowerShell `SendKeys` `^n` + `^v`, `darwin` `pbcopy` + `osascript`, `linux` `wl-copy`/`xclip`/`xsel` + `xdotool`) to open a clean ZCode session with the prompt pre-pasted in the composer.
 - **FR-5 (`bmad_reconcile_trackers`):** The MCP server can synchronize BMAD v6 (`sprint-status.yaml` / `.yml`) and/or BMAD v7 (`tickets.toml` and epic frontmatter) files with Smart AI-verified story statuses, supporting `dryRun?: boolean`, `target?: "all" | "v6-yaml" | "v7-tickets"`, and `backup?: boolean` (default `true`).
-- **FR-6 (`bmad_recommend_next`):** The MCP server can return up to 6 topic-filtered `/bmad-<skill> "<contextual prompt>"` recommendations with paired `recommendedModel` objects for any requested `topic`.
+- **FR-6 (`bmad_recommend_next`):** The MCP server can return up to 7 topic-filtered `/bmad-<skill> "<contextual prompt>"` recommendations with paired `recommendedModel` objects (plus up to 12 `matchingSkills`) for any requested `topic`.
 - **FR-7 (`bmad_inspect_artifact`):** The MCP server can read any BMAD artifact by workspace-relative path (`relPath`) and return its metadata, content preview, and live `git diff` while rejecting paths outside `workspaceRoot`.
 - **FR-8 (`bmad_open_artifact_file`):** The MCP server can open a workspace-confined BMAD artifact in the desktop editor (`cmd /c start`, `open`, or `xdg-open`) and return its content preview and `git diff`.
 - **FR-9 (`bmad_queue_manage`):** The MCP server can manage the Multi-Task Execution Queue across 14 actions (`get`, `add`, `add-epic`, `update-item`, `set-review-mode`, `set-execution-mode`, `reorder`, `remove`, `clear`, `start-queue`, `start-task`, `complete-task`, `pause-queue`, `generate-workflow`) with per-task `model`, `reviewMode` (`none` | `quick` | `thorough`), and `executionMode` (`dynamic-workflow` | `separate-sessions`).
@@ -167,7 +167,7 @@ Realizes `UJ-3`. Orchestrates queued stories with configurable token-saving revi
 Realizes `UJ-1`, `UJ-3`, `UJ-4`. Synchronizes recommendations, touched files, and model routing across turn boundaries.
 
 - **FR-17 (Workspace-Confined Artifact Discovery & Diffing):** The scanner can walk `_bmad-output/`, `docs/`, `AGENTS.md`, and `CONTEXT.md` (max depth 4) and compute per-artifact git status and `git diff` previews with normalized `/` paths confined to `workspaceRoot`.
-- **FR-18 (Dynamic 4-Tier Host Model Scoring):** The engine can resolve enabled models from `state.json -> hostModels` (via `ListModels`) or `~/.zcode/v2/provider_config.json`, score each model against the skill's `modelProfile` (`deep-reasoning`, `creative-ux`, `coding`, `planning-fast`), and return the top `providerId/modelId`, tier label, and rationale.
+- **FR-18 (Dynamic 4-Tier Host Model Scoring):** The engine can resolve enabled models from `state.json -> hostModels` (via `ListModels`) or `~/.zcode/v2/provider_config.json`, score each model against the skill's `modelProfile` (`deep-reasoning`, `creative-ux`, `agentic-coding`, `planning-fast`), and return the top `providerId/modelId`, tier label, and rationale.
 - **FR-19 (`SessionStart` Hook Context Injection):** On `SessionStart`, `hook-runner.mjs` can scan the workspace and output `additionalContext` with smart-vs-static metrics, active provider counts, top 3 `/bmad-<skill> "<prompt>"` commands with recommended models, and companion rules.
 - **FR-20 (`UserPromptSubmit` Hook & Queue Auto-Start):** On `UserPromptSubmit`, `hook-runner.mjs` can store `lastUserPrompt`, reset `recentTouchedFiles`, and auto-transition a matching queued task to `running` (`start-task`).
 - **FR-21 (`PostToolUse` Hook File Tracking):** On `PostToolUse` (`Write`, `Edit`, `MultiEdit`), `hook-runner.mjs` can record up to 15 workspace-relative paths in `recentTouchedFiles`.
@@ -241,7 +241,7 @@ Realizes `UJ-1`, `UJ-3`, `UJ-4`. Synchronizes recommendations, touched files, an
    - Ranks enabled models by capability profile:
      - `deep-reasoning`: `claude-opus-5-5-high`, `claude-opus-4-6-thinking`, `qwen4-max`, `deepseek-v4-pro` (high/max reasoning).
      - `creative-ux`: `gemini-4-hydrogen-xhigh`, `claude-sonnet-5-5-high` (vision & design ergonomics).
-     - `coding`: `claude-sonnet-5-5-high`, `claude-opus-5-5-high`, `deepseek-v4-pro`, `glm-5.3` (agentic coding & TDD).
+     - `agentic-coding`: `claude-sonnet-5-5-high`, `claude-opus-5-5-high`, `deepseek-v4-pro`, `glm-5.3` (agentic coding & TDD).
      - `planning-fast`: `gemini-4-argon-high`, `gemini-3.8-flash-high`, `qwen3.8-flash` (fast high-context synthesis).
 3. **Smart Story Status Evidence Rules:**
    - Upgrades `smartStatus` to `done` only when verified by: (a) `storyOverrides[overrideKey].status === "done"`, (b) story plan status marked `done`/`completed`/`shipped`, (c) passing implementation/test report (`failCount === 0`), or (d) completed epic retrospective. Failing test reports (`failCount > 0`) hold status at `in-progress`/`review` and trigger a high-priority remediation recommendation.
@@ -251,8 +251,8 @@ Realizes `UJ-1`, `UJ-3`, `UJ-4`. Synchronizes recommendations, touched files, an
 ## API contract and versioning
 
 ### 1. MCP Protocol & Resource Surface
-- **Protocol:** JSON-RPC 2.0 over stdio (`protocolVersion: "2024-11-05"`), `serverInfo: { name: "bmad-companion", version: "0.5.2" }` (`RULE-6`).
-- **Resource:** `uri: "ui://bmad-companion/panel.html"`, `mimeType: "text/html;profile=mcp-app"`, `_meta.ui: { surface: "bmad-companion", csp: { unsafeEval: false } }`.
+- **Protocol:** JSON-RPC 2.0 over stdio; `initialize` echoes the client's `params.protocolVersion` with server fallback `"2025-11-25"` (the panel sends `"2026-01-26"`), `serverInfo: { name: "bmad-companion", version: "0.5.3" }` (`RULE-6`).
+- **Resource:** `uri: "ui://bmad-companion/panel.html"`, `mimeType: "text/html;profile=mcp-app"`, `_meta: { "zcode/csp": { unsafeEval: false } }` on `resources/list` and `resources/read` (tool `_meta.ui` carries `{ resourceUri, surface: "bmad-companion", visibility }`).
 
 ### 2. 9 MCP Tools Contract Summary
 
@@ -261,12 +261,12 @@ Realizes `UJ-1`, `UJ-3`, `UJ-4`. Synchronizes recommendations, touched files, an
 | `bmad_open_companion` (`FR-1`) | `true` | *(none)* | `focus?: string` | Full `ScanResult` + opens `bmad-companion` surface |
 | `bmad_get_state` (`FR-2`) | `true` | *(none)* | `refresh?: boolean` | Full `ScanResult` (`metrics`, `phases`, `epics`, `recommendations`, `availableModels`, `taskQueue`, `artifacts`) |
 | `bmad_update_advisor` (`FR-3`) | `false` | *(none)* | `headline?`, `turnSummary?`, `recommendations?[]`, `hostModels?[]`, `storyStatusUpdates?[]` | Updated `ScanResult` with merged overrides and `hostModels` |
-| `bmad_prepare_new_session` (`FR-4`) | `false` | `prompt`, `model` | `skill?`, `title?`, `openDirectly?` | `{ prompt, model, skill, title, copied, openedDirectly, pasted, method, preparedAt }` |
-| `bmad_reconcile_trackers` (`FR-5`) | `false` | *(none)* | `dryRun?`, `target?`, `backup?` | `{ reconciliation: { dryRun, updatedCount, filesModified[], changes[], logPath }, state: ScanResult }` |
-| `bmad_recommend_next` (`FR-6`) | `true` | *(none)* | `topic?: string` | `{ topic, recommendations[], availableModels[] }` |
-| `bmad_inspect_artifact` (`FR-7`) | `true` | `relPath: string` | *(none)* | `{ ok, relPath, sizeBytes, updatedAt, gitStatus, gitDiff, contentPreview }` |
-| `bmad_open_artifact_file` (`FR-8`) | `false` | `relPath: string` | *(none)* | `{ ok, relPath, openedExternally, openMethod, gitDiff, contentPreview }` |
-| `bmad_queue_manage` (`FR-9`) | `false` | `action: string` | `items?[]`, `epicSlug?`, `includeDone?`, `taskId?`, `model?`, `reviewMode?`, `applyToAll?`, `executionMode?`, `prompt?`, `direction?`, `onlyCompleted?`, `failed?`, `storyStatus?`, `summary?` | `{ queueResult: { ok, action, queue, workflowPath?, executionPrompt? }, state: ScanResult }` |
+| `bmad_prepare_new_session` (`FR-4`) | `false` | `prompt`, `model` | `skill?`, `title?`, `openDirectly?` | `{ prompt, model, skill, title, requestedAt, copied, openedDirectly, pasted, method, error? }` |
+| `bmad_reconcile_trackers` (`FR-5`) | `false` | *(none)* | `dryRun?`, `target?`, `backup?` | `{ reconciledAt, dryRun, target, changesCount, updatedFiles[], changes[], before, after, newScan }` |
+| `bmad_recommend_next` (`FR-6`) | `true` | *(none)* | `topic?: string` | `{ recommendations[], matchingSkills[] }` |
+| `bmad_inspect_artifact` (`FR-7`) | `true` | `relPath: string` | *(none)* | `{ relPath, name, size, mtimeMs, lastModifiedIso, meta, diff, diffSource, preview, truncated }` |
+| `bmad_open_artifact_file` (`FR-8`) | `false` | `relPath: string` | *(none)* | `{ relPath, name, size, mtimeMs, lastModifiedIso, meta, diff, diffSource, preview, truncated, openedExternally }` |
+| `bmad_queue_manage` (`FR-9`) | `false` | `action: string` | `items?[]`, `epicSlug?`, `includeDone?`, `taskId?`, `sessionId?`, `model?`, `reviewMode?`, `applyToAll?`, `executionMode?`, `prompt?`, `direction?`, `onlyCompleted?`, `failed?`, `storyStatus?`, `summary?` | `{ ...ScanResult, queueActionResult: { action, taskQueue, generatedWorkflow } }` |
 
 ### 3. Versioning Policy
 - Additive optional inputs or output keys are non-breaking (`0.5.x`). Renaming tools, removing `structuredContent.metrics` fields, or altering `overrideKey` format requires a `0.x.0` minor bump with state migration in `loadPersistedState`.

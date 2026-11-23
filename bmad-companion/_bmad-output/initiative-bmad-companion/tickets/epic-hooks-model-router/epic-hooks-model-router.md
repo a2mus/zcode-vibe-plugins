@@ -27,7 +27,7 @@ Every turn keeps the panel current — context injection, prompt/file tracking, 
 2. **R2 (parent R20)**: On `UserPromptSubmit`, `hook-runner.mjs` stores `lastUserPrompt`, resets `recentTouchedFiles`, and auto-transitions a matching queued task to `running` (`start-task`).
 3. **R3 (parent R21)**: On `PostToolUse` (`Write`/`Edit`/`MultiEdit`), `hook-runner.mjs` records up to 15 workspace-relative paths in `recentTouchedFiles`.
 4. **R4 (parent R22)**: On `Stop`, `hook-runner.mjs` increments `turnCount`, stores `lastAssistantMessage`, auto-completes a running single-session queued task (`complete-task`), and optionally invokes `BMAD_COMPANION_OPENAI_KEY`/`OPENAI_API_KEY` synthesis bounded by `AbortSignal.timeout(4500)` with silent fallback.
-5. **R5 (parent R18)**: The engine resolves enabled models from `state.json -> hostModels` (via `ListModels`) or `~/.zcode/v2/provider_config.json`, excludes `enabled === false`/`disabledReason`, scores each against the skill's `modelProfile` (`deep-reasoning`/`creative-ux`/`coding`/`planning-fast`), and returns the top `providerId/modelId`, tier label, and rationale.
+5. **R5 (parent R18)**: The engine resolves enabled models from `state.json -> hostModels` (via `ListModels`) or `~/.zcode/v2/provider_config.json`, excludes `enabled === false`/`disabledReason`, scores each against the skill's `modelProfile` (`deep-reasoning`/`creative-ux`/`agentic-coding`/`planning-fast`), and returns the top `providerId/modelId`, tier label, and rationale.
 6. **R6 (parent R17)**: The scanner walks `_bmad-output/`, `docs/`, `AGENTS.md`, and `CONTEXT.md` (max depth 4) and computes per-artifact git status and `git diff` previews with normalized `/` paths confined to `workspaceRoot`, heuristic reads capped 24–30KB and git subprocesses timed out at 2500ms.
 
 ## Constraints
@@ -56,6 +56,7 @@ Every turn keeps the panel current — context injection, prompt/file tracking, 
 
 - Decision: 2026-11-19 — Tracer bullet is Story 1 (`SessionStart` context-injection tracer), proving the thinnest hook → scan → single-line `additionalContext` path before Stories 2–5 add scoring, discovery, and the remaining hooks.
 - Decision: 2026-11-19 — Closing end-to-end suite (Story 7) lands here after the refactor sweep, exercising `UJ-1`–`UJ-4` as the initiative's recorded `SM-1`–`SM-5` gate (initiative Decision).
+- Decision: 2026-11-23 — Settled `OQ-D` per user confirmation: aligned `R5` (`modelProfile`) to the shipped `agentic-coding` key.
 - Risk reason (`high`): Story 5 mutates turn state and optionally calls an external LLM under a 4500ms bound; a stdout or timeout regression breaks hook isolation or the ≤350ms deterministic budget (`C11`).
 - Waits on epic-verification-harness because: needs the hook stdout-isolation harness (`1.3`).
 - Waits on epic-execution-queue because: needs the `taskQueue` `start-task`/`complete-task` actions (`5.1`) the hooks auto-advance and the engine scorer/discovery lane.

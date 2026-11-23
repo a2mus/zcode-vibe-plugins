@@ -16,7 +16,7 @@ risk = "medium"
 id = 2
 type = "story"
 title = "4-tier model scorer + enabled-model resolution"
-description = "Builds on Story 1's scan baseline to harden recommendModelForBmadSkill/discoverConfiguredModels: resolve enabled models from state.json hostModels (ListModels) or ~/.zcode/v2/provider_config.json, exclude enabled===false/disabledReason, score against modelProfile (deep-reasoning/creative-ux/coding/planning-fast), and return top providerId/modelId + tier label + rationale (A-4). Hands off ranked models to Stories 3-5 and the recommendation contract."
+description = "Builds on Story 1's scan baseline to harden recommendModelForBmadSkill/discoverConfiguredModels: resolve enabled models from state.json hostModels (ListModels) or ~/.zcode/v2/provider_config.json, exclude enabled===false/disabledReason, score against modelProfile (deep-reasoning/creative-ux/agentic-coding/planning-fast), and return top providerId/modelId + tier label + rationale (A-4). Hands off ranked models to Stories 3-5 and the recommendation contract."
 verify = "Run `node --test tests/` and confirm disabled models are excluded, live hostModels override disk config, and each modelProfile returns the expected top providerId/modelId with a tier label and rationale."
 covers = ["R5"]
 after = [1]
