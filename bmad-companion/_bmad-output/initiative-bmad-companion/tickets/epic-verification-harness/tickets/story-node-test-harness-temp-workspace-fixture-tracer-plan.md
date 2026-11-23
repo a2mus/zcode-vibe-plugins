@@ -3,7 +3,7 @@ title: 'node:test harness + temp-workspace fixture tracer'
 type: feature
 ticket: 1
 created: '2026-11-20'
-status: built
+status: done
 baseline_revision: '72f7ca385cf61ea8159fb0daa9b0e0a0276a7043'
 route: oneshot
 route_source: pinned

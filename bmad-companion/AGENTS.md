@@ -29,7 +29,7 @@ Global ZCode companion plugin for BMAD-METHOD, providing a right-side workspace 
 - Use the MCP Apps `window.parent.postMessage` JSON-RPC bridge (`ui/initialize`, `tools/call`) in `assets/panel.html`, never `window.zcode`, and keep all UI code inline under CSP `unsafeEval: false`.
 - Preserve `isUserInteractingWithForm` and `userEditedPrompts` guards in `assets/panel.html` when touching UI state, because the panel polls `bmad_get_state` every 5s while visible.
 - Keep `scripts/bmad-engine.mjs` parsers (`parseFrontmatter`, `parseTomlBlocks`, `parseSprintStatusYaml`) dependency-free, and preserve `.bak` backup creation in `reconcileWorkspaceTrackers` unless `backup: false` is passed.
-- Pass live `ListModels` entries via `bmad_update_advisor` (`hostModels` overrides disk `~/.zcode/v2/provider_config.json`), and format every recommendation as `/bmad-<skill> "<contextual prompt>"` with a `providerId/modelId` — never emit bare skill names.
+- Pass live `ListModels` entries via `bmad_update_advisor` (`hostModels` supplements disk discovery; partial lists merge so accessible models are never hidden), and format every recommendation as `/bmad-<skill> "<contextual prompt>"` with a `providerId/modelId` — never emit bare skill names.
 - Route all `.zcode/bmad-companion/state.json` writes through `savePersistedState`, and enforce `workspaceRoot` path confinement with `/` normalization on artifact paths.
 
 <!-- /bmad:context -->

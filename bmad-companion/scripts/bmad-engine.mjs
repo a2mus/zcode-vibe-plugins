@@ -414,6 +414,56 @@ function findRuntimeBuiltinConfigPath() {
   return null;
 }
 
+export function classifyModelCostTier(modelId) {
+  const id = String(modelId || "").toLowerCase();
+  if (/(?:^|[-_.])(?:flash|lite|mini|haiku|air|argon|oss)(?:$|[-_.])/.test(id)) {
+    return "economy";
+  }
+  if (/(?:^|[-_.])(?:opus|xhigh|thinking|pro|max)(?:$|[-_.])/.test(id)) {
+    return "premium";
+  }
+  return "standard";
+}
+
+/**
+ * Keep a complete model catalog when an advisor update carries only a subset.
+ * Incoming lists that are at least as large as the stored one replace it;
+ * smaller lists merge by id so a partial ListModels read never hides models.
+ */
+export function mergeHostModelCatalogs(existing = [], incoming = []) {
+  const base = (Array.isArray(existing) ? existing : []).filter((m) => m && m.id);
+  const next = (Array.isArray(incoming) ? incoming : []).filter((m) => m && m.id);
+  if (next.length >= base.length) return next;
+  const byId = new Map(base.map((m) => [m.id, m]));
+  for (const model of next) {
+    byId.set(model.id, { ...(byId.get(model.id) || {}), ...model });
+  }
+  return [...byId.values()];
+}
+
+export function applyModelHealthFromQueue(models = [], queueItems = [], now = Date.now()) {
+  const cutoff = now - 24 * 60 * 60 * 1000;
+  const latest = new Map();
+  for (const item of Array.isArray(queueItems) ? queueItems : []) {
+    if (!item || item.status !== "failed") continue;
+    const summary = String(item.resultSummary || "");
+    if (!/rate.?limit|\b429\b|quota/i.test(summary)) continue;
+    const timestamp = Date.parse(item.completedAt || item.startedAt || "") || 0;
+    if (timestamp < cutoff) continue;
+    const modelId = String(item.model || "");
+    if (!modelId) continue;
+    if (!latest.has(modelId) || latest.get(modelId) < timestamp) {
+      latest.set(modelId, timestamp);
+    }
+  }
+  for (const model of Array.isArray(models) ? models : []) {
+    if (!model || !latest.has(model.id)) continue;
+    model.rateLimited = true;
+    model.rateLimitedAt = new Date(latest.get(model.id)).toISOString();
+  }
+  return models;
+}
+
 export function discoverConfiguredModels(persistedHostModels = null) {
   const zcodeV2Dir = join(homedir(), ".zcode", "v2");
   const providerCfgPath = join(zcodeV2Dir, "provider_config.json");
@@ -541,6 +591,7 @@ export function discoverConfiguredModels(persistedHostModels = null) {
       subscriptionPlan: subscriptionPlan || null,
       modelId,
       label: `${modelId} · ${providerName || providerId}`,
+      costTier: classifyModelCostTier(modelId),
       contextWindow: caps.contextWindow,
       supportsImage: caps.supportsImage,
       supportsVideo: caps.supportsVideo,
@@ -558,57 +609,7 @@ export function discoverConfiguredModels(persistedHostModels = null) {
   const hasZaiAuth = Boolean(credsCfg["oauth:zai:access_token"] || credsCfg["zcodejwttoken"]);
   const hasBigmodelAuth = Boolean(credsCfg["oauth:bigmodel:access_token"]);
 
-  // 2. If host runtime explicitly synced its live ListModels catalog into state.json, honor it as authoritative
-  if (Array.isArray(persistedHostModels) && persistedHostModels.length > 0) {
-    const runtimeProviderCounts = new Map();
-    for (const hm of persistedHostModels) {
-      if (!hm || hm.disabledReason) continue;
-      const pid = hm.providerId || String(hm.id || "").split("/")[0];
-      const mid = hm.modelId || String(hm.id || "").split("/").slice(1).join("/");
-      const baseCaps = resolveModelCapabilities(pid, mid);
-      const beforeLen = discovered.length;
-      registerCandidate({
-        providerId: pid,
-        providerName: hm.providerLabel || pid,
-        providerKind: pid.startsWith("account:") ? "subscription" : "personal",
-        subscriptionPlan: pid.startsWith("account:") ? pid.replace(/^account:/, "") : "custom-provider",
-        modelId: mid,
-        caps: {
-          ...baseCaps,
-          enabled: true,
-          contextWindow: hm.contextWindow || baseCaps.contextWindow,
-          reasoningLevels: Array.isArray(hm.reasoningLevels) && hm.reasoningLevels.length > 0 ? hm.reasoningLevels : baseCaps.reasoningLevels,
-          defaultReasoningLevel: hm.defaultReasoningLevel || baseCaps.defaultReasoningLevel
-        },
-        isCurrent: Boolean(hm.current)
-      });
-      if (discovered.length > beforeLen) {
-        const prev = runtimeProviderCounts.get(pid) || {
-          providerId: pid,
-          providerName: hm.providerLabel || pid,
-          kind: pid.startsWith("account:") ? "subscription" : "personal",
-          plan: pid.startsWith("account:") ? pid.replace(/^account:/, "") : "runtime",
-          modelCount: 0
-        };
-        prev.modelCount += 1;
-        runtimeProviderCounts.set(pid, prev);
-      }
-    }
-    if (discovered.length > 0) {
-      return {
-        models: discovered,
-        providerState: {
-          activeProviders: [...runtimeProviderCounts.values()],
-          subscriptionSelections: familySelections,
-          hasZaiAuth,
-          hasBigmodelAuth,
-          syncedFromRuntime: true
-        }
-      };
-    }
-  }
-
-  // 3. Evaluate active Subscription / Account providers based on credentials.json + setting.json
+  // 2. Evaluate active Subscription / Account providers based on credentials.json + setting.json
   const personalProviderRules = personalCfg?.config?.providerConfigRules?.providerRules || [];
   const personalProviderMap = new Map(personalProviderRules.map((p) => [p.providerId, p]));
   const providerOrder = personalCfg?.config?.providerOrder || [];
@@ -675,7 +676,7 @@ export function discoverConfiguredModels(persistedHostModels = null) {
     }
   }
 
-  // 4. Evaluate active Personal / Custom Providers in providerOrder
+  // 3. Evaluate active Personal / Custom Providers in providerOrder
   const orderedPersonalRules = [
     ...providerOrder.map((id) => personalProviderMap.get(id)).filter(Boolean),
     ...personalProviderRules.filter((p) => !providerOrder.includes(p.providerId))
@@ -724,6 +725,77 @@ export function discoverConfiguredModels(persistedHostModels = null) {
     }
   }
 
+  // 4. Overlay the live host catalog. A partial advisor update must not hide
+  //    models that disk discovery already found.
+  const runtimeModels = (Array.isArray(persistedHostModels) ? persistedHostModels : [])
+    .filter((hm) => hm && hm.id && !hm.disabledReason);
+  let runtimeMerged = 0;
+  const runtimeAddedCounts = new Map();
+
+  for (const hm of runtimeModels) {
+    const pid = hm.providerId || String(hm.id).split("/")[0];
+    const mid = hm.modelId || String(hm.id).split("/").slice(1).join("/");
+    if (!pid || !mid) continue;
+    const fullId = `${pid}/${mid}`;
+    const baseCaps = resolveModelCapabilities(pid, mid);
+    const runtimeCaps = {
+      ...baseCaps,
+      enabled: true,
+      contextWindow: hm.contextWindow || baseCaps.contextWindow,
+      reasoningLevels:
+        Array.isArray(hm.reasoningLevels) && hm.reasoningLevels.length > 0
+          ? hm.reasoningLevels
+          : baseCaps.reasoningLevels,
+      defaultReasoningLevel: hm.defaultReasoningLevel || baseCaps.defaultReasoningLevel
+    };
+    const existing = discovered.find((m) => m.id === fullId);
+    if (existing) {
+      existing.contextWindow = runtimeCaps.contextWindow;
+      existing.reasoningLevels = runtimeCaps.reasoningLevels;
+      existing.defaultReasoningLevel = runtimeCaps.defaultReasoningLevel;
+      if (hm.providerLabel) {
+        existing.providerName = hm.providerLabel;
+        existing.label = `${existing.modelId} · ${hm.providerLabel}`;
+      }
+      existing.costTier = classifyModelCostTier(mid);
+      if (hm.current) existing.current = true;
+      runtimeMerged += 1;
+    } else {
+      const beforeLen = discovered.length;
+      registerCandidate({
+        providerId: pid,
+        providerName: hm.providerLabel || pid,
+        providerKind: pid.startsWith("account:") ? "subscription" : "personal",
+        subscriptionPlan: pid.startsWith("account:") ? pid.replace(/^account:/, "") : "runtime",
+        modelId: mid,
+        caps: runtimeCaps,
+        isCurrent: Boolean(hm.current)
+      });
+      if (discovered.length > beforeLen) {
+        runtimeMerged += 1;
+        runtimeAddedCounts.set(pid, (runtimeAddedCounts.get(pid) || 0) + 1);
+      }
+    }
+  }
+
+  for (const [pid, count] of runtimeAddedCounts) {
+    const row = activeProvidersSummary.find((p) => p.providerId === pid);
+    if (row) {
+      row.modelCount += count;
+    } else {
+      const sample = runtimeModels.find(
+        (hm) => (hm.providerId || String(hm.id).split("/")[0]) === pid
+      );
+      activeProvidersSummary.push({
+        providerId: pid,
+        providerName: sample?.providerLabel || pid,
+        kind: pid.startsWith("account:") ? "subscription" : "personal",
+        plan: pid.startsWith("account:") ? pid.replace(/^account:/, "") : "runtime",
+        modelCount: count
+      });
+    }
+  }
+
   return {
     models: discovered,
     providerState: {
@@ -731,12 +803,12 @@ export function discoverConfiguredModels(persistedHostModels = null) {
       subscriptionSelections: familySelections,
       hasZaiAuth,
       hasBigmodelAuth,
-      syncedFromRuntime: false
+      syncedFromRuntime: runtimeMerged > 0
     }
   };
 }
 
-function scoreModelForBmadProfile(model, profile) {
+export function scoreModelForBmadProfile(model, profile) {
   const idLower = String(model.modelId || "").toLowerCase();
   const levels = model.reasoningLevels || [];
   const ctxWin = Number(model.contextWindow || 128000);
@@ -813,7 +885,7 @@ function scoreModelForBmadProfile(model, profile) {
   } else if (/(?:flash|mini|haiku|air|lite)/i.test(idLower)) {
     costEfficiencyScore += 3.0;
   }
-  if (/(?:opus|xhigh|max|thinking)/i.test(idLower)) {
+  if (/(?:opus|xhigh|max|thinking|(?:^|[-_.])pro(?:$|[-_.]))/i.test(idLower)) {
     costEfficiencyScore -= 6.0;
   } else if (/sonnet/i.test(idLower)) {
     costEfficiencyScore -= 4.0;
@@ -823,15 +895,15 @@ function scoreModelForBmadProfile(model, profile) {
   const orderBonus = Math.max(0, 1 - (model.orderIndex || 0) * 0.02) + (model.current ? 0.4 : 0);
 
   if (profile === "deep-reasoning") {
-    return reasoningScore * 3.0 + contextScore * 2.0 + (model.supportsJsonSchemaOutput ? 2 : 0) + orderBonus;
+    return reasoningScore * 3.0 + contextScore * 2.0 + (model.supportsJsonSchemaOutput ? 2 : 0) + costEfficiencyScore * 1.2 + orderBonus;
   }
   if (profile === "creative-ux") {
     const geminiUxBonus = /gemini/i.test(idLower) && /hydrogen/i.test(idLower) ? 6.0 : 0;
-    return visualScore * 3.0 + geminiUxBonus + reasoningScore * 1.6 + contextScore * 1.5 + orderBonus;
+    return visualScore * 3.0 + geminiUxBonus + reasoningScore * 1.6 + contextScore * 1.5 + costEfficiencyScore * 1.6 + orderBonus;
   }
   if (profile === "agentic-coding") {
     const balancedCodingBonus = /sonnet|codex/i.test(idLower) ? 2.5 : 0;
-    return codingScore * 3.0 + balancedCodingBonus + reasoningScore * 1.6 + contextScore * 1.5 + speedScore * 0.9 + orderBonus;
+    return codingScore * 3.0 + balancedCodingBonus + reasoningScore * 1.6 + contextScore * 1.5 + speedScore * 0.9 + costEfficiencyScore * 2.0 + orderBonus;
   }
   // "planning-fast": simple, synthesis, planning, triage, and walkthrough tasks — prefer fast cost-effective Gemini Flash/Argon
   return costEfficiencyScore * 3.2 + speedScore * 2.5 + contextScore * 1.2 + orderBonus;
@@ -868,7 +940,9 @@ export function recommendModelForBmadSkill(skillName, availableModels, customPro
     };
   }
 
-  const ranked = [...availableModels]
+  const healthy = availableModels.filter((m) => !m.rateLimited);
+  const rankingPool = healthy.length > 0 ? healthy : availableModels;
+  const ranked = [...rankingPool]
     .map((m) => ({
       model: m,
       score: scoreModelForBmadProfile(m, profile)
@@ -876,28 +950,47 @@ export function recommendModelForBmadSkill(skillName, availableModels, customPro
     .sort((a, b) => b.score - a.score);
 
   const picked = ranked[0].model;
-  const ctxK = Math.round((picked.contextWindow || 128000) / 1000);
+  // Economy guard: when a premium model barely leads, prefer a cheaper model
+  // within 10% of its score. Deep reasoning still gets a strong, balanced pick.
+  const topScore = ranked[0].score;
+  let finalPick = picked;
+  if (profile === "deep-reasoning") {
+    // Keep deep work on a balanced (standard-cost) model when one is close.
+    // Avoid downgrading architecture or review work to a budget model.
+    const balanced = ranked.find(
+      (r) => (r.model.costTier || classifyModelCostTier(r.model.modelId)) === "standard" && r.score >= topScore * 0.9
+    );
+    if (balanced) finalPick = balanced.model;
+  } else if ((picked.costTier || classifyModelCostTier(picked.modelId)) === "premium") {
+    const cheaper = ranked.find(
+      (r) => (r.model.costTier || classifyModelCostTier(r.model.modelId)) !== "premium" && r.score >= topScore * 0.9
+    );
+    if (cheaper) finalPick = cheaper.model;
+  }
+  const ctxK = Math.round((finalPick.contextWindow || 128000) / 1000);
   const capBadges = [
     `${ctxK}k ctx`,
-    picked.reasoningLevels?.length > 2 ? `reasoning: ${picked.defaultReasoningLevel}` : null,
-    picked.supportsImage ? "vision" : null,
-    picked.supportsNativeWebSearch ? "web-search" : null
+    finalPick.reasoningLevels?.length > 2 ? `reasoning: ${finalPick.defaultReasoningLevel}` : null,
+    finalPick.supportsImage ? "vision" : null,
+    finalPick.supportsNativeWebSearch ? "web-search" : null
   ]
     .filter(Boolean)
     .join(", ");
 
+  const costTier = finalPick.costTier || classifyModelCostTier(finalPick.modelId);
   const sourceDesc =
-    picked.providerKind === "subscription"
-      ? `active '${picked.providerName}' subscription`
-      : `active '${picked.providerName}' provider`;
+    finalPick.providerKind === "subscription"
+      ? `active '${finalPick.providerName}' subscription`
+      : `active '${finalPick.providerName}' provider`;
 
   return {
-    modelId: picked.id,
-    shortName: picked.modelId,
-    providerName: picked.providerName,
-    providerKind: picked.providerKind,
+    modelId: finalPick.id,
+    shortName: finalPick.modelId,
+    providerName: finalPick.providerName,
+    providerKind: finalPick.providerKind,
+    costTier,
     tier: tierMeta[profile] || "🤖 Dynamic Fit",
-    reason: `Dynamically ranked #1 among ${availableModels.length} available models from ${sourceDesc} (${capBadges}) for ${cleanSkill || profile}.`
+    reason: `Dynamically ranked #1 among ${availableModels.length} available models from ${sourceDesc} (${capBadges}, ${costTier} cost) for ${cleanSkill || profile}.`
   };
 }
 
@@ -1237,6 +1330,7 @@ export function scanBmadWorkspace(workspaceRoot) {
   const persisted = loadPersistedState(workspaceRoot);
   const { projectName, techStack } = detectWorkspaceProfile(workspaceRoot);
   const { models: availableModels, providerState } = discoverConfiguredModels(persisted.hostModels || null);
+  applyModelHealthFromQueue(availableModels, persisted.taskQueue?.items);
 
   const allDiscoveredFiles = [...outputFiles, ...docFiles];
   const sprintStatusFile = allDiscoveredFiles.find((f) => f.name === "sprint-status.yaml" || f.name === "sprint-status.yml");

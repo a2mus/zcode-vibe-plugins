@@ -3,7 +3,7 @@ title: 'Version tri-sync gate'
 type: feature
 ticket: 4
 created: '2026-11-20'
-status: built
+status: done
 baseline_revision: 'bea9bf7d1f7cc9855ac0f958695e468b2b33e73b'
 route: full
 route_source: auto

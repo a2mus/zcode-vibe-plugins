@@ -5,7 +5,9 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   inspectWorkspaceArtifact,
+  loadPersistedState,
   manageBmadTaskQueue,
+  mergeHostModelCatalogs,
   openWorkspaceArtifactExternally,
   reconcileWorkspaceTrackers,
   savePersistedState,
@@ -317,7 +319,8 @@ const TOOLS = [
         },
         hostModels: {
           type: "array",
-          description: "Optional live model catalog entries from ListModels to synchronize dynamic model recommendations with active provider & subscription state.",
+          description:
+            "Optional live model catalog entries from ListModels. Pass the full list when available; partial lists merge with the stored catalog so no accessible model is hidden.",
           items: {
             type: "object",
             properties: {
@@ -659,10 +662,15 @@ async function handleToolCall(name, args = {}) {
       recommendations: Array.isArray(args.recommendations) ? args.recommendations : undefined,
       updatedAt: new Date().toISOString()
     };
+    let hostModels = null;
+    if (Array.isArray(args.hostModels)) {
+      const currentHostModels = loadPersistedState(workspaceRoot).hostModels || [];
+      hostModels = mergeHostModelCatalogs(currentHostModels, args.hostModels);
+    }
     savePersistedState(workspaceRoot, {
       agentAdvisorOverride: override,
       storyOverrides,
-      ...(Array.isArray(args.hostModels) ? { hostModels: args.hostModels } : {}),
+      ...(hostModels ? { hostModels } : {}),
       lastTurnAnalyzedAt: new Date().toISOString()
     });
     const scan = scanBmadWorkspace(workspaceRoot);

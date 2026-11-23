@@ -1344,12 +1344,26 @@
           const list = hasSelected || !selectedModelId
             ? models
             : [{ id: selectedModelId, modelId: selectedModelId.split("/").pop(), providerName: selectedModelId.split("/")[0] }, ...models];
-          return list
-            .map((m) => {
-              const ctxTag = m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k` : "";
-              const provTag = m.providerName ? ` (${m.providerName})` : "";
-              const recTag = m.id === recId ? " ★ Recommended" : "";
-              return `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? "selected" : ""}>🤖 ${escapeHtml(m.modelId || m.label || m.id)}${escapeHtml(provTag)}${escapeHtml(ctxTag)}${escapeHtml(recTag)}</option>`;
+          const costTag = (tier) =>
+            tier === "economy" ? " · $" : tier === "premium" ? " · $$$" : tier === "standard" ? " · $$" : "";
+          const groups = new Map();
+          for (const m of list) {
+            const groupName = m.providerName || m.providerId || "Other providers";
+            if (!groups.has(groupName)) groups.set(groupName, []);
+            groups.get(groupName).push(m);
+          }
+          const renderOption = (m) => {
+            const ctxTag = m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k` : "";
+            const recTag = m.id === recId ? " ★ Recommended" : "";
+            const limitTag = m.rateLimited ? " · ⛔ rate-limited" : "";
+            return `<option value="${escapeHtml(m.id)}" ${m.id === selectedModelId ? "selected" : ""}>🤖 ${escapeHtml(m.modelId || m.label || m.id)}${escapeHtml(ctxTag)}${escapeHtml(costTag(m.costTier))}${escapeHtml(limitTag)}${escapeHtml(recTag)}</option>`;
+          };
+          return [...groups.entries()]
+            .map(([groupName, items]) => {
+              const sorted = [...items].sort(
+                (a, b) => Number(Boolean(a.rateLimited)) - Number(Boolean(b.rateLimited))
+              );
+              return `<optgroup label="${escapeHtml(groupName)}">${sorted.map(renderOption).join("")}</optgroup>`;
             })
             .join("");
         }

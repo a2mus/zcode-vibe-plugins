@@ -15,7 +15,7 @@ The **BMAD Companion** plugin provides a live right-side panel (`ui://bmad-compa
      - `/bmad-ux "Enhance the UI/UX of <project> by refining key user workflows and aligning DESIGN.md and EXPERIENCE.md"` — pick the highest-ranked vision/design-capable enabled model
      - `/bmad-code-review "Review the recent implementation changes in <module> for edge cases, architectural boundaries, and test coverage"` — pick the highest-ranked deep-reasoning enabled model
      - `/bmad-build "Implement and verify story <id> (<title>) with unit and integration tests"` — pick the highest-ranked coding/tool-capable enabled model
-   - Whenever you inspect `ListModels`, pass the live `models` array in `bmad_update_advisor({ ..., hostModels: models })` so the companion panel stays synchronized with the host's live provider and subscription state.
+   - Whenever you inspect `ListModels`, pass the **full** live `models` array in `bmad_update_advisor({ ..., hostModels: models })` so the panel sees every accessible model. A partial array merges with the stored catalog; it never replaces it.
 2. **Direct New-Conversation Launch with Pre-Pasted Prompt**:
    - In BMAD-METHOD, each workflow step runs best in a **fresh conversation**.
    - Clicking **🚀 Launch in New Session** in the BMAD Companion panel directly opens a new ZCode conversation (`Ctrl/Cmd+N`) and pre-pastes the chosen `/bmad-<skill> "<prompt>"` into the composer without executing anything inside the current session.

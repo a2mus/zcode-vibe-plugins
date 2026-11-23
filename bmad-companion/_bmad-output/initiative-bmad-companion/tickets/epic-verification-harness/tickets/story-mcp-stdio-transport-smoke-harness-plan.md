@@ -3,7 +3,7 @@ title: 'MCP stdio transport smoke harness'
 type: feature
 ticket: 2
 created: '2026-11-20'
-status: built
+status: done
 baseline_revision: 'bd9312d5b3920442e3e981c86dc45b44f93917dc'
 route: full
 route_source: auto
