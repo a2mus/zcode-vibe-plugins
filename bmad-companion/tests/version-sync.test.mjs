@@ -1,12 +1,17 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 import { checkVersionSync } from "../scripts/check-version-sync.mjs";
 import {
   CHECK_VERSION_SYNC_PATH,
+  ENGINE_PATH,
+  HOOK_RUNNER_PATH,
+  MCP_SERVER_PATH,
   REPO_ROOT,
   createTempWorkspaceTracker,
+  readJsonFile,
   runNodeProcess,
   runNodeSyntaxCheck
 } from "./helpers.mjs";
@@ -88,21 +93,37 @@ function seedVersionFixture({
 }
 
 describe("bmad-companion version tri-sync gate", () => {
-  it("checkVersionSync script exists and passes syntax validation", async () => {
-    assert.equal(existsSync(CHECK_VERSION_SYNC_PATH), true);
-    const result = await runNodeSyntaxCheck(CHECK_VERSION_SYNC_PATH);
-    assert.equal(result.ok, true);
-    assert.equal(result.code, 0);
+  it("all runtime scripts exist and pass syntax validation without stdout or stderr output", async () => {
+    for (const scriptPath of [ENGINE_PATH, MCP_SERVER_PATH, HOOK_RUNNER_PATH, CHECK_VERSION_SYNC_PATH]) {
+      assert.equal(existsSync(scriptPath), true, `expected ${scriptPath} to exist`);
+      const result = await runNodeSyntaxCheck(scriptPath);
+      assert.equal(result.ok, true, `syntax check failed for ${scriptPath}: ${result.stderr}`);
+      assert.equal(result.code, 0);
+      assert.equal(result.stdout, "", `expected empty stdout for ${scriptPath}`);
+      assert.equal(result.stderr, "", `expected empty stderr for ${scriptPath}`);
+    }
+  });
+
+  it("runNodeSyntaxCheck rejects invalid JavaScript syntax", async () => {
+    const ws = workspaces.create({ prefix: "bmad-syntax-check-" });
+    const brokenPath = ws.write("broken.mjs", "const broken = ;\n");
+    const result = await runNodeSyntaxCheck(brokenPath);
+
+    assert.equal(result.ok, false);
+    assert.notEqual(result.code, 0);
+    assert.ok(result.stderr.length > 0, "expected SyntaxError diagnostic on stderr");
   });
 
   describe("in-process validation against live repository", () => {
     it("reports clean sync across plugin.json, marketplace.json, and mcp-server.mjs", () => {
+      const livePlugin = readJsonFile(join(REPO_ROOT, ".zcode-plugin", "plugin.json"));
       const result = checkVersionSync(REPO_ROOT);
 
       assert.equal(result.synced, true);
       assert.deepEqual(result.errors, []);
       assert.equal(typeof result.versions.plugin, "string");
-      assert.equal(result.versions.plugin, "0.5.3");
+      assert.ok(result.versions.plugin.length > 0, "expected non-empty plugin.json version");
+      assert.equal(result.versions.plugin, livePlugin.version);
       assert.equal(result.versions.marketplace, result.versions.plugin);
       assert.equal(result.versions.mcpServer, result.versions.plugin);
     });
@@ -110,6 +131,8 @@ describe("bmad-companion version tri-sync gate", () => {
 
   describe("CLI execution against live repository", () => {
     it("exits with status code 0 and logs OK message", async () => {
+      const livePlugin = readJsonFile(join(REPO_ROOT, ".zcode-plugin", "plugin.json"));
+      const escapedVersion = livePlugin.version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const result = await runNodeProcess(CHECK_VERSION_SYNC_PATH, {
         args: [REPO_ROOT]
       });
@@ -118,7 +141,7 @@ describe("bmad-companion version tri-sync gate", () => {
       assert.equal(result.code, 0);
       assert.match(
         result.stdout,
-        /\[check-version-sync\] OK: all 3 versions match \(0\.5\.3\)/
+        new RegExp(`\\[check-version-sync\\] OK: all 3 versions match \\(${escapedVersion}\\)`)
       );
       assert.equal(result.stderr, "");
     });

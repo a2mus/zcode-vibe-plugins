@@ -187,23 +187,20 @@ describe("bmad-companion MCP stdio transport smoke harness", () => {
     assert.deepEqual(res.responses[2].result, {});
   });
 
-  it("kills a non-exiting child and rejects with diagnostic stdout/stderr when timeoutMs expires", async () => {
+  it("kills a non-exiting child and rejects with ETIMEDOUT when timeoutMs expires", async () => {
     const ws = workspaces.create();
 
     await assert.rejects(
       () =>
         runMcpServer({
           workspaceRoot: ws.root,
-          requests: [{ jsonrpc: "2.0", id: 1, method: "ping" }],
+          requests: [],
           keepStdinOpen: true,
           timeoutMs: 200
         }),
       (err) => {
         assert.equal(err.code, "ETIMEDOUT");
         assert.match(err.message, /timed out after 200ms/);
-        assert.ok(err.stdout.includes('"id":1'), "timeout error should retain captured stdout");
-        assert.ok(err.message.includes(err.stdout.trim()), "timeout message should include stdout");
-        assert.equal(err.stderr, "");
         return true;
       }
     );
@@ -223,6 +220,35 @@ describe("bmad-companion MCP stdio transport smoke harness", () => {
       (err) => {
         assert.equal(err.code, "ETIMEDOUT");
         assert.match(err.message, /timed out after 150ms/);
+        return true;
+      }
+    );
+  });
+
+  it("retains diagnostic stdout and stderr on ETIMEDOUT without cold-start import race", async () => {
+    const ws = workspaces.create();
+    const hangScript = ws.write(
+      "emit-and-hang.mjs",
+      [
+        'process.stdout.write(\'{"id":1}\\n\');',
+        'process.stderr.write("diag-err\\n");',
+        "setInterval(() => {}, 1000);"
+      ].join("\n") + "\n"
+    );
+
+    await assert.rejects(
+      () =>
+        runNodeProcess(hangScript, {
+          cwd: ws.root,
+          timeoutMs: 400
+        }),
+      (err) => {
+        assert.equal(err.code, "ETIMEDOUT");
+        assert.match(err.message, /timed out after 400ms/);
+        assert.ok(err.stdout.includes('"id":1'), "timeout error should retain captured stdout");
+        assert.ok(err.stderr.includes("diag-err"), "timeout error should retain captured stderr");
+        assert.ok(err.message.includes(err.stdout.trim()), "timeout message should include stdout");
+        assert.ok(err.message.includes(err.stderr.trim()), "timeout message should include stderr");
         return true;
       }
     );

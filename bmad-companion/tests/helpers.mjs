@@ -380,7 +380,8 @@ export function runNodeProcess(
 }
 
 /**
- * Spawn scripts/mcp-server.mjs against an isolated workspace root, send
+ * Spawn scripts/mcp-server.mjs against an isolated workspace root and isolated
+ * user-config env vars (HOME, USERPROFILE, APPDATA, LOCALAPPDATA), send
  * JSON-RPC requests over stdio, and return parsed stdout frames alongside raw streams.
  */
 export async function runMcpServer({
@@ -394,11 +395,16 @@ export async function runMcpServer({
 } = {}) {
   const isolatedRoot = resolve(workspaceRoot || cwd || tmpdir());
   const resolvedCwd = resolve(cwd || isolatedRoot);
+  const isolatedHome = join(isolatedRoot, ".test-home");
   const input = stdin !== undefined ? stdin : toJsonLines(requests);
 
   const result = await runNodeProcess(MCP_SERVER_PATH, {
     cwd: resolvedCwd,
     env: {
+      HOME: isolatedHome,
+      USERPROFILE: isolatedHome,
+      APPDATA: join(isolatedHome, "AppData", "Roaming"),
+      LOCALAPPDATA: join(isolatedHome, "AppData", "Local"),
       ZCODE_WORKSPACE_ROOT: isolatedRoot,
       ZCODE_PROJECT_DIR: isolatedRoot,
       CLAUDE_PROJECT_DIR: isolatedRoot,
@@ -438,8 +444,9 @@ export function runNodeSyntaxCheck(scriptPath, options = {}) {
 
 /**
  * Spawn scripts/hook-runner.mjs for one hook mode against an isolated temp
- * workspace. Strips CLAUDE_SESSION_ID, ZCODE_SESSION_ID, OPENAI_API_KEY, and
- * BMAD_COMPANION_OPENAI_KEY unless explicitly overridden in env.
+ * workspace and isolated user-config env vars (HOME, USERPROFILE, APPDATA,
+ * LOCALAPPDATA). Strips CLAUDE_SESSION_ID, ZCODE_SESSION_ID, OPENAI_API_KEY,
+ * and BMAD_COMPANION_OPENAI_KEY unless explicitly overridden in env.
  */
 export async function runHookRunner({
   workspaceRoot,
@@ -452,6 +459,7 @@ export async function runHookRunner({
 } = {}) {
   const isolatedRoot = resolve(workspaceRoot || cwd || tmpdir());
   const resolvedCwd = resolve(cwd || isolatedRoot);
+  const isolatedHome = join(isolatedRoot, ".test-home");
   const input =
     stdin !== undefined ? stdin : JSON.stringify({ cwd: isolatedRoot, ...(payload ?? {}) });
 
@@ -459,6 +467,10 @@ export async function runHookRunner({
     args: mode !== undefined ? [String(mode)] : [],
     cwd: resolvedCwd,
     env: {
+      HOME: isolatedHome,
+      USERPROFILE: isolatedHome,
+      APPDATA: join(isolatedHome, "AppData", "Roaming"),
+      LOCALAPPDATA: join(isolatedHome, "AppData", "Local"),
       ZCODE_WORKSPACE_ROOT: isolatedRoot,
       ZCODE_PROJECT_DIR: isolatedRoot,
       CLAUDE_PROJECT_DIR: isolatedRoot,
