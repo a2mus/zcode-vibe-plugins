@@ -1234,16 +1234,45 @@ export function generateStandaloneHtmlArtifact(panelState) {
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Vibe Debrief Artifact · ${escapeHtml(panelState?.projectName || "Workspace")}</title>
   <style>
-    :root { --bg:#0b0f17; --card:#131a26; --panel:#182030; --border:#2a354b; --text:#f0f6fc; --muted:#9ba7b8; --accent:#38bdf8; --ok:#34d399; --warn:#fbbf24; --bad:#fb7185; --purple:#a78bfa; }
+    :root {
+      /* DESIGN.md Dark HUD tokens */
+      --bg-app:#090d13; --bg-surface:#101620; --bg-panel:#121924; --bg-card:#182130; --bg-card-hover:#1e293b; --bg-elevated:#0d131c;
+      --border:rgba(148,163,184,0.14); --border-strong:rgba(148,163,184,0.28); --border-subtle:#1e2738;
+      --text-primary:#e7edf6; --text-secondary:#9aa9be; --text-muted:#69788e;
+      --accent:#38bdf8; --accent-soft:rgba(56,189,248,0.14); --accent-border:rgba(56,189,248,0.36);
+      --ok:#34d399; --ok-soft:rgba(52,211,153,0.13); --ok-border:rgba(52,211,153,0.36);
+      --warn:#fbbf24; --warn-soft:rgba(251,191,36,0.14); --warn-border:rgba(251,191,36,0.38);
+      --risk:#fb7185; --risk-soft:rgba(251,113,133,0.14); --risk-border:rgba(251,113,133,0.38);
+      --purple:#a78bfa; --teal:#2dd4bf;
+      --explainer-stage-bg:#070b12; --canvas-grid-line:rgba(56,189,248,0.08);
+      /* Legacy artifact aliases mapped to DESIGN.md tokens */
+      --bg:var(--bg-app); --card:var(--bg-card); --panel:var(--bg-panel); --text:var(--text-primary); --muted:var(--text-secondary); --bad:var(--risk);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        /* DESIGN.md Field Desk Light tokens */
+        --bg-app:#efeae0; --bg-surface:#f7f4ec; --bg-panel:#fbf9f4; --bg-card:#ffffff; --bg-card-hover:#f3efe6; --bg-elevated:#f1ece1;
+        --border:rgba(30,41,59,0.12); --border-strong:rgba(30,41,59,0.24); --border-subtle:#e2dcd0;
+        --text-primary:#17202e; --text-secondary:#4c5a6d; --text-muted:#768396;
+        --accent:#0284c7; --accent-soft:rgba(2,132,199,0.1); --accent-border:rgba(2,132,199,0.34);
+        --ok:#059669; --ok-soft:rgba(5,150,105,0.1); --ok-border:rgba(5,150,105,0.34);
+        --warn:#b45309; --warn-soft:rgba(217,119,6,0.12); --warn-border:rgba(217,119,6,0.36);
+        --risk:#be123c; --risk-soft:rgba(225,29,72,0.1); --risk-border:rgba(225,29,72,0.34);
+        --purple:#6d28d9; --teal:#0d9488;
+        --explainer-stage-bg:#f1ece1; --canvas-grid-line:rgba(2,132,199,0.08);
+      }
+    }
     * { box-sizing:border-box; }
+    :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
     body { margin:0; padding:24px; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif; line-height:1.55; }
     .wrap { max-width:960px; margin:0 auto; }
     .hero { background:linear-gradient(145deg,var(--card),var(--panel)); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px; }
     .pills { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; font-size:12px; font-weight:700; }
     .pill { padding:3px 10px; border-radius:999px; border:1px solid var(--border); background:var(--bg); }
-    .pill.bug { color:var(--bad); border-color:rgba(251,113,133,.4); }
-    .pill.impl { color:var(--accent); border-color:rgba(56,189,248,.4); }
-    .pill.ste { color:var(--ok); border-color:rgba(52,211,153,.4); }
+    .pill.bug { color:var(--bad); border-color:var(--risk-border); }
+    .pill.impl { color:var(--accent); border-color:var(--accent-border); }
+    .pill.ste { color:var(--ok); border-color:var(--ok-border); }
     h1 { margin:0 0 10px; font-size:20px; }
     .analogy { border-left:3px solid var(--warn); background:var(--bg); padding:10px 14px; border-radius:8px; color:var(--muted); }
     .box { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px; }
@@ -1259,7 +1288,7 @@ export function generateStandaloneHtmlArtifact(panelState) {
     .chip.high { border-color:var(--bad); }
     .chip.medium { border-color:var(--warn); }
     .inspector { margin-top:10px; padding:8px 12px; border-radius:8px; background:var(--bg); border:1px solid var(--border); font-size:12.5px; color:var(--muted); }
-    .chk-row { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+    .chk-row { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); }
     .chk-row:last-child { border-bottom:none; }
     .btn { border:1px solid var(--border); background:var(--panel); color:var(--text); border-radius:7px; padding:6px 12px; font-weight:700; cursor:pointer; }
     .btn:hover { border-color:var(--accent); }
@@ -1287,7 +1316,7 @@ export function generateStandaloneHtmlArtifact(panelState) {
     </div>
     <svg id="diagramSvg" viewBox="0 0 880 210"></svg>
     <div class="chips" id="fileChips"></div>
-    <div class="inspector" id="nodeInspector">Click a diagram node or file chip to inspect its role and risk level.</div>
+    <div class="inspector" id="nodeInspector" role="status" aria-live="polite" aria-atomic="true">Click or press Enter on a diagram node or file chip to inspect its role and risk level.</div>
   </div>
 
   <div class="grid2">
@@ -1329,7 +1358,7 @@ export function generateStandaloneHtmlArtifact(panelState) {
         <button class="btn" id="btnPauseScene">⏸ Pause</button>
       </div>
     </div>
-    <canvas id="sceneCanvas" width="880" height="230" style="width:100%;background:#070b12;border-radius:10px;border:1px solid var(--border);"></canvas>
+    <canvas id="sceneCanvas" width="880" height="230" style="width:100%;background:var(--explainer-stage-bg);border-radius:10px;border:1px solid var(--border);"></canvas>
     <div id="sceneCaption" style="margin-top:8px;font-weight:600;"></div>
     <details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--accent);font-weight:700;">📄 Plain-Text Narration Script (Verify Claims)</summary><pre>${escapeHtml(scriptText)}</pre></details>
   </div>`
@@ -1357,40 +1386,65 @@ export function generateStandaloneHtmlArtifact(panelState) {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
-  var html = '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/></marker></defs>';
+  function resolveTokens(){
+    var cs = null;
+    try { cs = getComputedStyle(document.documentElement); } catch (e) {}
+    function v(name){
+      if (!cs || typeof cs.getPropertyValue !== "function") return "";
+      return String(cs.getPropertyValue(name) || "").trim();
+    }
+    return {
+      bgApp: v("--bg-app"), bgCard: v("--bg-card"), bgPanel: v("--bg-panel"),
+      borderStrong: v("--border-strong"),
+      textPrimary: v("--text-primary"), textSecondary: v("--text-secondary"),
+      accent: v("--accent"), accentSoft: v("--accent-soft"),
+      ok: v("--ok"), warn: v("--warn"), risk: v("--risk"),
+      explainerStageBg: v("--explainer-stage-bg"), canvasGridLine: v("--canvas-grid-line")
+    };
+  }
   nodes.forEach(function(n, i){
     pos[n.id] = { x: startX + i*(boxW+gap), y: 58, w: boxW, h: 86 };
   });
-  edges.forEach(function(e){
-    var a = pos[e.from], b = pos[e.to];
-    if(!a || !b) return;
-    var x1 = a.x + a.w, y1 = a.y + a.h/2, x2 = b.x - 4, y2 = b.y + b.h/2;
-    var mx = (x1+x2)/2;
-    html += '<path d="M '+x1+' '+y1+' L '+x2+' '+y2+'" stroke="#38bdf8" stroke-width="2" marker-end="url(#arr)"/>';
-    html += '<circle cx="'+mx+'" cy="'+(y1-16)+'" r="10" fill="#182030" stroke="#38bdf8"/>';
-    html += '<text x="'+mx+'" y="'+(y1-12)+'" text-anchor="middle" fill="#f0f6fc" font-size="11" font-weight="700">'+esc(e.stepNumber)+'</text>';
-  });
-  nodes.forEach(function(n){
-    var p = pos[n.id];
-    var stroke = n.risk === "high" ? "#fb7185" : n.risk === "medium" ? "#fbbf24" : "#34d399";
-    html += '<g class="dnode" data-id="'+esc(n.id)+'" style="cursor:pointer">';
-    html += '<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="10" fill="#131a26" stroke="'+stroke+'" stroke-width="2"/>';
-    html += '<text x="'+(p.x+10)+'" y="'+(p.y+26)+'" fill="#f0f6fc" font-size="12.5" font-weight="700">'+esc((n.label||"").slice(0,22))+'</text>';
-    html += '<text x="'+(p.x+10)+'" y="'+(p.y+46)+'" fill="#9ba7b8" font-size="11">'+esc((n.sublabel||"").slice(0,26))+'</text>';
-    html += '<text x="'+(p.x+10)+'" y="'+(p.y+68)+'" fill="'+stroke+'" font-size="10" font-weight="700">'+esc((n.risk||"low").toUpperCase())+' · '+esc(n.role||"")+'</text>';
-    html += '</g>';
-  });
-  svg.innerHTML = html;
   function inspectNode(n){
     inspector.textContent = (n.label || "") + " — Role: " + (n.role || "Step") + " · Risk: " + (n.risk || "low").toUpperCase() + (n.file ? " · File: " + n.file : "");
   }
-  svg.querySelectorAll(".dnode").forEach(function(g){
-    g.addEventListener("click", function(){
-      var id = g.getAttribute("data-id");
-      var found = nodes.find(function(x){ return x.id === id; });
-      if(found) inspectNode(found);
+  function renderDiagram(){
+    var T = resolveTokens();
+    var html = '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="'+T.accent+'"/></marker></defs>';
+    edges.forEach(function(e){
+      var a = pos[e.from], b = pos[e.to];
+      if(!a || !b) return;
+      var x1 = a.x + a.w, y1 = a.y + a.h/2, x2 = b.x - 4, y2 = b.y + b.h/2;
+      var mx = (x1+x2)/2;
+      html += '<path d="M '+x1+' '+y1+' L '+x2+' '+y2+'" stroke="'+T.accent+'" stroke-width="2" marker-end="url(#arr)"/>';
+      html += '<circle cx="'+mx+'" cy="'+(y1-16)+'" r="10" fill="'+T.bgPanel+'" stroke="'+T.accent+'"/>';
+      html += '<text x="'+mx+'" y="'+(y1-12)+'" text-anchor="middle" fill="'+T.textPrimary+'" font-size="11" font-weight="700">'+esc(e.stepNumber)+'</text>';
     });
-  });
+    nodes.forEach(function(n){
+      var p = pos[n.id];
+      var stroke = n.risk === "high" ? T.risk : n.risk === "medium" ? T.warn : T.ok;
+      var nAria = (n.label || "Node") + " — " + (n.role || "Step") + ", risk " + (n.risk || "low").toUpperCase() + (n.file ? ", file " + n.file : "");
+      html += '<g class="dnode" tabindex="0" role="button" aria-label="'+esc(nAria)+'" data-id="'+esc(n.id)+'" style="cursor:pointer">';
+      html += '<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="10" fill="'+T.bgCard+'" stroke="'+stroke+'" stroke-width="2"/>';
+      html += '<text x="'+(p.x+10)+'" y="'+(p.y+26)+'" fill="'+T.textPrimary+'" font-size="12.5" font-weight="700">'+esc((n.label||"").slice(0,22))+'</text>';
+      html += '<text x="'+(p.x+10)+'" y="'+(p.y+46)+'" fill="'+T.textSecondary+'" font-size="11">'+esc((n.sublabel||"").slice(0,26))+'</text>';
+      html += '<text x="'+(p.x+10)+'" y="'+(p.y+68)+'" fill="'+stroke+'" font-size="10" font-weight="700">'+esc((n.risk||"low").toUpperCase())+' · '+esc(n.role||"")+'</text>';
+      html += '</g>';
+    });
+    svg.innerHTML = html;
+    svg.querySelectorAll(".dnode").forEach(function(g){
+      function activate(){
+        var id = g.getAttribute("data-id");
+        var found = nodes.find(function(x){ return x.id === id; });
+        if(found) inspectNode(found);
+      }
+      g.addEventListener("click", activate);
+      g.addEventListener("keydown", function(e){
+        if(e.key === "Enter" || e.key === " "){ e.preventDefault(); activate(); }
+      });
+    });
+  }
+  renderDiagram();
   (DATA.touchedFiles || []).forEach(function(f){
     var btn = document.createElement("button");
     btn.className = "chip " + (f.risk || "low");
@@ -1400,12 +1454,19 @@ export function generateStandaloneHtmlArtifact(panelState) {
   });
   var scenes = DATA.scenes || [];
   var canvas = document.getElementById("sceneCanvas");
+  var drawFrame = null;
+  function reducedMotion(){
+    try { return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; }
+  }
   if(canvas && scenes.length){
     var ctx = canvas.getContext("2d"), idx = 0, playing = false, t = 0, raf = null;
     var cap = document.getElementById("sceneCaption");
-    function drawFrame(){
+    drawFrame = function(){
+      var T = resolveTokens();
+      var rm = reducedMotion();
       ctx.clearRect(0,0,880,230);
-      ctx.strokeStyle = "rgba(56,189,248,0.08)";
+      ctx.fillStyle = T.explainerStageBg; ctx.fillRect(0,0,880,230);
+      ctx.strokeStyle = T.canvasGridLine;
       for(var gx=0;gx<880;gx+=40){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,230); ctx.stroke(); }
       for(var gy=0;gy<230;gy+=40){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(880,gy); ctx.stroke(); }
       var sc = scenes[idx] || scenes[0];
@@ -1413,33 +1474,47 @@ export function generateStandaloneHtmlArtifact(panelState) {
       nodes.forEach(function(n, i){
         var nx = 60 + i * (760 / Math.max(1, nodes.length)), ny = 75, nw = 150, nh = 70;
         var active = hi.has(n.id);
-        ctx.fillStyle = active ? "rgba(56,189,248,0.22)" : "#131a26";
-        ctx.strokeStyle = active ? "#38bdf8" : "#2a354b";
+        ctx.fillStyle = active ? T.accentSoft : T.bgCard;
+        ctx.strokeStyle = active ? T.accent : T.borderStrong;
         ctx.lineWidth = active ? 3 : 1.5;
         ctx.beginPath(); ctx.roundRect(nx, ny, nw, nh, 10); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 13px sans-serif";
+        ctx.fillStyle = T.textPrimary; ctx.font = "bold 13px sans-serif";
         ctx.fillText((n.label||"").slice(0,18), nx+12, ny+28);
-        ctx.fillStyle = "#9ba7b8"; ctx.font = "11px sans-serif";
+        ctx.fillStyle = T.textSecondary; ctx.font = "11px sans-serif";
         ctx.fillText((n.sublabel||"").slice(0,22), nx+12, ny+48);
-        if(i < nodes.length - 1){
+        if(i < nodes.length - 1 && playing && !rm){
           var pulseX = nx + nw + ((t % 60)/60) * ((760 / Math.max(1, nodes.length)) - nw);
-          ctx.fillStyle = "#38bdf8"; ctx.beginPath(); ctx.arc(pulseX, ny + nh/2, 4, 0, Math.PI*2); ctx.fill();
+          ctx.fillStyle = T.accent; ctx.beginPath(); ctx.arc(pulseX, ny + nh/2, 4, 0, Math.PI*2); ctx.fill();
         }
       });
-      ctx.fillStyle = "#fbbf24"; ctx.font = "bold 14px sans-serif";
+      ctx.fillStyle = T.warn; ctx.font = "bold 14px sans-serif";
       ctx.fillText(sc.title || "", 28, 34);
       cap.textContent = sc.narration || "";
-    }
+    };
     function tick(){
       t++;
       if(playing && t % 240 === 0){ idx = (idx + 1) % scenes.length; }
       drawFrame();
-      if(playing) raf = requestAnimationFrame(tick);
+      if(playing && !reducedMotion()) raf = requestAnimationFrame(tick);
     }
     drawFrame();
-    document.getElementById("btnPlayScene").onclick = function(){ if(!playing){ playing = true; tick(); } };
+    document.getElementById("btnPlayScene").onclick = function(){
+      if(!playing){
+        playing = true;
+        if(reducedMotion()){ drawFrame(); } else { tick(); }
+      }
+    };
     document.getElementById("btnPauseScene").onclick = function(){ playing = false; if(raf) cancelAnimationFrame(raf); };
   }
+  function rerenderVisuals(){
+    renderDiagram();
+    if(drawFrame) drawFrame();
+  }
+  try {
+    var mq = window.matchMedia("(prefers-color-scheme: light)");
+    if (mq && typeof mq.addEventListener === "function") mq.addEventListener("change", rerenderVisuals);
+    else if (mq && typeof mq.addListener === "function") mq.addListener(rerenderVisuals);
+  } catch (e) {}
 })();
 </script>
 </body>

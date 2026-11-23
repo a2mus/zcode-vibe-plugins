@@ -106,6 +106,10 @@
         --teal-border: rgba(13, 148, 136, 0.3);
         --grid-dot: rgba(30, 41, 59, 0.12);
 
+        /* Light canvas stages: DESIGN.md bg-elevated-light + accent-light grid */
+        --explainer-stage-bg: #f1ece1;
+        --canvas-grid-line: rgba(2, 132, 199, 0.08);
+
         /* Re-evaluate legacy aliases against Field Desk Light tokens */
         --bg-primary: var(--bg-app);
         --bg-secondary: var(--bg-card);
@@ -120,6 +124,29 @@
 
       * {
         box-sizing: border-box;
+      }
+
+      /* High-contrast visible focus rings (>= 3:1 across Dark HUD & Field Desk Light) */
+      :focus-visible,
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible,
+      select:focus-visible,
+      [tabindex="0"]:focus-visible,
+      [role="tab"]:focus-visible,
+      [role="button"]:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          transition: none !important;
+          animation: none !important;
+          scroll-behavior: auto !important;
+        }
       }
 
       html,
@@ -153,7 +180,8 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        flex-wrap: wrap;
+        gap: 6px 8px;
       }
 
       .brand-left {
@@ -161,6 +189,7 @@
         align-items: center;
         gap: 9px;
         min-width: 0;
+        flex: 1 1 140px;
       }
 
       .brand-badge {
@@ -198,6 +227,8 @@
       .header-actions {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
+        justify-content: flex-end;
         gap: 4px;
         flex-shrink: 0;
       }
@@ -218,20 +249,27 @@
         transition: all 0.14s ease;
       }
 
-      .btn:hover {
+      .btn:hover:not(:disabled) {
         border-color: var(--accent);
         background: var(--accent-soft);
       }
 
-      .btn-primary {
-        background: linear-gradient(135deg, var(--brand-sky), var(--brand-indigo));
-        border-color: var(--accent);
-        color: var(--white);
+      .btn:disabled,
+      .btn[aria-busy="true"] {
+        opacity: 0.65;
+        cursor: progress;
       }
 
-      .btn-primary:hover {
-        opacity: 0.94;
-        background: linear-gradient(135deg, var(--brand-sky), var(--brand-indigo));
+      .btn-primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--text-on-accent);
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        opacity: 0.92;
+        background: var(--accent);
+        color: var(--text-on-accent);
       }
 
       .btn-success {
@@ -356,6 +394,12 @@
         padding: 0 10px;
         gap: 4px;
         flex-shrink: 0;
+        overflow-x: auto;
+        scrollbar-width: none;
+      }
+
+      .tabs-nav::-webkit-scrollbar {
+        display: none;
       }
 
       .tab-btn {
@@ -371,6 +415,8 @@
         display: inline-flex;
         align-items: center;
         gap: 5px;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
 
       .tab-btn.active {
@@ -401,6 +447,27 @@
       }
 
       .toast-banner.visible {
+        display: flex;
+      }
+
+      /* History Snapshot Indicator */
+      .snapshot-banner {
+        display: none;
+        margin-bottom: 10px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        background: var(--warn-soft);
+        border: 1px solid var(--warn-border);
+        color: var(--text-primary);
+        font-size: 11.5px;
+        font-weight: 600;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .snapshot-banner.visible {
         display: flex;
       }
 
@@ -597,6 +664,12 @@
         gap: 8px;
       }
 
+      .node-inspector.has-selection {
+        border-style: solid;
+        border-color: var(--accent-border);
+        color: var(--text-primary);
+      }
+
       /* 4-Block Storyboard Cards */
       .story-card {
         background: var(--bg-secondary);
@@ -703,7 +776,7 @@
       .proof-evidence {
         font-family: var(--font-mono);
         font-size: 10.3px;
-        color: var(--text-muted);
+        color: var(--text-secondary);
       }
 
       /* Fused Uncertainty Audit & Verification Checklist inside Card 4 */
@@ -849,6 +922,13 @@
         margin-bottom: 6px;
       }
 
+      .form-input:focus-visible,
+      .form-textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-color: var(--accent);
+      }
+
       .form-textarea {
         min-height: 54px;
         resize: vertical;
@@ -879,6 +959,11 @@
 
       .history-item:hover {
         border-color: var(--accent);
+      }
+
+      .history-item.active-snapshot {
+        border-color: var(--accent);
+        background: var(--accent-soft);
       }
 
       /* Complex Explainer Tab (Rung 4) */
@@ -945,7 +1030,7 @@
   <body>
     <div class="app-shell">
       <!-- Header -->
-      <header class="top-bar">
+      <header class="top-bar" role="banner">
         <div class="brand-row">
           <div class="brand-left">
             <div class="brand-badge">⚡</div>
@@ -955,56 +1040,62 @@
             </div>
           </div>
           <div class="header-actions">
-            <select class="btn" id="smartGeminiModelSelect" title="Lightweight Gemini model used for reading-boundary debrief refresh" style="max-width: 118px; text-overflow: ellipsis;">
+            <select class="btn" id="smartGeminiModelSelect" aria-label="Lightweight Gemini model for AI Explain" title="Lightweight Gemini model used for reading-boundary debrief refresh" style="max-width: 118px; text-overflow: ellipsis;">
               <option value="new-provider/gemini-4-argon">⚡ gemini-4-argon</option>
             </select>
-            <button class="btn btn-primary" id="btnAskAiExplain" title="Run cost-aware reading-boundary debrief via lightweight Gemini">
+            <button class="btn btn-primary" id="btnAskAiExplain" aria-label="Run AI Explain debrief refresh" title="Run cost-aware reading-boundary debrief via lightweight Gemini">
               ✨ AI Explain
             </button>
-            <button class="btn" id="btnExportHtml" title="Export standalone interactive HTML explainer artifact">
+            <button class="btn" id="btnExportHtml" aria-label="Export standalone HTML explainer" title="Export standalone interactive HTML explainer artifact">
               🌐 HTML
             </button>
-            <button class="btn" id="btnRefresh" title="Sync latest turn state">
+            <button class="btn" id="btnRefresh" aria-label="Sync latest turn state" title="Sync latest turn state">
               🔄
             </button>
           </div>
         </div>
 
         <!-- Mode Switcher: Bug / Error vs Implementation -->
-        <div class="mode-switcher-row">
-          <button class="mode-btn" id="btnModeBug" title="View as Bug / Error Fix (Cause, Plan, Succeeded, Consequences + Checks, Lessons)">
+        <div class="mode-switcher-row" role="group" aria-label="Debrief view mode">
+          <button class="mode-btn" id="btnModeBug" role="button" aria-pressed="false" title="View as Bug / Error Fix (Cause, Plan, Succeeded, Consequences + Checks, Lessons)">
             🐛 Bug / Error Fix
           </button>
-          <button class="mode-btn" id="btnModeImpl" title="View as Implementation (Objective, Plan & Why, Result, Consequences + Checks, Lessons)">
+          <button class="mode-btn active-impl" id="btnModeImpl" role="button" aria-pressed="true" title="View as Implementation (Objective, Plan & Why, Result, Consequences + Checks, Lessons)">
             🚀 Implementation
           </button>
         </div>
 
         <!-- Persona Bar + STE-80 Toggle -->
         <div class="persona-row">
-          <div class="persona-strip" id="personaStrip"></div>
-          <button class="ste-toggle-chip active" id="btnToggleSte100" title="Toggle 80% ASD-STE100 clarity pass (short active sentences, plain verbs)">
+          <div class="persona-strip" id="personaStrip" role="group" aria-label="Debrief personas"></div>
+          <button class="ste-toggle-chip active" id="btnToggleSte100" role="button" aria-pressed="true" title="Toggle 80% ASD-STE100 clarity pass (short active sentences, plain verbs)">
             ✂️ STE-80: ON
           </button>
         </div>
       </header>
 
       <!-- Tabs -->
-      <nav class="tabs-nav">
-        <button class="tab-btn active" data-tab="storyboard">📊 Debrief</button>
-        <button class="tab-btn" id="tabBtnExplainer" data-tab="explainer" style="display: none;">🎬 Explainer</button>
-        <button class="tab-btn" data-tab="memory">🧠 Memory (<span id="memoryCountBadge">0</span>)</button>
-        <button class="tab-btn" data-tab="history">🕒 History</button>
+      <nav class="tabs-nav" id="tabsNav" role="tablist" aria-label="Debrief sections">
+        <button class="tab-btn active" id="tabBtnStoryboard" role="tab" aria-selected="true" aria-controls="tab-storyboard" tabindex="0" data-tab="storyboard">📊 Debrief</button>
+        <button class="tab-btn" id="tabBtnExplainer" role="tab" aria-selected="false" aria-controls="tab-explainer" tabindex="-1" data-tab="explainer" style="display: none;">🎬 Explainer</button>
+        <button class="tab-btn" id="tabBtnMemory" role="tab" aria-selected="false" aria-controls="tab-memory" tabindex="-1" data-tab="memory">🧠 Memory (<span id="memoryCountBadge">0</span>)</button>
+        <button class="tab-btn" id="tabBtnHistory" role="tab" aria-selected="false" aria-controls="tab-history" tabindex="-1" data-tab="history">🕒 History</button>
       </nav>
 
       <!-- Main Content -->
       <main class="content-area">
-        <div class="toast-banner" id="toastBanner">
+        <div class="toast-banner" id="toastBanner" role="status" aria-live="polite" aria-atomic="true">
           <span id="toastText">Saved!</span>
         </div>
 
         <!-- TAB 1: UNIFIED VISUAL DEBRIEF -->
-        <section id="tab-storyboard">
+        <section id="tab-storyboard" role="tabpanel" aria-labelledby="tabBtnStoryboard" tabindex="0">
+          <!-- History Snapshot Indicator -->
+          <div class="snapshot-banner" id="historySnapshotBanner" role="status" aria-live="polite" style="display: none;">
+            <span id="historySnapshotLabel">🕒 Viewing Turn Snapshot</span>
+            <button class="btn" id="btnReturnLatest" aria-label="Return to latest turn debrief">↩ Return to Latest</button>
+          </div>
+
           <!-- Hero TL;DR + Real-World Analogy -->
           <div class="hero-card">
             <div class="hero-meta-row">
@@ -1035,7 +1126,7 @@
               <svg class="diagram-svg" id="diagramSvg" viewBox="0 0 460 190"></svg>
             </div>
             <div class="files-strip" id="touchedFilesStrip"></div>
-            <div class="node-inspector" id="nodeInspectorBar">
+            <div class="node-inspector" id="nodeInspectorBar" role="status" aria-live="polite" aria-atomic="true">
               <span>Click any diagram node or file chip to inspect its role &amp; risk.</span>
             </div>
           </div>
@@ -1122,7 +1213,7 @@
           <div class="story-card card-lessons">
             <div class="story-card-header">
               <div class="story-card-title">🧠 5. Lessons Learned (Confirm → ZCode Memory)</div>
-              <button class="btn" id="btnToggleCustomLesson" style="padding: 2px 7px; font-size: 10.5px;">
+              <button class="btn" id="btnToggleCustomLesson" aria-expanded="false" aria-controls="customLessonForm" style="padding: 2px 7px; font-size: 10.5px;">
                 ➕ Add Lesson
               </button>
             </div>
@@ -1130,14 +1221,14 @@
               Confirmed rules save directly to ZCode's persistent <code>MEMORY.md</code> for future sessions.
             </div>
 
-            <div id="customLessonForm" style="display: none; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 9px;">
+            <div id="customLessonForm" role="region" aria-label="Add Lesson to ZCode Memory" style="display: none; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 9px;">
               <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: var(--warning);">
                 ✍️ Confirm &amp; Save a Lesson to ZCode Memory
               </div>
-              <input type="text" class="form-input" id="customLessonTitle" placeholder="Short rule title (e.g. Check DepotId before validating POS sale)" />
-              <textarea class="form-textarea" id="customLessonSummary" placeholder="What is the lesson learned?"></textarea>
-              <input type="text" class="form-input" id="customLessonWhy" placeholder="Why does this matter? (optional)" />
-              <input type="text" class="form-input" id="customLessonHow" placeholder="How should the AI apply this next time? (optional)" />
+              <input type="text" class="form-input" id="customLessonTitle" aria-label="Lesson rule title" aria-required="true" placeholder="Short rule title (e.g. Check DepotId before validating POS sale)" />
+              <textarea class="form-textarea" id="customLessonSummary" aria-label="Lesson summary" aria-required="true" placeholder="What is the lesson learned?"></textarea>
+              <input type="text" class="form-input" id="customLessonWhy" aria-label="Why this lesson matters" placeholder="Why does this matter? (optional)" />
+              <input type="text" class="form-input" id="customLessonHow" aria-label="How to apply this lesson next time" placeholder="How should the AI apply this next time? (optional)" />
               <div style="display: flex; gap: 6px;">
                 <button class="btn btn-success" id="btnSaveCustomLesson">📌 Confirm &amp; Save</button>
                 <button class="btn" id="btnCancelCustomLesson">Cancel</button>
@@ -1149,28 +1240,28 @@
         </section>
 
         <!-- TAB 2 (CONDITIONAL): COMPLEX-ONLY 3B1B ANIMATED EXPLAINER -->
-        <section id="tab-explainer" style="display: none;">
+        <section id="tab-explainer" role="tabpanel" aria-labelledby="tabBtnExplainer" tabindex="0" style="display: none;">
           <div class="explainer-stage">
             <canvas class="explainer-canvas" id="explainerCanvas" width="600" height="250"></canvas>
             <div class="explainer-controls">
               <div style="display: flex; gap: 4px; align-items: center;">
-                <button class="btn btn-primary" id="btnExplainerPlay">▶ Play</button>
-                <button class="btn" id="btnExplainerPrev">⏮</button>
-                <button class="btn" id="btnExplainerNext">⏭</button>
+                <button class="btn btn-primary" id="btnExplainerPlay" role="button" aria-pressed="false" aria-label="Play animated explainer">▶ Play</button>
+                <button class="btn" id="btnExplainerPrev" aria-label="Previous scene" title="Previous scene">⏮</button>
+                <button class="btn" id="btnExplainerNext" aria-label="Next scene" title="Next scene">⏭</button>
               </div>
               <div style="display: flex; gap: 4px; align-items: center;">
-                <select class="btn" id="explainerSpeedSelect" title="Playback speed">
+                <select class="btn" id="explainerSpeedSelect" aria-label="Playback speed" title="Playback speed">
                   <option value="0.85">0.85x</option>
                   <option value="1" selected>1x</option>
                   <option value="1.25">1.25x</option>
                   <option value="1.5">1.5x</option>
                 </select>
-                <button class="btn" id="btnExplainerVoice" title="Toggle Web Speech voice narration">🔇 Voice Off</button>
+                <button class="btn" id="btnExplainerVoice" role="button" aria-pressed="false" aria-label="Toggle voice narration" title="Toggle Web Speech voice narration">🔇 Voice Off</button>
               </div>
             </div>
           </div>
 
-          <div class="scene-pill-row" id="explainerScenePills"></div>
+          <div class="scene-pill-row" id="explainerScenePills" role="group" aria-label="Explainer scenes"></div>
 
           <div class="explainer-caption-box">
             <div style="font-size: 10.5px; font-weight: 800; color: var(--accent); text-transform: uppercase; margin-bottom: 3px;" id="explainerSceneTitle">
@@ -1192,7 +1283,7 @@
         </section>
 
         <!-- TAB 3: ZCODE MEMORY BANK -->
-        <section id="tab-memory" style="display: none;">
+        <section id="tab-memory" role="tabpanel" aria-labelledby="tabBtnMemory" tabindex="0" style="display: none;">
           <div class="story-card card-lessons">
             <div class="story-card-header">
               <div class="story-card-title">📌 Confirmed Lessons Saved to ZCode Memory</div>
@@ -1213,7 +1304,7 @@
         </section>
 
         <!-- TAB 4: TURN HISTORY -->
-        <section id="tab-history" style="display: none;">
+        <section id="tab-history" role="tabpanel" aria-labelledby="tabBtnHistory" tabindex="0" style="display: none;">
           <div style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 8px;">
             Click any recent turn below to view its diagram, oversight checks, and debrief:
           </div>
@@ -1229,7 +1320,39 @@
         let rpcId = 1;
         const pendingRequests = new Map();
         let currentState = null;
+        let latestDebriefSnapshot = null;
+        let viewingHistoryIdx = null;
         let selectedNodeId = null;
+
+        function prefersReducedMotion() {
+          try {
+            return Boolean(
+              typeof window.matchMedia === "function" &&
+                window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            );
+          } catch {
+            return false;
+          }
+        }
+
+        function setButtonBusy(btn, busy, busyLabel) {
+          if (!btn) return;
+          if (busy) {
+            if (!btn.hasAttribute("data-idle-text")) {
+              btn.setAttribute("data-idle-text", btn.textContent || "");
+            }
+            btn.disabled = true;
+            btn.setAttribute("aria-busy", "true");
+            if (busyLabel) btn.textContent = busyLabel;
+          } else {
+            btn.disabled = false;
+            btn.removeAttribute("aria-busy");
+            if (btn.hasAttribute("data-idle-text")) {
+              btn.textContent = btn.getAttribute("data-idle-text");
+              btn.removeAttribute("data-idle-text");
+            }
+          }
+        }
 
         // Complex-only Explainer Player state
         let playerState = {
@@ -1289,7 +1412,9 @@
             riskSoft: "rgba(251, 113, 133, 0.14)",
             riskBorder: "rgba(251, 113, 133, 0.38)",
             purple: "#a78bfa",
-            teal: "#2dd4bf"
+            teal: "#2dd4bf",
+            explainerStageBg: "#070b12",
+            canvasGridLine: "rgba(56, 189, 248, 0.08)"
           },
           light: {
             bgApp: "#efeae0",
@@ -1319,7 +1444,9 @@
             riskSoft: "rgba(225, 29, 72, 0.1)",
             riskBorder: "rgba(225, 29, 72, 0.34)",
             purple: "#6d28d9",
-            teal: "#0d9488"
+            teal: "#0d9488",
+            explainerStageBg: "#f1ece1",
+            canvasGridLine: "rgba(2, 132, 199, 0.08)"
           }
         };
 
@@ -1381,7 +1508,9 @@
             riskSoft: readVar("--risk-soft", fallback.riskSoft),
             riskBorder: readVar("--risk-border", fallback.riskBorder),
             purple: readVar("--purple", fallback.purple),
-            teal: readVar("--teal", fallback.teal)
+            teal: readVar("--teal", fallback.teal),
+            explainerStageBg: readVar("--explainer-stage-bg", fallback.explainerStageBg),
+            canvasGridLine: readVar("--canvas-grid-line", fallback.canvasGridLine)
           };
         }
 
@@ -1395,6 +1524,7 @@
           }
           if (currentState && currentState.currentDebrief) {
             renderInteractiveDiagram(currentState.currentDebrief);
+            drawExplainerFrame();
           }
         }
 
@@ -1452,6 +1582,22 @@
           toastTimer = setTimeout(() => banner.classList.remove("visible"), 4500);
         }
 
+        function setCustomLessonFormVisible(visible) {
+          const form = document.getElementById("customLessonForm");
+          const toggleBtn = document.getElementById("btnToggleCustomLesson");
+          if (!form) return;
+          form.style.display = visible ? "block" : "none";
+          if (toggleBtn) {
+            toggleBtn.setAttribute("aria-expanded", visible ? "true" : "false");
+          }
+          if (visible) {
+            const firstInput = document.getElementById("customLessonTitle");
+            if (firstInput && typeof firstInput.focus === "function") firstInput.focus();
+          } else {
+            if (toggleBtn && typeof toggleBtn.focus === "function") toggleBtn.focus();
+          }
+        }
+
         function escapeHtml(str) {
           return String(str ?? "")
             .replace(/&/g, "&amp;")
@@ -1460,20 +1606,50 @@
             .replace(/"/g, "&quot;");
         }
 
-        async function refreshState() {
+        async function refreshState({ silent = true } = {}) {
           try {
             const res = await callServerTool("vibe_debrief_get_state", { refresh: true });
             if (res && res.structuredContent) {
+              viewingHistoryIdx = null;
               renderPanelState(res.structuredContent);
+              return true;
             }
           } catch (err) {
             console.warn("Failed to load vibe debrief state:", err);
+            if (!silent) {
+              showToast("⚠️ Could not sync latest debrief: " + (err?.message || "RPC error"));
+            }
+          }
+          return false;
+        }
+
+        function updateSnapshotBanner() {
+          const banner = document.getElementById("historySnapshotBanner");
+          const label = document.getElementById("historySnapshotLabel");
+          if (!banner) return;
+          const isSnapshot = viewingHistoryIdx !== null;
+          banner.style.display = isSnapshot ? "flex" : "none";
+          if (banner.classList) banner.classList.toggle("visible", isSnapshot);
+          if (isSnapshot && label) {
+            const d = currentState?.currentDebrief || {};
+            const ts = d.createdAt
+              ? new Date(d.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "Past turn";
+            label.textContent = `🕒 Viewing Turn Snapshot (${ts})`;
           }
         }
 
-        function renderPanelState(state) {
+        function renderPanelState(state, options = {}) {
+          const fromHistory = Boolean(options && options.fromHistory);
+          if (!fromHistory) {
+            viewingHistoryIdx = null;
+            if (state && state.currentDebrief) {
+              latestDebriefSnapshot = state.currentDebrief;
+            }
+          }
           currentState = state;
           const debrief = state.currentDebrief || {};
+          updateSnapshotBanner();
           const personas = state.personas || [];
           const activePersonaId = debrief.persona || state.activePersona || "vibe-mentor";
           const activePersonaObj = personas.find((p) => p.id === activePersonaId) || personas[0] || {
@@ -1491,6 +1667,7 @@
           const steOn = state.ste100Enabled !== false;
           const steBtn = document.getElementById("btnToggleSte100");
           steBtn.classList.toggle("active", steOn);
+          steBtn.setAttribute("aria-pressed", steOn ? "true" : "false");
           steBtn.textContent = steOn ? "✂️ STE-80: ON" : "✂️ STE-80: OFF";
 
           // Populate Lightweight Gemini Model Picker
@@ -1512,20 +1689,25 @@
           personaStrip.innerHTML = personas
             .map(
               (p) =>
-                `<button class="persona-chip ${p.id === activePersonaId ? "active" : ""}" data-persona="${escapeHtml(p.id)}" title="${escapeHtml(p.tagline)}">${escapeHtml(p.badge)}</button>`
+                `<button class="persona-chip ${p.id === activePersonaId ? "active" : ""}" role="button" aria-pressed="${p.id === activePersonaId ? "true" : "false"}" data-persona="${escapeHtml(p.id)}" title="${escapeHtml(p.tagline)}">${escapeHtml(p.badge)}</button>`
             )
             .join("");
 
           personaStrip.querySelectorAll(".persona-chip").forEach((btn) => {
             btn.addEventListener("click", async () => {
               const chosen = btn.getAttribute("data-persona");
+              setButtonBusy(btn, true);
               try {
                 const res = await callServerTool("vibe_debrief_set_persona", { persona: chosen });
                 if (res && res.structuredContent) {
                   renderPanelState(res.structuredContent);
                   showToast("🎭 Switched persona to " + chosen);
                 }
-              } catch {}
+              } catch (err) {
+                showToast("⚠️ Could not switch persona: " + (err?.message || "try again"));
+              } finally {
+                setButtonBusy(btn, false);
+              }
             });
           });
 
@@ -1640,9 +1822,10 @@
             const strokeW = isSelected ? "2.4" : "1.5";
             const shortTitle = String(n.label || "").slice(0, cols === 3 ? 16 : 22);
             const shortSub = String(n.sublabel || n.role || "").slice(0, cols === 3 ? 18 : 26);
+            const nodeAria = `${n.label || "Node"} — ${n.role || "Step"}, risk ${String(n.risk || "low").toUpperCase()}${n.file ? `, file ${n.file}` : ""}`;
 
             svgMarkup += `
-              <g class="diagram-node-group" data-node-id="${escapeHtml(n.id)}">
+              <g class="diagram-node-group" tabindex="0" role="button" aria-pressed="${isSelected ? "true" : "false"}" aria-label="${escapeHtml(nodeAria)}" data-node-id="${escapeHtml(n.id)}">
                 <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${escapeHtml(fill)}" stroke="${escapeHtml(riskColor)}" stroke-width="${strokeW}" />
                 <text x="${p.x + 9}" y="${p.y + 20}" fill="${escapeHtml(tokens.textPrimary)}" font-size="11.2" font-weight="800">${escapeHtml(shortTitle)}</text>
                 <text x="${p.x + 9}" y="${p.y + 35}" fill="${escapeHtml(tokens.textSecondary)}" font-size="9.8">${escapeHtml(shortSub)}</text>
@@ -1652,9 +1835,29 @@
 
           svg.innerHTML = svgMarkup;
 
-          const inspectNode = (node) => {
+          const defaultInspectorHtml = "<span>Click or press Enter on any diagram node or file chip to inspect its role &amp; risk.</span>";
+          const resetInspector = () => {
+            selectedNodeId = null;
+            const bar = document.getElementById("nodeInspectorBar");
+            bar.classList.remove("has-selection");
+            bar.innerHTML = defaultInspectorHtml;
+            renderInteractiveDiagram(debrief);
+          };
+
+          const inspectNode = (node, { toggle = false, focusNode = false } = {}) => {
+            if (toggle && selectedNodeId === node.id) {
+              resetInspector();
+              if (focusNode) {
+                const target = Array.from(svg.querySelectorAll(".diagram-node-group")).find(
+                  (el) => el.getAttribute("data-node-id") === node.id
+                );
+                if (target && typeof target.focus === "function") target.focus();
+              }
+              return;
+            }
             selectedNodeId = node.id;
             const bar = document.getElementById("nodeInspectorBar");
+            bar.classList.add("has-selection");
             bar.innerHTML = `
               <span><strong>${escapeHtml(node.label)}</strong> · ${escapeHtml(node.role || "Step")} · Risk: <strong style="color:${
               node.risk === "high" ? "var(--danger)" : node.risk === "medium" ? "var(--warning)" : "var(--success)"
@@ -1662,13 +1865,26 @@
               node.file ? ` · <code>${escapeHtml(node.file)}</code>` : ""
             }</span>`;
             renderInteractiveDiagram(debrief);
+            if (focusNode) {
+              const target = Array.from(svg.querySelectorAll(".diagram-node-group")).find(
+                (el) => el.getAttribute("data-node-id") === node.id
+              );
+              if (target && typeof target.focus === "function") target.focus();
+            }
           };
 
           svg.querySelectorAll(".diagram-node-group").forEach((g) => {
-            g.addEventListener("click", () => {
+            const activateNode = (fromKeyboard) => {
               const nid = g.getAttribute("data-node-id");
               const found = nodes.find((n) => n.id === nid);
-              if (found) inspectNode(found);
+              if (found) inspectNode(found, { toggle: true, focusNode: fromKeyboard });
+            };
+            g.addEventListener("click", () => activateNode(false));
+            g.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                activateNode(true);
+              }
             });
           });
 
@@ -1679,7 +1895,7 @@
               const matchedNode = nodes.find((n) => n.file === f.path || n.label === f.shortName);
               const activeCls = matchedNode && selectedNodeId === matchedNode.id ? "selected" : "";
               return `
-                <button class="file-badge risk-${escapeHtml(f.risk || "low")} ${activeCls}" data-fidx="${idx}" title="${escapeHtml(f.path)}">
+                <button class="file-badge risk-${escapeHtml(f.risk || "low")} ${activeCls}" aria-pressed="${activeCls ? "true" : "false"}" data-fidx="${idx}" title="${escapeHtml(f.path)}">
                   <span>${escapeHtml(f.icon || "📄")}</span>
                   <span>${escapeHtml(f.shortName || f.path)}</span>
                   <span class="file-role-tag">· ${escapeHtml((f.risk || "low").toUpperCase())}</span>
@@ -1693,9 +1909,11 @@
               if (!f) return;
               const matchedNode = nodes.find((n) => n.file === f.path || n.label === f.shortName);
               if (matchedNode) {
-                inspectNode(matchedNode);
+                inspectNode(matchedNode, { toggle: true });
               } else {
-                document.getElementById("nodeInspectorBar").innerHTML =
+                const bar = document.getElementById("nodeInspectorBar");
+                bar.classList.add("has-selection");
+                bar.innerHTML =
                   `<span><strong>${escapeHtml(f.shortName)}</strong> · ${escapeHtml(f.role)} · Risk: <strong>${escapeHtml((f.risk || "low").toUpperCase())}</strong> · <code>${escapeHtml(f.path)}</code></span>`;
               }
             });
@@ -1759,13 +1977,20 @@
           el.querySelectorAll(".chk-verify-box").forEach((box) => {
             box.addEventListener("change", async () => {
               const checkId = box.getAttribute("data-cid");
+              const desired = box.checked;
+              box.disabled = true;
               try {
                 const res = await callServerTool("vibe_debrief_toggle_check", {
                   checkId,
-                  checked: box.checked
+                  checked: desired
                 });
                 if (res && res.structuredContent) renderPanelState(res.structuredContent);
-              } catch {}
+              } catch (err) {
+                box.checked = !desired;
+                showToast("⚠️ Could not save verification check: " + (err?.message || "RPC error"));
+              } finally {
+                box.disabled = false;
+              }
             });
           });
 
@@ -1773,10 +1998,13 @@
             btn.addEventListener("click", () => {
               const u = audit[Number(btn.getAttribute("data-aidx"))];
               if (!u) return;
-              document.getElementById("customLessonForm").style.display = "block";
+              setCustomLessonFormVisible(true);
               document.getElementById("customLessonTitle").value = `Double-check ${u.area}`;
               document.getElementById("customLessonSummary").value = u.reason;
-              document.getElementById("customLessonForm").scrollIntoView({ behavior: "smooth", block: "nearest" });
+              document.getElementById("customLessonForm").scrollIntoView({
+                behavior: prefersReducedMotion() ? "auto" : "smooth",
+                block: "nearest"
+              });
             });
           });
         }
@@ -1784,8 +2012,12 @@
         function renderActiveDebrief(debrief, activePersonaObj) {
           const isBug = debrief.responseType === "bug";
 
-          document.getElementById("btnModeBug").className = "mode-btn" + (isBug ? " active-bug" : "");
-          document.getElementById("btnModeImpl").className = "mode-btn" + (!isBug ? " active-impl" : "");
+          const btnBug = document.getElementById("btnModeBug");
+          const btnImpl = document.getElementById("btnModeImpl");
+          btnBug.className = "mode-btn" + (isBug ? " active-bug" : "");
+          btnBug.setAttribute("aria-pressed", isBug ? "true" : "false");
+          btnImpl.className = "mode-btn" + (!isBug ? " active-impl" : "");
+          btnImpl.setAttribute("aria-pressed", !isBug ? "true" : "false");
 
           const modePill = document.getElementById("activeModePill");
           modePill.className = "pill " + (isBug ? "pill-bug" : "pill-impl");
@@ -1801,14 +2033,35 @@
           const complexity = debrief.complexity || { level: "simple" };
           const hasScenes = Array.isArray(debrief.explainerScenes) && debrief.explainerScenes.length > 0;
           const compPill = document.getElementById("complexityPill");
+          if (!compPill._hasExplainerTrigger && compPill.addEventListener) {
+            compPill._hasExplainerTrigger = true;
+            const openExplainer = () => {
+              switchTab("explainer");
+              const playBtn = document.getElementById("btnExplainerPlay");
+              if (playBtn && typeof playBtn.focus === "function") playBtn.focus();
+            };
+            compPill.addEventListener("click", openExplainer);
+            compPill.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openExplainer();
+              }
+            });
+          }
           if (complexity.level === "complex" || hasScenes) {
             compPill.style.display = "inline-flex";
             compPill.className = "pill pill-warning pill-clickable";
+            compPill.setAttribute("role", "button");
+            compPill.setAttribute("tabindex", "0");
+            compPill.setAttribute("aria-label", "Open complex workflow animated explainer");
             compPill.textContent = "🧩 Complex · ▶ Explainer";
-            compPill.title = complexity.reason || "Complex workflow — click to play animated explainer";
-            compPill.onclick = () => switchTab("explainer");
+            compPill.title = complexity.reason || "Complex workflow — click or press Enter to play animated explainer";
           } else {
             compPill.style.display = "none";
+            if (typeof compPill.removeAttribute === "function") {
+              compPill.removeAttribute("tabindex");
+              compPill.removeAttribute("role");
+            }
           }
 
           document.getElementById("debriefTimestamp").textContent = debrief.createdAt
@@ -1875,7 +2128,7 @@
           const lessons = Array.isArray(debrief.lessonsLearned) ? debrief.lessonsLearned : [];
           const container = document.getElementById("lessonsListContainer");
           if (lessons.length === 0) {
-            container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted); padding: 6px 0;">No new lessons flagged — click <b>➕ Add Lesson</b> or <b>💡→Rule</b> above to save one.</div>`;
+            container.innerHTML = `<div style="font-size: 12px; color: var(--text-secondary); padding: 6px 0;">No new lessons flagged — click <b>➕ Add Lesson</b> or <b>💡→Rule</b> above to save one.</div>`;
           } else {
             container.innerHTML = lessons
               .map(
@@ -1905,6 +2158,7 @@
               btn.addEventListener("click", async () => {
                 const lesson = lessons[Number(btn.getAttribute("data-idx"))];
                 if (!lesson) return;
+                setButtonBusy(btn, true, "⏳ Saving…");
                 try {
                   const res = await callServerTool("vibe_debrief_confirm_lesson", {
                     id: lesson.id,
@@ -1921,6 +2175,8 @@
                   }
                 } catch (err) {
                   showToast("⚠️ Could not save lesson: " + err.message);
+                } finally {
+                  setButtonBusy(btn, false);
                 }
               });
             });
@@ -1943,7 +2199,10 @@
             } catch {}
           }
           const btn = document.getElementById("btnExplainerPlay");
-          if (btn) btn.textContent = "▶ Play";
+          if (btn) {
+            btn.textContent = "▶ Play";
+            btn.setAttribute("aria-pressed", "false");
+          }
         }
 
         function speakScene(text) {
@@ -1965,11 +2224,16 @@
           const diagram = debrief.diagram || { nodes: [], edges: [] };
           const nodes = diagram.nodes || [];
           const sc = scenes[playerState.sceneIndex] || scenes[0];
+          const tokens = resolveThemeTokens();
 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // 3b1b dark blueprint grid
-          ctx.strokeStyle = "rgba(56, 189, 248, 0.08)";
+          // Theme-resolved blueprint stage (Dark HUD / Field Desk Light)
+          ctx.fillStyle = tokens.explainerStageBg;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // 3b1b blueprint grid from resolved theme tokens
+          ctx.strokeStyle = tokens.canvasGridLine;
           ctx.lineWidth = 1;
           for (let gx = 0; gx < canvas.width; gx += 30) {
             ctx.beginPath();
@@ -1984,7 +2248,13 @@
             ctx.stroke();
           }
 
-          if (!sc) return;
+          if (!sc) {
+            ctx.fillStyle = tokens.textSecondary;
+            ctx.font = "12px sans-serif";
+            ctx.fillText("No animated explainer scenes for this turn.", 24, Math.floor(canvas.height / 2));
+            return;
+          }
+          const reducedMotion = prefersReducedMotion();
           const hi = new Set(sc.highlightNodeIds || []);
           const count = Math.max(1, nodes.length);
           const margin = 26;
@@ -1995,22 +2265,22 @@
           const ny = 84;
           const nh = 78;
 
-          // Edges + Animated Data Pulse
+          // Edges + Animated Data Pulse (static line when prefers-reduced-motion)
           for (let i = 0; i < count - 1; i++) {
             const x1 = startX + i * (nw + gap) + nw;
             const x2 = x1 + gap;
             const cy = ny + nh / 2;
-            ctx.strokeStyle = "#2a354b";
+            ctx.strokeStyle = tokens.borderStrong;
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(x1, cy);
             ctx.lineTo(x2, cy);
             ctx.stroke();
 
-            if (playerState.playing) {
+            if (playerState.playing && !reducedMotion) {
               const prog = ((playerState.tick * playerState.speed) % 60) / 60;
               const px = x1 + prog * gap;
-              ctx.fillStyle = "#38bdf8";
+              ctx.fillStyle = tokens.accent;
               ctx.beginPath();
               ctx.arc(px, cy, 4, 0, Math.PI * 2);
               ctx.fill();
@@ -2021,9 +2291,9 @@
           nodes.forEach((n, i) => {
             const nx = startX + i * (nw + gap);
             const isActive = hi.has(n.id);
-            const accent = sc.visualType === "audit-warning" && n.risk === "high" ? "#fb7185" : "#38bdf8";
-            ctx.fillStyle = isActive ? "rgba(56, 189, 248, 0.2)" : "#131a26";
-            ctx.strokeStyle = isActive ? accent : "#2a354b";
+            const accent = sc.visualType === "audit-warning" && n.risk === "high" ? tokens.risk : tokens.accent;
+            ctx.fillStyle = isActive ? tokens.accentSoft : tokens.bgCard;
+            ctx.strokeStyle = isActive ? accent : tokens.borderStrong;
             ctx.lineWidth = isActive ? 2.8 : 1.4;
             ctx.beginPath();
             if (ctx.roundRect) {
@@ -2034,35 +2304,35 @@
             ctx.fill();
             ctx.stroke();
 
-            ctx.fillStyle = "#f0f6fc";
+            ctx.fillStyle = tokens.textPrimary;
             ctx.font = "bold 11px sans-serif";
             ctx.fillText(String(n.label || "").slice(0, 15), nx + 8, ny + 26);
 
-            ctx.fillStyle = "#9ba7b8";
+            ctx.fillStyle = tokens.textSecondary;
             ctx.font = "10px sans-serif";
             ctx.fillText(String(n.sublabel || "").slice(0, 17), nx + 8, ny + 44);
 
-            ctx.fillStyle = n.risk === "high" ? "#fb7185" : n.risk === "medium" ? "#fbbf24" : "#34d399";
+            ctx.fillStyle = n.risk === "high" ? tokens.risk : n.risk === "medium" ? tokens.warn : tokens.ok;
             ctx.font = "bold 9px sans-serif";
             ctx.fillText(String(n.risk || "low").toUpperCase(), nx + 8, ny + 64);
           });
 
           // Title & Callout
-          ctx.fillStyle = "#fbbf24";
+          ctx.fillStyle = tokens.warn;
           ctx.font = "bold 13px sans-serif";
           ctx.fillText(String(sc.title || ""), 20, 32);
 
           if (sc.callout) {
-            ctx.fillStyle = "#38bdf8";
+            ctx.fillStyle = tokens.accent;
             ctx.font = "11px sans-serif";
             ctx.fillText("→ " + String(sc.callout).slice(0, 74), 20, 52);
           }
 
           // Timeline bar
           const pct = scenes.length ? (playerState.sceneIndex + 1) / scenes.length : 1;
-          ctx.fillStyle = "#1c2536";
+          ctx.fillStyle = tokens.bgCardHover;
           ctx.fillRect(20, 214, canvas.width - 40, 6);
-          ctx.fillStyle = "#38bdf8";
+          ctx.fillStyle = tokens.accent;
           ctx.fillRect(20, 214, Math.floor((canvas.width - 40) * pct), 6);
         }
 
@@ -2085,7 +2355,7 @@
           pillsEl.innerHTML = scenes
             .map(
               (s, idx) =>
-                `<button class="scene-pill ${idx === playerState.sceneIndex ? "active" : ""}" data-sidx="${idx}">${escapeHtml(s.title)}</button>`
+                `<button class="scene-pill ${idx === playerState.sceneIndex ? "active" : ""}" role="button" aria-pressed="${idx === playerState.sceneIndex ? "true" : "false"}" tabindex="${idx === playerState.sceneIndex ? "0" : "-1"}" data-sidx="${idx}">${escapeHtml(s.title)}</button>`
             )
             .join("");
 
@@ -2098,6 +2368,39 @@
               }
             });
           });
+
+          if (!pillsEl._hasKeyNav && pillsEl.addEventListener) {
+            pillsEl._hasKeyNav = true;
+            pillsEl.addEventListener("keydown", (e) => {
+              if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") {
+                return;
+              }
+              const pills = Array.from(pillsEl.querySelectorAll(".scene-pill"));
+              if (!pills.length) return;
+              const curIdx = pills.findIndex((p) => p.classList.contains("active") || p === document.activeElement);
+              let nextIdx = curIdx;
+              if (e.key === "ArrowRight") {
+                nextIdx = curIdx >= 0 ? (curIdx + 1) % pills.length : 0;
+              } else if (e.key === "ArrowLeft") {
+                nextIdx = curIdx >= 0 ? (curIdx - 1 + pills.length) % pills.length : pills.length - 1;
+              } else if (e.key === "Home") {
+                nextIdx = 0;
+              } else if (e.key === "End") {
+                nextIdx = pills.length - 1;
+              }
+              e.preventDefault();
+              playerState.sceneIndex = nextIdx;
+              renderExplainerTab(currentState?.currentDebrief);
+              const updatedPills = Array.from(pillsEl.querySelectorAll(".scene-pill"));
+              if (updatedPills[nextIdx] && typeof updatedPills[nextIdx].focus === "function") {
+                updatedPills[nextIdx].focus();
+              }
+              if (playerState.playing) {
+                const scs = currentState?.currentDebrief?.explainerScenes || [];
+                speakScene(scs[playerState.sceneIndex]?.narration);
+              }
+            });
+          }
 
           const activeScene = scenes[playerState.sceneIndex] || scenes[0];
           document.getElementById("explainerSceneTitle").textContent =
@@ -2134,6 +2437,11 @@
 
         function startCanvasAnimationLoop() {
           if (!playerState.playing) return;
+          if (prefersReducedMotion()) {
+            playerState.tick = 0;
+            drawExplainerFrame();
+            return;
+          }
           playerState.tick += 1;
           drawExplainerFrame();
           playerState.rafId = requestAnimationFrame(startCanvasAnimationLoop);
@@ -2150,7 +2458,7 @@
 
           const listEl = document.getElementById("confirmedLessonsBankList");
           if (confirmed.length === 0) {
-            listEl.innerHTML = `<div style="font-size: 12px; color: var(--text-muted);">No lessons confirmed in this workspace yet.</div>`;
+            listEl.innerHTML = `<div style="font-size: 12px; color: var(--text-secondary);">No lessons confirmed in this workspace yet.</div>`;
             return;
           }
           listEl.innerHTML = confirmed
@@ -2174,46 +2482,72 @@
         function renderHistoryList(history) {
           const container = document.getElementById("historyListContainer");
           if (!history.length) {
-            container.innerHTML = `<div style="font-size: 12px; color: var(--text-muted);">No previous turns recorded yet.</div>`;
+            container.innerHTML = `<div style="font-size: 12px; color: var(--text-secondary);">No previous turns recorded yet.</div>`;
             return;
           }
           container.innerHTML = history
-            .map(
-              (h, idx) => `
-              <div class="history-item" data-hidx="${idx}">
+            .map((h, idx) => {
+              const isViewing = viewingHistoryIdx === idx;
+              const modeLabel = h.responseType === "bug" ? "Bug Fix" : "Implementation";
+              const tsLabel = h.createdAt
+                ? new Date(h.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+                : "";
+              const ariaSummary = `Load ${modeLabel} turn snapshot${tsLabel ? ` from ${tsLabel}` : ""}: ${h.tldrHeadline || "Turn"}`;
+              return `
+              <div class="history-item ${isViewing ? "active-snapshot" : ""}" tabindex="0" role="button" aria-pressed="${isViewing ? "true" : "false"}" aria-label="${escapeHtml(ariaSummary)}" data-hidx="${idx}">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 6px;">
                   <div style="display: flex; gap: 5px; align-items: center;">
                     <span class="pill ${h.responseType === "bug" ? "pill-bug" : "pill-impl"}">
                       ${h.responseType === "bug" ? "🐛 Bug Fix" : "🚀 Implementation"}
                     </span>
                     ${h.complexity?.level === "complex" ? '<span class="pill pill-warning">🧩 Complex</span>' : ""}
+                    ${isViewing ? '<span class="pill pill-warning">Viewing</span>' : ""}
                   </div>
                   <span style="font-size: 10.5px; color: var(--text-muted);">
-                    ${h.createdAt ? new Date(h.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
+                    ${escapeHtml(tsLabel)}
                   </span>
                 </div>
                 <div style="font-weight: 700; font-size: 12.2px;">${escapeHtml(h.tldrHeadline)}</div>
-              </div>`
-            )
+              </div>`;
+            })
             .join("");
 
+          const loadHistoryEntry = (idx) => {
+            const item = history[idx];
+            if (!item || !currentState) return;
+            if (!latestDebriefSnapshot) {
+              latestDebriefSnapshot = currentState.currentDebrief;
+            }
+            viewingHistoryIdx = idx;
+            selectedNodeId = null;
+            stopExplainerPlayback();
+            currentState.currentDebrief = item;
+            renderPanelState(currentState, { fromHistory: true });
+            switchTab("storyboard");
+            const returnBtn = document.getElementById("btnReturnLatest");
+            if (returnBtn && typeof returnBtn.focus === "function") returnBtn.focus();
+          };
+
           container.querySelectorAll(".history-item").forEach((el) => {
-            el.addEventListener("click", () => {
-              const item = history[Number(el.getAttribute("data-hidx"))];
-              if (!item || !currentState) return;
-              selectedNodeId = null;
-              stopExplainerPlayback();
-              currentState.currentDebrief = item;
-              renderPanelState(currentState);
-              switchTab("storyboard");
+            const idx = Number(el.getAttribute("data-hidx"));
+            el.addEventListener("click", () => loadHistoryEntry(idx));
+            el.addEventListener("keydown", (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                loadHistoryEntry(idx);
+              }
             });
           });
         }
 
         function switchTab(tabId) {
           if (tabId !== "explainer") stopExplainerPlayback();
-          document.querySelectorAll(".tab-btn").forEach((b) => {
-            b.classList.toggle("active", b.getAttribute("data-tab") === tabId);
+          const tabButtons = Array.from(document.querySelectorAll(".tab-btn"));
+          tabButtons.forEach((b) => {
+            const isActive = b.getAttribute("data-tab") === tabId;
+            b.classList.toggle("active", isActive);
+            b.setAttribute("aria-selected", isActive ? "true" : "false");
+            b.setAttribute("tabindex", isActive ? "0" : "-1");
           });
           ["storyboard", "explainer", "memory", "history"].forEach((id) => {
             const sec = document.getElementById("tab-" + id);
@@ -2227,41 +2561,117 @@
           btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
         });
 
+        const tabsNavEl = document.getElementById("tabsNav");
+        if (tabsNavEl && tabsNavEl.addEventListener) {
+          tabsNavEl.addEventListener("keydown", (e) => {
+            if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") {
+              return;
+            }
+            const allTabs = Array.from(document.querySelectorAll(".tab-btn"));
+            const visibleTabs = allTabs.filter(
+              (btn) => btn.style.display !== "none" && (typeof getComputedStyle !== "function" || getComputedStyle(btn).display !== "none")
+            );
+            if (!visibleTabs.length) return;
+            const curIdx = visibleTabs.findIndex((btn) => btn.classList.contains("active") || btn === document.activeElement);
+            let nextIdx = curIdx;
+            if (e.key === "ArrowRight") {
+              nextIdx = curIdx >= 0 ? (curIdx + 1) % visibleTabs.length : 0;
+            } else if (e.key === "ArrowLeft") {
+              nextIdx = curIdx >= 0 ? (curIdx - 1 + visibleTabs.length) % visibleTabs.length : visibleTabs.length - 1;
+            } else if (e.key === "Home") {
+              nextIdx = 0;
+            } else if (e.key === "End") {
+              nextIdx = visibleTabs.length - 1;
+            }
+            e.preventDefault();
+            const nextTab = visibleTabs[nextIdx];
+            if (nextTab) {
+              const tabId = nextTab.getAttribute("data-tab");
+              switchTab(tabId);
+              if (typeof nextTab.focus === "function") nextTab.focus();
+            }
+          });
+        }
+
+        // Wire Return to Latest Snapshot Button
+        const returnLatestBtn = document.getElementById("btnReturnLatest");
+        if (returnLatestBtn && returnLatestBtn.addEventListener) {
+          returnLatestBtn.addEventListener("click", () => {
+            if (!currentState) return;
+            viewingHistoryIdx = null;
+            selectedNodeId = null;
+            stopExplainerPlayback();
+            if (latestDebriefSnapshot) {
+              currentState.currentDebrief = latestDebriefSnapshot;
+              renderPanelState(currentState);
+              showToast("↩ Returned to latest turn debrief");
+            } else {
+              refreshState({ silent: false });
+            }
+          });
+        }
+
         // Wire Mode Switcher
         document.getElementById("btnModeBug").addEventListener("click", async () => {
+          const btn = document.getElementById("btnModeBug");
+          setButtonBusy(btn, true);
           try {
             const res = await callServerTool("vibe_debrief_set_persona", { responseType: "bug" });
             if (res && res.structuredContent) renderPanelState(res.structuredContent);
-          } catch {}
+          } catch (err) {
+            showToast("⚠️ Could not switch to Bug Fix view: " + (err?.message || "RPC error"));
+          } finally {
+            setButtonBusy(btn, false);
+          }
         });
 
         document.getElementById("btnModeImpl").addEventListener("click", async () => {
+          const btn = document.getElementById("btnModeImpl");
+          setButtonBusy(btn, true);
           try {
             const res = await callServerTool("vibe_debrief_set_persona", { responseType: "implementation" });
             if (res && res.structuredContent) renderPanelState(res.structuredContent);
-          } catch {}
+          } catch (err) {
+            showToast("⚠️ Could not switch to Implementation view: " + (err?.message || "RPC error"));
+          } finally {
+            setButtonBusy(btn, false);
+          }
         });
 
         // Wire STE-80 Toggle
         document.getElementById("btnToggleSte100").addEventListener("click", async () => {
+          const btn = document.getElementById("btnToggleSte100");
           const next = currentState?.ste100Enabled === false;
+          setButtonBusy(btn, true);
           try {
             const res = await callServerTool("vibe_debrief_set_persona", { ste100Enabled: next });
             if (res && res.structuredContent) {
               renderPanelState(res.structuredContent);
               showToast(next ? "✂️ STE-80 Clarity Filter ON" : "✂️ STE-80 Clarity Filter OFF");
             }
-          } catch {}
+          } catch (err) {
+            showToast("⚠️ Could not toggle STE-80 filter: " + (err?.message || "RPC error"));
+          } finally {
+            setButtonBusy(btn, false);
+          }
         });
 
         // Wire Refresh
-        document.getElementById("btnRefresh").addEventListener("click", () => {
-          refreshState();
+        document.getElementById("btnRefresh").addEventListener("click", async () => {
+          const btn = document.getElementById("btnRefresh");
           showToast("🔄 Synced latest Vibe Debrief state");
+          setButtonBusy(btn, true);
+          try {
+            await refreshState({ silent: false });
+          } finally {
+            setButtonBusy(btn, false);
+          }
         });
 
         // Wire Standalone HTML Export
         document.getElementById("btnExportHtml").addEventListener("click", async () => {
+          const btn = document.getElementById("btnExportHtml");
+          setButtonBusy(btn, true, "⏳ HTML");
           try {
             const res = await callServerTool("vibe_debrief_export_html", {});
             const art = res?.structuredContent?.exportedArtifact;
@@ -2272,16 +2682,20 @@
             }
           } catch (err) {
             showToast("⚠️ HTML export failed: " + err.message);
+          } finally {
+            setButtonBusy(btn, false);
           }
         });
 
         // Wire Explainer Controls
         document.getElementById("btnExplainerPlay").addEventListener("click", () => {
+          const btn = document.getElementById("btnExplainerPlay");
           if (playerState.playing) {
             stopExplainerPlayback();
           } else {
             playerState.playing = true;
-            document.getElementById("btnExplainerPlay").textContent = "⏸ Pause";
+            btn.textContent = "⏸ Pause";
+            btn.setAttribute("aria-pressed", "true");
             startCanvasAnimationLoop();
             advanceSceneLoop();
           }
@@ -2311,6 +2725,7 @@
           playerState.voiceEnabled = !playerState.voiceEnabled;
           const btn = document.getElementById("btnExplainerVoice");
           btn.textContent = playerState.voiceEnabled ? "🔊 Voice On" : "🔇 Voice Off";
+          btn.setAttribute("aria-pressed", playerState.voiceEnabled ? "true" : "false");
           if (!playerState.voiceEnabled && window.speechSynthesis) {
             try { window.speechSynthesis.cancel(); } catch {}
           }
@@ -2328,6 +2743,7 @@
 
         // Wire "AI Explain" Reading-Boundary Delegation
         document.getElementById("btnAskAiExplain").addEventListener("click", async () => {
+          const btn = document.getElementById("btnAskAiExplain");
           const persona = currentState?.activePersona || "vibe-mentor";
           const mode = currentState?.currentDebrief?.responseType || "implementation";
           const chosenGemini =
@@ -2356,6 +2772,7 @@
             `- Otherwise, run \`ListProjects\` -> \`CreateSession({ project, model: "${chosenGemini}", prompt: ${JSON.stringify(delegatedPrompt)} })\` (do NOT call \`OpenSession\`).`
           ].join("\n");
 
+          setButtonBusy(btn, true, "⏳ Sending…");
           try {
             await sendRpcRequest("ui/message", {
               role: "user",
@@ -2364,28 +2781,61 @@
             showToast(`⚡ Requested reading-boundary refresh via ${chosenGemini.split("/").pop()}!`);
           } catch {
             showToast("⚠️ Could not send message to chat session.");
+          } finally {
+            setButtonBusy(btn, false);
           }
         });
 
         // Custom Lesson Toggle & Save
         document.getElementById("btnToggleCustomLesson").addEventListener("click", () => {
           const form = document.getElementById("customLessonForm");
-          form.style.display = form.style.display === "none" ? "block" : "none";
+          const isCurrentlyOpen = form && form.style.display !== "none";
+          setCustomLessonFormVisible(!isCurrentlyOpen);
         });
 
         document.getElementById("btnCancelCustomLesson").addEventListener("click", () => {
-          document.getElementById("customLessonForm").style.display = "none";
+          setCustomLessonFormVisible(false);
+        });
+
+        const customLessonFormEl = document.getElementById("customLessonForm");
+        if (customLessonFormEl && customLessonFormEl.addEventListener) {
+          customLessonFormEl.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setCustomLessonFormVisible(false);
+            }
+          });
+        }
+
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Escape") {
+            const form = document.getElementById("customLessonForm");
+            if (form && form.style.display !== "none") {
+              e.preventDefault();
+              setCustomLessonFormVisible(false);
+            }
+          }
         });
 
         document.getElementById("btnSaveCustomLesson").addEventListener("click", async () => {
-          const title = document.getElementById("customLessonTitle").value.trim();
-          const summary = document.getElementById("customLessonSummary").value.trim();
+          const titleInput = document.getElementById("customLessonTitle");
+          const summaryInput = document.getElementById("customLessonSummary");
+          const saveBtn = document.getElementById("btnSaveCustomLesson");
+          const title = titleInput.value.trim();
+          const summary = summaryInput.value.trim();
           const why = document.getElementById("customLessonWhy").value.trim();
           const howToApply = document.getElementById("customLessonHow").value.trim();
-          if (!title || !summary) {
-            showToast("⚠️ Please enter a title and summary for the lesson.");
+          if (!title) {
+            showToast("⚠️ Please enter a short title for the lesson.");
+            if (typeof titleInput.focus === "function") titleInput.focus();
             return;
           }
+          if (!summary) {
+            showToast("⚠️ Please enter a summary for the lesson.");
+            if (typeof summaryInput.focus === "function") summaryInput.focus();
+            return;
+          }
+          setButtonBusy(saveBtn, true, "⏳ Saving…");
           try {
             const res = await callServerTool("vibe_debrief_confirm_lesson", {
               title,
@@ -2396,15 +2846,17 @@
             });
             if (res && res.structuredContent) {
               renderPanelState(res.structuredContent);
-              document.getElementById("customLessonForm").style.display = "none";
-              document.getElementById("customLessonTitle").value = "";
-              document.getElementById("customLessonSummary").value = "";
+              setCustomLessonFormVisible(false);
+              titleInput.value = "";
+              summaryInput.value = "";
               document.getElementById("customLessonWhy").value = "";
               document.getElementById("customLessonHow").value = "";
               showToast("✅ Lesson saved directly to ZCode MEMORY.md!");
             }
           } catch (err) {
             showToast("⚠️ Failed to save lesson: " + err.message);
+          } finally {
+            setButtonBusy(saveBtn, false);
           }
         });
 

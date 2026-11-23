@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -254,6 +255,65 @@ export async function withEnv(overrides, fn) {
 export function withZCodeHomeDir(homeOrPath, fn) {
   const root = typeof homeOrPath === "string" ? homeOrPath : homeOrPath.root;
   return withEnv({ ZCODE_HOME_DIR: root }, fn);
+}
+
+/** Extract the first <style> block body from a self-contained HTML asset. */
+export function extractStyleContent(html) {
+  const match = html.match(/<style>([\s\S]*?)<\/style>/);
+  assert.ok(match, "HTML asset must contain a <style> block");
+  return match[1];
+}
+
+/** Extract the first inline <script> block body from a self-contained HTML asset. */
+export function extractInlineScript(html) {
+  const match = html.match(/<script>([\s\S]*?)<\/script>/);
+  assert.ok(match, "HTML asset must contain an inline <script> block");
+  return match[1];
+}
+
+/**
+ * Parse every `--token: value;` declaration inside the first CSS block matching
+ * selectorPattern (capture group 1 must be the block body). Handles both
+ * one-per-line and compact multi-declaration lines.
+ */
+export function parseCssBlockVars(css, selectorPattern) {
+  const match = css.match(selectorPattern);
+  assert.ok(match, `Expected CSS block matching ${selectorPattern}`);
+  const vars = {};
+  for (const decl of match[1].matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/gi)) {
+    vars[decl[1]] = decl[2].trim();
+  }
+  return vars;
+}
+
+/** Resolve single-hop `var(--token)` aliases against a parsed CSS variable table. */
+export function resolveCssAliases(vars) {
+  const resolved = { ...vars };
+  for (let pass = 0; pass < 3; pass++) {
+    for (const [k, v] of Object.entries(resolved)) {
+      const m = v.match(/^var\((--[a-z0-9-]+)\)$/i);
+      if (m && resolved[m[1]]) {
+        resolved[k] = resolved[m[1]];
+      }
+    }
+  }
+  return resolved;
+}
+
+function relativeLuminance(hex) {
+  const clean = hex.replace("#", "").slice(0, 6);
+  const [r, g, b] = [0, 2, 4].map((offset) => {
+    const c = parseInt(clean.slice(offset, offset + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG 2.1 contrast ratio between two 6-digit hex colors. */
+export function contrastRatio(hexA, hexB) {
+  const l1 = relativeLuminance(hexA);
+  const l2 = relativeLuminance(hexB);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
 }
 
 export function splitLines(text) {

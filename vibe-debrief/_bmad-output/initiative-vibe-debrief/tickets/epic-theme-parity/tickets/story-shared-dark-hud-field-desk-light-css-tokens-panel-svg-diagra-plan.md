@@ -3,7 +3,7 @@ title: 'Shared Dark HUD & Field Desk Light CSS tokens & panel SVG diagram parity
 type: feature
 ticket: 1
 created: '2026-11-23'
-status: built
+status: done
 baseline_revision: 'ca76e2e11303215be2920969dbc1c25055e44c55'
 route: full
 route_source: auto

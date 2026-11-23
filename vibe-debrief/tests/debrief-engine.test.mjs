@@ -27,11 +27,16 @@ import {
   ENGINE_PATH,
   REPO_ROOT,
   buildPanelStateFixture,
+  contrastRatio,
   createTempFixture,
   createTempHome,
   createTempWorkspace,
+  extractInlineScript,
+  extractStyleContent,
   memoryDirectoryFor,
+  parseCssBlockVars,
   readJsonFile,
+  resolveCssAliases,
   withEnv,
   withZCodeHomeDir,
   workspaceSlug
@@ -889,11 +894,52 @@ describe("workspace state persistence", () => {
 const HOSTILE_TAG = '<img src=x onerror="alert(1)">';
 const HOSTILE_NODE_TAG = "<img src=x>";
 
-function renderArtifactScript(artifactHtml) {
-  const scriptMatch = artifactHtml.match(/<script>([\s\S]*?)<\/script>/);
-  assert.ok(scriptMatch, "artifact must contain one inline script");
+function parseArtifactPalettes(artifactHtml) {
+  const styleText = extractStyleContent(artifactHtml);
+  // Merge RAW tables before resolving so var() aliases re-evaluate per palette.
+  const darkRaw = parseCssBlockVars(styleText, /:root\s*\{([\s\S]*?)\}/);
+  const lightRaw = parseCssBlockVars(
+    styleText,
+    /@media \(prefers-color-scheme: light\)\s*\{\s*:root\s*\{([\s\S]*?)\}/
+  );
+  return {
+    dark: resolveCssAliases(darkRaw),
+    light: resolveCssAliases({ ...darkRaw, ...lightRaw })
+  };
+}
+
+function renderArtifactScript(artifactHtml, { theme = "dark", emptyComputedStyles = false } = {}) {
+  const scriptSource = extractInlineScript(artifactHtml);
+  const { dark, light } = parseArtifactPalettes(artifactHtml);
+  let currentTable = theme === "light" ? light : dark;
 
   const elements = new Map();
+  const canvasOps = [];
+  const recordingCtx = {
+    fillStyle: "",
+    strokeStyle: "",
+    lineWidth: 0,
+    font: "",
+    clearRect() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    stroke() {
+      canvasOps.push({ op: "stroke", style: this.strokeStyle });
+    },
+    fill() {
+      canvasOps.push({ op: "fill", style: this.fillStyle });
+    },
+    arc() {},
+    rect() {},
+    roundRect() {},
+    fillText(text) {
+      canvasOps.push({ op: "fillText", style: this.fillStyle, text: String(text) });
+    },
+    fillRect() {
+      canvasOps.push({ op: "fillRect", style: this.fillStyle });
+    }
+  };
   const createElement = (id) => ({
     id,
     innerHTML: "",
@@ -909,10 +955,12 @@ function renderArtifactScript(artifactHtml) {
       return null;
     },
     getContext() {
-      return null;
+      return id === "sceneCanvas" ? recordingCtx : null;
     }
   });
+  const documentElement = { getAttribute: () => null };
   const document = {
+    documentElement,
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElement(id));
       return elements.get(id);
@@ -922,8 +970,44 @@ function renderArtifactScript(artifactHtml) {
     }
   };
 
-  runInContext(scriptMatch[1], createContext({ document }));
-  return elements;
+  const mediaListeners = [];
+  const sandbox = {
+    document,
+    getComputedStyle() {
+      return {
+        getPropertyValue(prop) {
+          return emptyComputedStyles ? "" : currentTable[prop] || "";
+        }
+      };
+    },
+    requestAnimationFrame: () => 0,
+    cancelAnimationFrame() {},
+    window: {
+      matchMedia(query) {
+        return {
+          matches: theme === "light" && query.includes("light"),
+          addEventListener(_type, fn) {
+            mediaListeners.push(fn);
+          },
+          addListener(fn) {
+            mediaListeners.push(fn);
+          }
+        };
+      }
+    }
+  };
+
+  runInContext(scriptSource, createContext(sandbox));
+  return {
+    elements,
+    canvasOps,
+    setTheme(nextTheme) {
+      currentTable = nextTheme === "light" ? light : dark;
+    },
+    fireMediaChange() {
+      for (const fn of mediaListeners) fn({ matches: currentTable === light });
+    }
+  };
 }
 
 describe("standalone HTML export escaping", () => {
@@ -1011,7 +1095,7 @@ describe("standalone HTML export escaping", () => {
 
   it("escapes diagram nodes before the client script writes SVG innerHTML", () => {
     const html = buildHostileArtifact();
-    const elements = renderArtifactScript(html);
+    const { elements } = renderArtifactScript(html);
     const svg = elements.get("diagramSvg");
 
     assert.ok(svg, "SVG target must exist");
@@ -1038,6 +1122,183 @@ describe("standalone HTML export escaping", () => {
     assert.equal(/https?:\/\//.test(html), false);
     assert.equal(html.includes("new Function"), false);
     assert.equal(html.includes("eval("), false);
+  });
+});
+
+describe("standalone HTML export theme parity", () => {
+  function buildThemedArtifact() {
+    return generateStandaloneHtmlArtifact(
+      buildPanelStateFixture({
+        debrief: {
+          complexity: { level: "complex", score: 5, reason: "Multi-file theme flow" },
+          explainerScenes: [
+            {
+              title: "Trace the flow",
+              narration: "Follow the accent pulse across the nodes.",
+              durationSec: 7,
+              highlightNodeIds: ["n2", "n4"],
+              callout: "Watch the highlighted node."
+            },
+            { title: "Verify", narration: "Check the proof.", durationSec: 7, highlightNodeIds: [] }
+          ],
+          diagram: {
+            diagramType: "architecture",
+            title: "Themed Flow",
+            nodes: [
+              { id: "n1", label: "Safe", sublabel: "Verified", role: "Input", risk: "low", status: "done" },
+              { id: "n2", label: "Active", sublabel: "In flight", role: "Logic", risk: "low", status: "active" },
+              { id: "n3", label: "Warn", sublabel: "Medium risk", role: "State", risk: "medium", status: "done" },
+              { id: "n4", label: "Danger", sublabel: "High risk", role: "Auth", risk: "high", status: "done" }
+            ],
+            edges: [
+              { from: "n1", to: "n2", stepNumber: 1, label: "Step 1", risk: "low" },
+              { from: "n2", to: "n3", stepNumber: 2, label: "Step 2", risk: "medium" },
+              { from: "n3", to: "n4", stepNumber: 3, label: "Step 3", risk: "high" }
+            ]
+          }
+        }
+      })
+    );
+  }
+
+  const DARK_ONLY = ["#0b0f17", "#131a26", "#182030", "#f0f6fc", "#9ba7b8", "#38bdf8", "#fb7185", "#fbbf24", "#34d399", "#2a354b"];
+  const LIGHT_ONLY = ["#efeae0", "#ffffff", "#17202e", "#4c5a6d", "#0284c7", "#be123c", "#b45309", "#059669", "#f1ece1"];
+
+  it("embeds Dark HUD :root and @media (prefers-color-scheme: light) Field Desk Light palettes", () => {
+    const { dark, light } = parseArtifactPalettes(buildThemedArtifact());
+    const expectedDark = {
+      "--bg-app": "#090d13",
+      "--bg-panel": "#121924",
+      "--bg-card": "#182130",
+      "--text-primary": "#e7edf6",
+      "--text-secondary": "#9aa9be",
+      "--accent": "#38bdf8",
+      "--ok": "#34d399",
+      "--warn": "#fbbf24",
+      "--risk": "#fb7185",
+      "--explainer-stage-bg": "#070b12",
+      "--canvas-grid-line": "rgba(56,189,248,0.08)"
+    };
+    const expectedLight = {
+      "--bg-app": "#efeae0",
+      "--bg-panel": "#fbf9f4",
+      "--bg-card": "#ffffff",
+      "--text-primary": "#17202e",
+      "--text-secondary": "#4c5a6d",
+      "--accent": "#0284c7",
+      "--ok": "#059669",
+      "--warn": "#b45309",
+      "--risk": "#be123c",
+      "--explainer-stage-bg": "#f1ece1",
+      "--canvas-grid-line": "rgba(2,132,199,0.08)"
+    };
+    for (const [token, expected] of Object.entries(expectedDark)) {
+      assert.equal(dark[token], expected, `export Dark HUD token ${token} mismatch`);
+    }
+    for (const [token, expected] of Object.entries(expectedLight)) {
+      assert.equal(light[token], expected, `export Field Desk Light token ${token} mismatch`);
+    }
+    // Legacy artifact aliases resolve against the active palette in both themes.
+    assert.equal(dark["--bg"], "#090d13");
+    assert.equal(dark["--card"], "#182130");
+    assert.equal(dark["--bad"], "#fb7185");
+    assert.equal(light["--bg"], "#efeae0");
+    assert.equal(light["--card"], "#ffffff");
+    assert.equal(light["--bad"], "#be123c");
+  });
+
+  it("meets WCAG 2.1 AA contrast floors in both export palettes", () => {
+    const { dark, light } = parseArtifactPalettes(buildThemedArtifact());
+    for (const [label, palette] of [["Dark HUD", dark], ["Field Desk Light", light]]) {
+      for (const bgToken of ["--bg-app", "--bg-surface", "--bg-panel", "--bg-card", "--bg-elevated"]) {
+        for (const textToken of ["--text-primary", "--text-secondary"]) {
+          const ratio = contrastRatio(palette[textToken], palette[bgToken]);
+          assert.ok(ratio >= 4.5, `${label} ${textToken} on ${bgToken} contrast ${ratio.toFixed(2)} < 4.5`);
+        }
+        for (const strokeToken of ["--accent", "--ok", "--warn", "--risk", "--purple", "--teal"]) {
+          const ratio = contrastRatio(palette[strokeToken], palette[bgToken]);
+          assert.ok(ratio >= 3.0, `${label} ${strokeToken} on ${bgToken} contrast ${ratio.toFixed(2)} < 3.0`);
+        }
+      }
+    }
+  });
+
+  it("keeps the inline script free of hardcoded dark-only color literals", () => {
+    const scriptSource = extractInlineScript(buildThemedArtifact());
+    for (const literal of [...DARK_ONLY, "#070b12", "rgba(56,189,248"]) {
+      assert.equal(scriptSource.includes(literal), false, `artifact script must not hardcode ${literal}`);
+    }
+    assert.ok(scriptSource.includes("getComputedStyle(document.documentElement)"), "artifact must resolve CSS tokens");
+    assert.ok(scriptSource.includes("prefers-color-scheme: light"), "artifact must listen for OS light-mode changes");
+  });
+
+  it("renders the export SVG from resolved Dark HUD tokens under dark mode", () => {
+    const { elements } = renderArtifactScript(buildThemedArtifact(), { theme: "dark" });
+    const svg = elements.get("diagramSvg").innerHTML;
+    for (const expected of ["#38bdf8", "#182130", "#121924", "#e7edf6", "#9aa9be", "#fb7185", "#fbbf24", "#34d399"]) {
+      assert.ok(svg.includes(expected), `dark export SVG must use token ${expected}`);
+    }
+    for (const literal of LIGHT_ONLY) {
+      assert.equal(svg.includes(literal), false, `light-only token ${literal} leaked into dark export SVG`);
+    }
+  });
+
+  it("renders the export SVG from resolved Field Desk Light tokens under light mode", () => {
+    const { elements } = renderArtifactScript(buildThemedArtifact(), { theme: "light" });
+    const svg = elements.get("diagramSvg").innerHTML;
+    for (const expected of ["#0284c7", "#ffffff", "#fbf9f4", "#17202e", "#4c5a6d", "#be123c", "#b45309", "#059669"]) {
+      assert.ok(svg.includes(expected), `light export SVG must use token ${expected}`);
+    }
+    for (const literal of DARK_ONLY) {
+      assert.equal(svg.includes(literal), false, `dark-only literal ${literal} leaked into light export SVG`);
+    }
+  });
+
+  it("draws the export Canvas explainer from resolved tokens in both themes", () => {
+    const darkRun = renderArtifactScript(buildThemedArtifact(), { theme: "dark" });
+    const darkStyles = darkRun.canvasOps.map((o) => o.style);
+    assert.ok(darkRun.canvasOps.length > 0, "export canvas must draw when scenes exist");
+    for (const expected of ["#070b12", "rgba(56,189,248,0.08)", "#182130", "#e7edf6", "#9aa9be", "#38bdf8", "#fbbf24"]) {
+      assert.ok(darkStyles.includes(expected), `dark export canvas must use token ${expected}`);
+    }
+
+    const lightRun = renderArtifactScript(buildThemedArtifact(), { theme: "light" });
+    const lightStyles = lightRun.canvasOps.map((o) => o.style);
+    for (const expected of ["#f1ece1", "rgba(2,132,199,0.08)", "#ffffff", "#17202e", "#4c5a6d", "#0284c7", "#b45309"]) {
+      assert.ok(lightStyles.includes(expected), `light export canvas must use token ${expected}`);
+    }
+    for (const literal of ["#070b12", "#131a26", "#182130", "#f0f6fc", "#9ba7b8", "#38bdf8", "#fbbf24"]) {
+      assert.equal(lightStyles.includes(literal), false, `dark-only literal ${literal} leaked into light export canvas`);
+    }
+  });
+
+  it("re-renders SVG and Canvas when prefers-color-scheme changes at runtime", () => {
+    const run = renderArtifactScript(buildThemedArtifact(), { theme: "dark" });
+    const svg = run.elements.get("diagramSvg");
+    assert.ok(svg.innerHTML.includes("#38bdf8"));
+
+    const mark = run.canvasOps.length;
+    run.setTheme("light");
+    run.fireMediaChange();
+    assert.ok(svg.innerHTML.includes("#0284c7"), "SVG must re-render with light tokens");
+    assert.ok(svg.innerHTML.includes("#ffffff"));
+    assert.equal(svg.innerHTML.includes("#38bdf8"), false);
+
+    const freshStyles = run.canvasOps.slice(mark).map((o) => o.style);
+    assert.ok(freshStyles.length > 0, "media change must re-draw the canvas");
+    assert.ok(freshStyles.includes("#f1ece1"), "canvas must re-draw with the light stage token");
+    assert.ok(freshStyles.includes("#0284c7"));
+  });
+
+  it("includes keyboard-operable SVG nodes, focus-visible styles, and prefers-reduced-motion in standalone HTML", () => {
+    const html = buildThemedArtifact();
+    assert.match(html, /:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--accent\)/i);
+    assert.match(html, /@media\s*\(prefers-reduced-motion:\s*reduce\)/i);
+    assert.match(html, /id="nodeInspector"[^>]*role="status"[^>]*aria-live="polite"/i);
+
+    const { elements } = renderArtifactScript(html, { theme: "dark" });
+    const svg = elements.get("diagramSvg").innerHTML;
+    assert.match(svg, /class="dnode"[^>]*tabindex="0"[^>]*role="button"[^>]*aria-label="/i);
   });
 });
 

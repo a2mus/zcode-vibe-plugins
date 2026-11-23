@@ -1,5 +1,6 @@
 ---
 type: epic
+status: done
 title: Light-theme parity
 parent: initiative-vibe-debrief
 covers: [R10]

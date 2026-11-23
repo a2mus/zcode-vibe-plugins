@@ -3,63 +3,17 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import vm from "node:vm";
 
-import { PANEL_HTML_PATH, buildDebriefFixture } from "./helpers.mjs";
+import {
+  PANEL_HTML_PATH,
+  buildDebriefFixture,
+  contrastRatio,
+  extractInlineScript,
+  extractStyleContent,
+  parseCssBlockVars,
+  resolveCssAliases
+} from "./helpers.mjs";
 
 const PANEL_HTML = readFileSync(PANEL_HTML_PATH, "utf8");
-
-function extractStyleContent(html) {
-  const match = html.match(/<style>([\s\S]*?)<\/style>/);
-  assert.ok(match, "panel.html must contain a <style> block");
-  return match[1];
-}
-
-function extractInlineScript(html) {
-  const match = html.match(/<script>([\s\S]*?)<\/script>/);
-  assert.ok(match, "panel.html must contain an inline <script> block");
-  return match[1];
-}
-
-function parseCssBlockVars(css, selectorPattern) {
-  const match = css.match(selectorPattern);
-  assert.ok(match, `Expected CSS block matching ${selectorPattern}`);
-  const vars = {};
-  const body = match[1];
-  for (const line of body.split(/\r?\n/)) {
-    const propMatch = line.match(/^\s*(--[a-z0-9-]+)\s*:\s*([^;]+);/i);
-    if (propMatch) {
-      vars[propMatch[1]] = propMatch[2].trim();
-    }
-  }
-  return vars;
-}
-
-function resolveAliases(vars) {
-  const resolved = { ...vars };
-  for (let pass = 0; pass < 3; pass++) {
-    for (const [k, v] of Object.entries(resolved)) {
-      const m = v.match(/^var\((--[a-z0-9-]+)\)$/i);
-      if (m && resolved[m[1]]) {
-        resolved[k] = resolved[m[1]];
-      }
-    }
-  }
-  return resolved;
-}
-
-function relativeLuminance(hex) {
-  const clean = hex.replace("#", "").slice(0, 6);
-  const [r, g, b] = [0, 2, 4].map((offset) => {
-    const c = parseInt(clean.slice(offset, offset + 2), 16) / 255;
-    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-function contrastRatio(hexA, hexB) {
-  const l1 = relativeLuminance(hexA);
-  const l2 = relativeLuminance(hexB);
-  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-}
 
 function extractFunctionSource(source, fnName) {
   const marker = `function ${fnName}(`;
@@ -89,8 +43,8 @@ function createPanelTestHarness({
   emptyComputedStyles = false
 } = {}) {
   const styleText = extractStyleContent(PANEL_HTML);
-  const darkVars = resolveAliases(parseCssBlockVars(styleText, /:root\s*\{([\s\S]*?)\}/));
-  const lightVars = resolveAliases({
+  const darkVars = resolveCssAliases(parseCssBlockVars(styleText, /:root\s*\{([\s\S]*?)\}/));
+  const lightVars = resolveCssAliases({
     ...darkVars,
     ...parseCssBlockVars(styleText, /body\.theme-light,\s*html\[data-theme="light"\]\s*\{([\s\S]*?)\}/)
   });
@@ -247,19 +201,33 @@ function createPanelTestHarness({
   const explainerCanvas = elements.get("explainerCanvas");
   explainerCanvas.width = 600;
   explainerCanvas.height = 250;
-  explainerCanvas.getContext = () => ({
+  const canvasOps = [];
+  const recordingCtx = {
+    fillStyle: "",
+    strokeStyle: "",
+    lineWidth: 0,
+    font: "",
     clearRect() {},
     beginPath() {},
     moveTo() {},
     lineTo() {},
-    stroke() {},
-    fill() {},
+    stroke() {
+      canvasOps.push({ op: "stroke", style: this.strokeStyle });
+    },
+    fill() {
+      canvasOps.push({ op: "fill", style: this.fillStyle });
+    },
     arc() {},
     rect() {},
     roundRect() {},
-    fillText() {},
-    fillRect() {}
-  });
+    fillText(text) {
+      canvasOps.push({ op: "fillText", style: this.fillStyle, text: String(text) });
+    },
+    fillRect() {
+      canvasOps.push({ op: "fillRect", style: this.fillStyle });
+    }
+  };
+  explainerCanvas.getContext = () => recordingCtx;
 
   const windowListeners = new Map();
   const outboundMessages = [];
@@ -357,6 +325,7 @@ function createPanelTestHarness({
     body,
     documentElement,
     diagramSvg: elements.get("diagramSvg"),
+    canvasOps,
     outboundMessages,
     notifyHostTheme(theme) {
       dispatchWindowMessage({
@@ -488,8 +457,8 @@ describe("DESIGN.md CSS custom properties & legacy aliases", () => {
       "--danger",
       "--danger-soft"
     ];
-    const resolvedDark = resolveAliases(darkVars);
-    const resolvedLight = resolveAliases(lightVars);
+    const resolvedDark = resolveCssAliases(darkVars);
+    const resolvedLight = resolveCssAliases(lightVars);
 
     for (const alias of legacyTokens) {
       assert.ok(darkVars[alias], `:root must keep legacy alias ${alias}`);
@@ -517,8 +486,8 @@ describe("DESIGN.md CSS custom properties & legacy aliases", () => {
   });
 
   it("satisfies WCAG 2.1 AA contrast floors (>= 4.5:1 text, >= 3:1 strokes/accents) in both themes", () => {
-    const resolvedDark = resolveAliases(darkVars);
-    const resolvedLight = resolveAliases(lightVars);
+    const resolvedDark = resolveCssAliases(darkVars);
+    const resolvedLight = resolveCssAliases(lightVars);
 
     for (const [label, palette] of [
       ["Dark HUD", resolvedDark],
@@ -581,8 +550,7 @@ describe("renderInteractiveDiagram & CSP static safety", () => {
   });
 });
 
-describe("Live host theme sync & SVG diagram parity", () => {
-  const multiRiskDebrief = buildDebriefFixture({
+const multiRiskDebrief = buildDebriefFixture({
     diagram: {
       diagramType: "architecture",
       title: "Theme Parity Diagram",
@@ -598,8 +566,31 @@ describe("Live host theme sync & SVG diagram parity", () => {
         { from: "n3", to: "n4", stepNumber: 3, label: "Step 3", risk: "high" }
       ]
     }
-  });
+});
 
+const complexExplainerDebrief = buildDebriefFixture({
+  ...multiRiskDebrief,
+  complexity: { level: "complex", score: 5, reason: "Multi-file theme flow" },
+  explainerScenes: [
+    {
+      title: "Trace the flow",
+      narration: "Follow the accent pulse across the nodes.",
+      durationSec: 7,
+      highlightNodeIds: ["n2", "n4"],
+      visualType: "audit-warning",
+      callout: "Watch the highlighted node."
+    },
+    {
+      title: "Verify the result",
+      narration: "Check the proof before shipping.",
+      durationSec: 7,
+      highlightNodeIds: ["n4"],
+      visualType: "flow"
+    }
+  ]
+});
+
+describe("Live host theme sync & SVG diagram parity", () => {
   it("initializes with hostContext.theme='light' and renders Field Desk Light SVG tokens", async () => {
     const harness = createPanelTestHarness({ initTheme: "light", debrief: multiRiskDebrief });
     await harness.flush();
@@ -725,5 +716,119 @@ describe("Live host theme sync & SVG diagram parity", () => {
     assert.ok(svg.includes("&quot;"));
     // Unknown risk/status defaults cleanly to ok (#059669 in light mode)
     assert.ok(svg.includes("#059669"));
+  });
+});
+
+describe("Canvas explainer theme parity (drawExplainerFrame)", () => {
+  const scriptText = extractInlineScript(PANEL_HTML);
+  const drawFnSource = extractFunctionSource(scriptText, "drawExplainerFrame");
+  const opStyles = (ops) => ops.map((o) => o.style);
+
+  it("contains zero hardcoded dark-only literals and resolves theme tokens", () => {
+    const forbidden = [
+      "#0b0f17",
+      "#131a26",
+      "#f0f6fc",
+      "#9ba7b8",
+      "#38bdf8",
+      "#fb7185",
+      "#fbbf24",
+      "#34d399",
+      "#2a354b",
+      "#1c2536",
+      "rgba(56, 189, 248"
+    ];
+    for (const literal of forbidden) {
+      assert.equal(drawFnSource.includes(literal), false, `drawExplainerFrame must not hardcode ${literal}`);
+    }
+    assert.ok(drawFnSource.includes("resolveThemeTokens()"), "drawExplainerFrame must resolve theme tokens");
+  });
+
+  it("draws the Dark HUD stage, grid, nodes, and text under the dark theme", async () => {
+    const harness = createPanelTestHarness({ initTheme: "dark", debrief: complexExplainerDebrief });
+    await harness.flush();
+
+    const styles = opStyles(harness.canvasOps);
+    assert.ok(harness.canvasOps.length > 0, "explainer canvas must draw on state load");
+    for (const expected of [
+      "#070b12", // explainer stage background
+      "rgba(56, 189, 248, 0.08)", // blueprint grid line
+      "#182130", // bgCard node fill
+      "rgba(56, 189, 248, 0.14)", // accentSoft active node fill
+      "rgba(148, 163, 184, 0.28)", // borderStrong edges/inactive strokes
+      "#e7edf6", // textPrimary labels
+      "#9aa9be", // textSecondary sublabels
+      "#38bdf8", // accent pulse/callout/timeline
+      "#fbbf24", // warn title + medium risk
+      "#fb7185", // risk high node + audit-warning active stroke
+      "#34d399", // ok low risk
+      "#1e293b" // bgCardHover timeline track
+    ]) {
+      assert.ok(styles.includes(expected), `Dark canvas draw must use token ${expected}`);
+    }
+    for (const lightOnly of ["#0284c7", "#ffffff", "#17202e", "#4c5a6d", "#f1ece1", "#be123c", "#b45309", "#059669"]) {
+      assert.equal(styles.includes(lightOnly), false, `Light-only token ${lightOnly} leaked into dark canvas`);
+    }
+  });
+
+  it("draws the Field Desk Light stage, grid, nodes, and text under the light theme", async () => {
+    const harness = createPanelTestHarness({ initTheme: "light", debrief: complexExplainerDebrief });
+    await harness.flush();
+
+    const styles = opStyles(harness.canvasOps);
+    assert.ok(harness.canvasOps.length > 0, "explainer canvas must draw on state load");
+    for (const expected of [
+      "#f1ece1", // light explainer stage (bg-elevated-light)
+      "rgba(2, 132, 199, 0.08)", // light blueprint grid line
+      "#ffffff", // bgCard node fill
+      "rgba(2, 132, 199, 0.1)", // accentSoft active node fill
+      "rgba(30, 41, 59, 0.24)", // borderStrong edges/inactive strokes
+      "#17202e", // textPrimary labels
+      "#4c5a6d", // textSecondary sublabels
+      "#0284c7", // accent pulse/callout/timeline
+      "#b45309", // warn title + medium risk
+      "#be123c", // risk high node + audit-warning active stroke
+      "#059669", // ok low risk
+      "#f3efe6" // bgCardHover timeline track
+    ]) {
+      assert.ok(styles.includes(expected), `Light canvas draw must use token ${expected}`);
+    }
+    for (const darkOnly of ["#070b12", "#131a26", "#182130", "#e7edf6", "#9ba7b8", "#38bdf8", "#fb7185", "#fbbf24", "#34d399"]) {
+      assert.equal(styles.includes(darkOnly), false, `Dark-only literal ${darkOnly} leaked into light canvas`);
+    }
+  });
+
+  it("re-draws the explainer canvas immediately on host-context-changed light <-> dark toggles", async () => {
+    const harness = createPanelTestHarness({ initTheme: "dark", debrief: complexExplainerDebrief });
+    await harness.flush();
+
+    let mark = harness.canvasOps.length;
+    harness.notifyHostTheme("light");
+    let fresh = opStyles(harness.canvasOps.slice(mark));
+    assert.ok(fresh.length > 0, "theme toggle must re-draw the canvas");
+    assert.ok(fresh.includes("#f1ece1") && fresh.includes("#0284c7") && fresh.includes("#ffffff"));
+    assert.equal(fresh.includes("#070b12"), false);
+    assert.equal(fresh.includes("#38bdf8"), false);
+
+    mark = harness.canvasOps.length;
+    harness.notifyHostTheme("dark");
+    fresh = opStyles(harness.canvasOps.slice(mark));
+    assert.ok(fresh.includes("#070b12") && fresh.includes("#38bdf8") && fresh.includes("#182130"));
+    assert.equal(fresh.includes("#f1ece1"), false);
+    assert.equal(fresh.includes("#0284c7"), false);
+  });
+
+  it("falls back to DESIGN.md canvas tokens when getComputedStyle returns empty values", async () => {
+    const harness = createPanelTestHarness({
+      initTheme: "light",
+      debrief: complexExplainerDebrief,
+      emptyComputedStyles: true
+    });
+    await harness.flush();
+
+    const styles = opStyles(harness.canvasOps);
+    assert.ok(styles.includes("#f1ece1"), "light stage fallback must apply");
+    assert.ok(styles.includes("#0284c7"), "light accent fallback must apply");
+    assert.ok(styles.includes("rgba(2, 132, 199, 0.08)"), "light grid fallback must apply");
   });
 });

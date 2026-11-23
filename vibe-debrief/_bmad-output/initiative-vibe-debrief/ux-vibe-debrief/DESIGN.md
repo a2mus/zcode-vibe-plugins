@@ -2,7 +2,7 @@
 name: Vibe Debrief
 description: Zero-dependency ZCode right-side Cockpit HUD (MCP App) and standalone HTML explainer combining 10-second situational radar, X-Ray STE-80 dual coding, multi-grammar SVG diagrams, and 2-stage concept deep dives.
 status: final
-updated: 2026-11-18
+updated: 2026-11-23
 colors:
   # Dark HUD defaults (:root in assets/panel.html & mockups/cockpit-hud.html)
   bg-app: '#090d13'
@@ -73,11 +73,14 @@ colors:
   brand-sky: '#0ea5e9'
   brand-indigo: '#6366f1'
   explainer-stage-bg: '#070b12'
+  explainer-stage-bg-light: '#f1ece1'
   excalidraw-stage-bg: '#faf8f2'
   excalidraw-ink: '#1e293b'
+  excalidraw-grid-dot: '#0f172a24'
   grid-dot: '#94a3b81f'
   grid-dot-light: '#1e293b1f'
   canvas-grid-line: '#38bdf814'
+  canvas-grid-line-light: '#0284c714'
   telemetry-pill-bg: '#0c111ad6'
   white: '#ffffff'
 typography:
@@ -178,6 +181,21 @@ components:
     borderBottom: '{colors.border}'
     padding: '{spacing.header-padding}'
     typography: '{typography.brand-title}'
+  distill-btn:
+    background: '{colors.accent-soft}'
+    border: '{colors.accent-border}'
+    foreground: '{colors.accent}'
+    radius: '{rounded.sm}'
+    typography: '{typography.pill}'
+  gear-btn:
+    background: '{colors.bg-card}'
+    hoverBackground: '{colors.bg-card-hover}'
+    border: '{colors.border}'
+    hoverBorder: '{colors.border-strong}'
+    foreground: '{colors.text-secondary}'
+    hoverForeground: '{colors.text-primary}'
+    radius: '{rounded.sm}'
+    size: 28px
   xray-toggle:
     background: '{colors.bg-card}'
     border: '{colors.border-strong}'
@@ -291,6 +309,13 @@ components:
     activeForeground: '{colors.accent}'
     radius: '{rounded.sm}'
     typography: '{typography.micro}'
+  node-inspector:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border}'
+    foreground: '{colors.text-secondary}'
+    radius: '{rounded.sm}'
+    padding: '{spacing.3}'
+    typography: '{typography.block-body}'
   proof-pill:
     background: '{colors.bg-elevated}'
     border: '{colors.border}'
@@ -312,6 +337,13 @@ components:
     promoteForeground: '{colors.warn}'
     checkAccent: '{colors.ok}'
     checkDoneColor: '{colors.text-muted}'
+    radius: '{rounded.sm}'
+    typography: '{typography.block-body}'
+  check-row:
+    background: '{colors.bg-elevated}'
+    border: '{colors.border}'
+    accent: '{colors.ok}'
+    doneForeground: '{colors.text-muted}'
     radius: '{rounded.sm}'
     typography: '{typography.block-body}'
   concept-pill:
@@ -343,10 +375,30 @@ components:
     viewportBackground: '{colors.bg-elevated}'
     excalidrawBackground: '{colors.excalidraw-stage-bg}'
     excalidrawInk: '{colors.excalidraw-ink}'
+    excalidrawGridDot: '{colors.excalidraw-grid-dot}'
     gridDot: '{colors.grid-dot}'
     telemetryBackground: '{colors.telemetry-pill-bg}'
     radius: '{rounded.shell}'
     titleTypography: '{typography.stage2-title}'
+  stage2-toolbar:
+    background: '{colors.bg-card}'
+    borderBottom: '{colors.border}'
+    buttonBackground: '{colors.bg-elevated}'
+    buttonBorder: '{colors.border}'
+    buttonForeground: '{colors.text-secondary}'
+    activeBackground: '{colors.accent-soft}'
+    activeBorder: '{colors.accent-border}'
+    activeForeground: '{colors.accent}'
+    radius: '{rounded.sm}'
+    typography: '{typography.pill}'
+  stage2-deep-card:
+    background: '{colors.bg-card}'
+    border: '{colors.border}'
+    titleForeground: '{colors.text-muted}'
+    bodyForeground: '{colors.text-secondary}'
+    radius: '{rounded.md}'
+    padding: '{spacing.card-padding}'
+    typography: '{typography.block-body}'
   missing-banner:
     background: '{colors.warn-soft}'
     border: '{colors.warn-border}'
@@ -365,8 +417,10 @@ components:
     typography: '{typography.block-body}'
   explainer-stage:
     background: '{colors.explainer-stage-bg}'
+    lightBackground: '{colors.explainer-stage-bg-light}'
     border: '{colors.border-strong}'
     gridColor: '{colors.canvas-grid-line}'
+    lightGridColor: '{colors.canvas-grid-line-light}'
     pulseColor: '{colors.accent}'
     radius: '{rounded.md}'
     titleTypography: '{typography.canvas-title}'
@@ -414,7 +468,7 @@ Vibe Debrief is a **10-second developer cockpit HUD** built for ZCode's narrow r
 1. **Night-Watch Telemetry (Default Dark HUD):** Deep obsidian slate surfaces (`#090d13` → `#182130`) with hairline translucent borders, subtle dot-matrix diagram backdrops, and crisp electric-sky (`{colors.accent}`) callouts so signal cuts through immediately.
 2. **Field Desk Light (Synced Light Theme):** Warm archival paper surfaces (`#efeae0` → `#fbf9f4` → `#ffffff`) tuned for daylight reading without sterile glare, paired with darkened ink-grade semantic accents (`#0284c7`, `#059669`, `#b45309`, `#be123c`).
 
-Visual chrome stays razor-thin: a single compact top strip replaces stacked control bars, freeing ~85% of the above-the-fold panel for situational radar, kinetic SVG topology, proof chips, and clickable concepts.
+Visual chrome stays razor-thin: a single compact top strip (`{components.hud-header}`) paired with a 3-segment `{components.view-switcher}` replaces stacked control bars, freeing ~85% of the above-the-fold panel for situational radar, kinetic SVG topology, proof chips, and clickable concepts. See [mockups/cockpit-hud.html](./mockups/cockpit-hud.html) for the interactive visual composition baseline (covering `hud-header`, 4-row prototype `gear-popover`, `radar-card`, `choice-grid`, `svg-stage`, `concept-pill` + `stage1-drawer`, `stage2-popout`, and `missing-banner`); `DESIGN.md` and `EXPERIENCE.md` win on any conflict (including the full 6-row `gear-popover`, `view-switcher`, and Field Desk Light canvas stage tokens).
 
 Two hard engineering constraints govern every visual choice:
 1. **Zero external dependencies:** All styles, inline SVGs, and `<canvas>` visuals render with system UI/mono fonts and pure CSS/SVG/2D Canvas — zero external CSS frameworks, icon fonts, or CDNs.
@@ -438,11 +492,11 @@ Vibe Debrief is **dark-first** with a complete **Field Desk Light** override tab
 | Rose (`Blocked` / `High Risk`) | `{colors.risk}` (`#fb7185`), `{colors.risk-soft}`, `{colors.risk-border}` | `{colors.risk-light}` (`#be123c`), `{colors.risk-soft-light}`, `{colors.risk-border-light}` | `Blocked` waiting badge, high-risk SVG nodes, unverified/failing `proof-pill.risk`. |
 | Violet (`Reply` / `Target Tag`) | `{colors.purple}` (`#a78bfa`), `{colors.purple-soft}`, `{colors.purple-border}` | `{colors.purple-light}` (`#6d28d9`), `{colors.purple-soft-light}`, `{colors.purple-border-light}` | `Answer Question` waiting badge, Stage 1 target plugin tag (`Excalidraw`, `Visualize`, `VectorCraft`). |
 | Teal (`STE-80` Clarity Guard) | `{colors.teal}` (`#2dd4bf`), `{colors.teal-soft}`, `{colors.teal-border}` | `{colors.teal-light}` (`#0d9488`), `{colors.teal-soft-light}`, `{colors.teal-border-light}` | `STE-80 Active` clarity status indicator and language badge. |
-| Special canvas stages | `{colors.explainer-stage-bg}` (`#070b12`), `{colors.excalidraw-stage-bg}` (`#faf8f2`), `{colors.telemetry-pill-bg}` | `{colors.excalidraw-stage-bg}` (`#faf8f2`) / `{colors.bg-elevated-light}` | 3b1b blueprint stage (`#070b12`), Excalidraw warm whiteboard surface (`#faf8f2` with `{colors.excalidraw-ink}`), Stage 2 floating telemetry pill. |
+| Special canvas stages | `{colors.explainer-stage-bg}` (`#070b12`), `{colors.canvas-grid-line}` (`#38bdf814`), `{colors.excalidraw-stage-bg}` (`#faf8f2`), `{colors.telemetry-pill-bg}` | `{colors.explainer-stage-bg-light}` (`#f1ece1`), `{colors.canvas-grid-line-light}` (`#0284c714`), `{colors.excalidraw-stage-bg}` (`#faf8f2`) | 3b1b blueprint stage (`#070b12` dark / `#f1ece1` light with accent blueprint grid), Excalidraw warm whiteboard (`#faf8f2` with `{colors.excalidraw-ink}` + `{colors.excalidraw-grid-dot}`), Stage 2 floating telemetry pill. |
 
 **Contrast & Theme Parity Floor (`R10`):**
-- Load-bearing body text (`{colors.text-primary}` / `{colors.text-secondary}` on `{colors.bg-card}`) targets WCAG 2.1 AA (`>= 4.5:1`), and interactive strokes/focus rings target `>= 3:1` in both Dark HUD and Field Desk Light.
-- **v0.3.0 → vNext Parity Rule:** SVG nodes, SVG edge labels, and inline `<canvas>` frames read resolved CSS custom properties (`getComputedStyle(document.documentElement)`) rather than hardcoded dark hexes, guaranteeing crisp legibility under `body.theme-light` and standalone `prefers-color-scheme: light` exports. `{colors.text-muted}` (`#69788e` dark / `#768396` light) is reserved strictly for non-essential uppercase eyebrows and completed strikethroughs (`[ASSUMPTION]` verify light-mode eyebrow contrast during v0.3.0 audit).
+- Load-bearing body text (`{colors.text-primary}` / `{colors.text-secondary}` on `{colors.bg-app}`, `{colors.bg-surface}`, `{colors.bg-panel}`, `{colors.bg-card}`, `{colors.bg-elevated}`) satisfies WCAG 2.1 AA (`>= 4.5:1`), and interactive strokes/accents/focus rings satisfy `>= 3:1` in both Dark HUD and Field Desk Light.
+- **v0.3.0 → vNext Parity Rule:** SVG nodes, SVG edge labels, and inline `<canvas>` frames read resolved CSS custom properties (`getComputedStyle(document.documentElement)`) rather than hardcoded dark hexes, guaranteeing crisp legibility under `body.theme-light`, `html[data-theme="light"]`, and standalone `@media (prefers-color-scheme: light)` exports. `{colors.text-muted}` (`#69788e` dark / `#768396` light, `>= 3:1` UI/large-text contrast) is restricted strictly to non-essential uppercase eyebrows, timestamps, and completed strikethroughs — never load-bearing copy.
 
 ## Typography
 
@@ -463,11 +517,11 @@ Two native font stacks ensure zero-latency rendering and crisp identifier legibi
 
 Designed for a **narrow vertical ZCode sidebar (`320–460px`, default prototype `380px`)** with optional Stage 2 external pop-out on the main workspace canvas:
 
-- **1-Strip Pinned Header (`{components.hud-header}`):** Single row (`padding: {spacing.header-padding}`) containing Brand mark + `Distill` trigger on the left, `xray-toggle` + `gear-btn` on the right, and a compact `view-switcher` (`HUD` | `Visual` | `Memory & History`) immediately beneath or integrated inline on wide panels — keeping >=85% of the initial viewport free for the 10s Radar and Visual Centerpiece.
+- **Pinned Header Stack (`{components.hud-header}` + `{components.view-switcher}`):** A single top bar (`padding: {spacing.header-padding}`) holds Brand mark + `{components.distill-btn}` on the left and `{components.xray-toggle}` + `{components.gear-btn}` on the right, paired directly beneath with the compact 3-segment `{components.view-switcher}` (`HUD` | `Visual` | `Memory & History`) inside one sticky `{colors.bg-surface}` chrome (~72px total height) — keeping >85% of the initial viewport free for the 10s Radar and Visual Centerpiece while preventing wrapping on `320px` panels.
 - **Scrollable HUD Body (`padding: {spacing.hud-padding}; gap: {spacing.block-gap}`):** Stacks `radar-card` (or `minimal-strip`) followed by composed Micro-Blocks (`11px` vertical rhythm, `{spacing.card-padding}` internal padding).
-- **Gear Popover (`{components.gear-popover}`):** Anchored `top: 46px; right: 10px; width: 235px` above the HUD body so theme, language, persona, model preference, and HTML export never clutter the header strip.
+- **Gear Popover (`{components.gear-popover}`):** Anchored `top: 46px; right: 10px; width: 235px` above the HUD body so theme, language, persona, clarity guard, model preference, and HTML export never clutter the header strip.
 - **SVG Multi-Grammar Stage (`viewBox="0 0 {spacing.diagram-viewbox-width} H"`):** Scales fluidly (`width: 100%; height: auto`) with grammar-appropriate layouts (`Sequence`, `FlowDiff`, `Subway Layer Map`, `Before/After Split`, `Decision Tree`) capped at 6 primary nodes so labels remain readable at `320px`.
-- **Stage 1 vs Stage 2 Spatial Boundary:** Stage 1 inline micro-visuals stay bounded at `height: {spacing.stage1-canvas-height}` (`104px`) inside the panel; Stage 2 full interactive canvases (`height: {spacing.stage2-canvas-height}` `270px+` viewport + deep explanation grid) always pop out onto the main ZCode stage or a standalone browser window.
+- **Stage 1 vs Stage 2 Spatial Boundary:** Stage 1 inline micro-visuals stay bounded at `height: {spacing.stage1-canvas-height}` (`104px`) inside the panel; Stage 2 full interactive canvases (`height: {spacing.stage2-canvas-height}` `270px+` viewport + 3-column `{components.stage2-deep-card}` grid `repeat(auto-fit, minmax(200px, 1fr))` on `>= 740px`) always pop out onto the main ZCode stage or a standalone browser window.
 
 ## Elevation & Depth
 
@@ -492,22 +546,21 @@ Every visual component in the Cockpit HUD contract (paired with behavioral contr
 
 | Component | Token Spec | Visual Anatomy & States |
 | --- | --- | --- |
-| `hud-header` | `{components.hud-header}` | Single compact top bar (`10px 12px`) with brand clock/spark icon, workspace title, and right-aligned control cluster. |
+| `hud-header`, `distill-btn`, `gear-btn` | `{components.hud-header}`, `{components.distill-btn}`, `{components.gear-btn}` | Single compact top bar (`10px 12px`) with brand clock/spark icon, workspace title, compact `Distill` refresh button, `xray-toggle`, and `28×28px` `gear-btn`. |
 | `xray-toggle` | `{components.xray-toggle}` | `999px` pill displaying `X-Ray: Plain ↔ Tech`; shifts to `{colors.accent-soft}` fill and `{colors.accent-border}` stroke when `data-mode="tech"`. |
-| `gear-popover` | `{components.gear-popover}` | `235px` floating menu triggered by `28×28px` gear icon; stacks compact key/chip rows (`Surface Theme`, `Language`, `Persona`, `Clarity Guard`, `Model`, `Export HTML`). |
-| `view-switcher` | `{components.view-switcher}` | Compact segmented strip (`HUD` \| `Visual` \| `Memory & History`) tucked cleanly inside or directly below the header without multi-row chip bloat. |
+| `gear-popover` | `{components.gear-popover}` | `235px` floating menu triggered by `28×28px` `gear-btn`; stacks 6 compact key/chip rows (`Surface Theme`, `Language`, `Persona`, `Clarity Guard`, `Model`, `Export HTML`). |
+| `view-switcher` | `{components.view-switcher}` | Compact 3-segment tablist (`HUD` \| `Visual` \| `Memory & History`) pinned directly below `hud-header` on `{colors.bg-surface}` without multi-row chip bloat. |
 | `radar-card` | `{components.radar-card}` | Top hero card pairing `WHAT JUST HAPPENED` eyebrow, verdict pill, <=14-word headline (with inline `.sym` code badges in Tech mode), confidence strip, and dashed-top `WAITING ON YOU` footer. |
 | `waiting-badge` & `action-chip` | `{components.waiting-badge}`, `{components.action-chip}` | Semantic pill with `6px` status dot (`Choice` amber, `Action` sky, `Reply` violet, `Blocked` rose, `None` emerald) + wrapping `action-chip` quick-reply buttons (`.primary`, `.selected`). |
 | `inline-reply-box` | `{components.inline-reply-box}` | Single-line input + accent submit button appearing inside `radar-card` when state is `Reply`. |
 | `minimal-strip` | `{components.minimal-strip}` | Collapsed 1-line bar (`{colors.ok-border}`) for trivial turns showing verified badge, 1-line label, and `Expand` link. |
 | `choice-grid` & `choice-item` | `{components.choice-grid}` | Vertical stack of selectable cards; each has `20×20px` monospace key (`A`/`B`), bold title, subtext, optional `34×4px` trade-off bars, and emerald `.picked` state. |
-| `svg-stage` | `{components.svg-stage}` | Inset `1px`-bordered diagram stage (`460px` viewBox) with risk-coded nodes, numbered edges, kinetic `.dash-flow` dashed pulse (`stroke-dashoffset` animation), and click-to-inspect footer bar. |
-| `powerup-dock` | `{components.powerup-dock}` | Compact pill row beneath `svg-stage` (`[SVG]`, `[Excalidraw]`, `[Interactive Gen UI]`, `[VectorCraft]`, `[Animate]`) highlighting active surface and installed status. |
-| `proof-pill` & `audit-row` | `{components.proof-pill}`, `{components.audit-row}` | Compact inline badges (`ok` emerald, `risk` rose, `info` neutral) toggling monospace `proof-detail` drawer, paired with `audit-row` (`💡→Rule` promote pill + emerald verification checkboxes). |
+| `svg-stage`, `node-inspector`, `powerup-dock` | `{components.svg-stage}`, `{components.node-inspector}`, `{components.powerup-dock}` | Inset `1px`-bordered diagram stage (`460px` viewBox) with risk-coded nodes, numbered edges, kinetic `.dash-flow` dashed pulse, click-to-inspect `node-inspector` bar (`role`, `risk`, `file`), and `powerup-dock` pill row (`[SVG]`, `[Excalidraw]`, `[Interactive Gen UI]`, `[VectorCraft]`, `[Animate]`). |
+| `proof-pill`, `audit-row`, `check-row` | `{components.proof-pill}`, `{components.audit-row}`, `{components.check-row}` | Compact inline badges (`ok` emerald, `risk` rose, `info` neutral) toggling monospace `proof-detail` drawer, paired with `audit-row` (`💡→Rule` promote pill) and emerald `check-row` verification checkboxes. |
 | `concept-pill` & `stage1-drawer` | `{components.concept-pill}`, `{components.stage1-drawer}` | Wrapping `999px` technical term pills; active pill opens `{colors.accent-border}` inline drawer with target-plugin `target-tag`, STE-80 explanation, left-accented analogy box, `104px` micro-canvas, and full-width `Deep Dive & Pop Out ↗` CTA. |
-| `stage2-popout` & `missing-banner` | `{components.stage2-popout}`, `{components.missing-banner}` | Main-stage visual shell with toolbar, `270px+` dot-grid or Excalidraw `#faf8f2` canvas, floating `{colors.telemetry-pill-bg}` telemetry bar, and 3-column deep explanation cards (`How It Works`, `Key Trade-off`, `In Your Codebase`). Missing plugins render an amber `missing-banner` + `Install <plugin>` CTA above the built-in HTML fallback. |
+| `stage2-popout`, `stage2-toolbar`, `stage2-deep-card`, `missing-banner` | `{components.stage2-popout}`, `{components.stage2-toolbar}`, `{components.stage2-deep-card}`, `{components.missing-banner}` | Main-stage visual shell with `stage2-toolbar`, `270px+` dot-grid or Excalidraw `#faf8f2` canvas, floating `{colors.telemetry-pill-bg}` telemetry bar, and 3-column `stage2-deep-card` grid (`How It Works`, `Key Trade-off`, `In Your Codebase`). Missing plugins render an amber `missing-banner` + `Install <plugin>` CTA above the built-in HTML fallback. |
 | `unclear-box` | `{components.unclear-box}` | Amber-bordered fallback card showing honest uncertainty notice, monospace `raw-quote` snippet, and `Clarify (Fast / Cheapest Model)` + `Show Raw Reply` buttons. |
-| `explainer-stage` | `{components.explainer-stage}` | `600×250` dark blueprint `<canvas>` curator tour (`30px` grid, `▶`/`⏸`, `⏮`/`⏭`, speed, voice toggle, scene pills, and copyable `script-box`), unlockable anytime via `[Animate]`. |
+| `explainer-stage` | `{components.explainer-stage}` | `600×250` theme-resolved blueprint `<canvas>` curator tour (`#070b12` dark / `#f1ece1` light, `30px` grid, `▶`/`⏸`, `⏮`/`⏭`, speed, voice toggle, scene pills, and copyable `script-box`), unlockable anytime via `Visual` or `[Animate]`. |
 | `lesson-card`, `lesson-form`, `memory-code-box` | `{components.lesson-card}`, `{components.lesson-form}`, `{components.memory-code-box}` | Rule cards (emerald wash when confirmed in `MEMORY.md`), inline `➕ Add Lesson` form (`54px` textarea), and scrollable monospace `MEMORY.md` preview. |
 | `history-item` & `hud-toast` | `{components.history-item}`, `{components.hud-toast}` | Clickable turn snapshot rows (verdict/mode pill, timestamp, TL;DR) and transient bottom-docked emerald confirmation toast. |
 
