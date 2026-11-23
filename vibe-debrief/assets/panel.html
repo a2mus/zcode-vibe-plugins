@@ -6,54 +6,116 @@
     <title>Vibe Debrief (Visual ELI5)</title>
     <style>
       :root {
-        --bg-primary: #0b0f17;
-        --bg-secondary: #131a26;
-        --bg-tertiary: #1c2536;
-        --bg-elevated: #182030;
-        --border: #2a354b;
+        /* DESIGN.md Dark HUD tokens */
+        --bg-app: #090d13;
+        --bg-surface: #101620;
+        --bg-panel: #121924;
+        --bg-card: #182130;
+        --bg-card-hover: #1e293b;
+        --bg-elevated: #0d131c;
+        --border: rgba(148, 163, 184, 0.14);
+        --border-strong: rgba(148, 163, 184, 0.28);
         --border-subtle: #1e2738;
-        --text-primary: #f0f6fc;
-        --text-secondary: #9ba7b8;
-        --text-muted: #697586;
+        --text-primary: #e7edf6;
+        --text-secondary: #9aa9be;
+        --text-muted: #69788e;
+        --text-on-accent: #06121e;
+        --text-on-warn: #140d00;
         --accent: #38bdf8;
         --accent-soft: rgba(56, 189, 248, 0.14);
-        --success: #34d399;
-        --success-soft: rgba(52, 211, 153, 0.14);
-        --warning: #fbbf24;
-        --warning-soft: rgba(251, 191, 36, 0.15);
+        --accent-border: rgba(56, 189, 248, 0.36);
+        --ok: #34d399;
+        --ok-soft: rgba(52, 211, 153, 0.13);
+        --ok-subtle: rgba(52, 211, 153, 0.05);
+        --ok-border: rgba(52, 211, 153, 0.36);
+        --warn: #fbbf24;
+        --warn-soft: rgba(251, 191, 36, 0.14);
+        --warn-border: rgba(251, 191, 36, 0.38);
+        --risk: #fb7185;
+        --risk-soft: rgba(251, 113, 133, 0.14);
+        --risk-border: rgba(251, 113, 133, 0.38);
         --purple: #a78bfa;
-        --purple-soft: rgba(167, 139, 250, 0.15);
-        --danger: #fb7185;
-        --danger-soft: rgba(251, 113, 133, 0.15);
+        --purple-soft: rgba(167, 139, 250, 0.14);
+        --purple-border: rgba(167, 139, 250, 0.35);
         --teal: #2dd4bf;
         --teal-soft: rgba(45, 212, 191, 0.14);
+        --teal-border: rgba(45, 212, 191, 0.35);
+
+        /* Fixed media & external canvas stages */
+        --brand-sky: #0ea5e9;
+        --brand-indigo: #6366f1;
+        --explainer-stage-bg: #070b12;
+        --excalidraw-stage-bg: #faf8f2;
+        --excalidraw-ink: #1e293b;
+        --grid-dot: rgba(148, 163, 184, 0.12);
+        --canvas-grid-line: rgba(56, 189, 248, 0.08);
+        --telemetry-pill-bg: rgba(12, 17, 26, 0.84);
+        --white: #ffffff;
+
+        /* Legacy CSS variable aliases */
+        --bg-primary: var(--bg-app);
+        --bg-secondary: var(--bg-card);
+        --bg-tertiary: var(--bg-card-hover);
+        --success: var(--ok);
+        --success-soft: var(--ok-soft);
+        --warning: var(--warn);
+        --warning-soft: var(--warn-soft);
+        --danger: var(--risk);
+        --danger-soft: var(--risk-soft);
+
         --radius: 10px;
-        --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
-        --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+        --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-mono: "JetBrains Mono", "Cascadia Code", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
 
-      body.theme-light {
-        --bg-primary: #f8fafc;
-        --bg-secondary: #ffffff;
-        --bg-tertiary: #f1f5f9;
-        --bg-elevated: #ffffff;
-        --border: #cbd5e1;
-        --border-subtle: #e2e8f0;
-        --text-primary: #0f172a;
-        --text-secondary: #475569;
-        --text-muted: #64748b;
+      body.theme-light,
+      html[data-theme="light"] {
+        /* DESIGN.md Field Desk Light tokens */
+        --bg-app: #efeae0;
+        --bg-surface: #f7f4ec;
+        --bg-panel: #fbf9f4;
+        --bg-card: #ffffff;
+        --bg-card-hover: #f3efe6;
+        --bg-elevated: #f1ece1;
+        --border: rgba(30, 41, 59, 0.12);
+        --border-strong: rgba(30, 41, 59, 0.24);
+        --border-subtle: #e2dcd0;
+        --text-primary: #17202e;
+        --text-secondary: #4c5a6d;
+        --text-muted: #768396;
+        --text-on-accent: #06121e;
+        --text-on-warn: #140d00;
         --accent: #0284c7;
         --accent-soft: rgba(2, 132, 199, 0.1);
-        --success: #059669;
-        --success-soft: rgba(5, 150, 105, 0.1);
-        --warning: #d97706;
-        --warning-soft: rgba(217, 119, 6, 0.12);
-        --purple: #7c3aed;
-        --purple-soft: rgba(124, 58, 237, 0.1);
-        --danger: #e11d48;
-        --danger-soft: rgba(225, 29, 72, 0.1);
+        --accent-border: rgba(2, 132, 199, 0.34);
+        --ok: #059669;
+        --ok-soft: rgba(5, 150, 105, 0.1);
+        --ok-subtle: rgba(5, 150, 105, 0.06);
+        --ok-border: rgba(5, 150, 105, 0.34);
+        --warn: #b45309;
+        --warn-soft: rgba(217, 119, 6, 0.12);
+        --warn-border: rgba(217, 119, 6, 0.36);
+        --risk: #be123c;
+        --risk-soft: rgba(225, 29, 72, 0.1);
+        --risk-border: rgba(225, 29, 72, 0.34);
+        --purple: #6d28d9;
+        --purple-soft: rgba(109, 40, 217, 0.1);
+        --purple-border: rgba(109, 40, 217, 0.3);
         --teal: #0d9488;
         --teal-soft: rgba(13, 148, 136, 0.1);
+        --teal-border: rgba(13, 148, 136, 0.3);
+        --grid-dot: rgba(30, 41, 59, 0.12);
+
+        /* Re-evaluate legacy aliases against Field Desk Light tokens */
+        --bg-primary: var(--bg-app);
+        --bg-secondary: var(--bg-card);
+        --bg-tertiary: var(--bg-card-hover);
+        --success: var(--ok);
+        --success-soft: var(--ok-soft);
+        --warning: var(--warn);
+        --warning-soft: var(--warn-soft);
+        --danger: var(--risk);
+        --danger-soft: var(--risk-soft);
       }
 
       * {
@@ -82,7 +144,7 @@
       /* Top Bar */
       .top-bar {
         padding: 10px 12px 8px;
-        background: var(--bg-secondary);
+        background: var(--bg-surface);
         border-bottom: 1px solid var(--border);
         flex-shrink: 0;
       }
@@ -105,15 +167,15 @@
         width: 28px;
         height: 28px;
         border-radius: 8px;
-        background: linear-gradient(135deg, #38bdf8, #a78bfa);
-        color: #0b0f17;
+        background: linear-gradient(135deg, var(--accent), var(--purple));
+        color: var(--text-on-accent);
         font-weight: 800;
         font-size: 14px;
         display: flex;
         align-items: center;
         justify-content: center;
         flex-shrink: 0;
-        box-shadow: 0 2px 8px rgba(56, 189, 248, 0.25);
+        box-shadow: 0 2px 8px var(--accent-soft);
       }
 
       .brand-title {
@@ -162,14 +224,14 @@
       }
 
       .btn-primary {
-        background: linear-gradient(135deg, #0ea5e9, #6366f1);
-        border-color: #38bdf8;
-        color: #ffffff;
+        background: linear-gradient(135deg, var(--brand-sky), var(--brand-indigo));
+        border-color: var(--accent);
+        color: var(--white);
       }
 
       .btn-primary:hover {
         opacity: 0.94;
-        background: linear-gradient(135deg, #0ea5e9, #6366f1);
+        background: linear-gradient(135deg, var(--brand-sky), var(--brand-indigo));
       }
 
       .btn-success {
@@ -180,7 +242,7 @@
 
       .btn-success:hover {
         background: var(--success);
-        color: #0b0f17;
+        color: var(--text-on-accent);
       }
 
       /* Mode Switcher Row */
@@ -289,7 +351,7 @@
       /* Tabs */
       .tabs-nav {
         display: flex;
-        background: var(--bg-secondary);
+        background: var(--bg-surface);
         border-bottom: 1px solid var(--border);
         padding: 0 10px;
         gap: 4px;
@@ -373,37 +435,37 @@
       .pill-bug {
         background: var(--danger-soft);
         color: var(--danger);
-        border: 1px solid rgba(251, 113, 133, 0.35);
+        border: 1px solid var(--risk-border);
       }
 
       .pill-impl {
         background: var(--accent-soft);
         color: var(--accent);
-        border: 1px solid rgba(56, 189, 248, 0.35);
+        border: 1px solid var(--accent-border);
       }
 
       .pill-persona {
         background: var(--purple-soft);
         color: var(--purple);
-        border: 1px solid rgba(167, 139, 250, 0.35);
+        border: 1px solid var(--purple-border);
       }
 
       .pill-success {
         background: var(--success-soft);
         color: var(--success);
-        border: 1px solid rgba(52, 211, 153, 0.35);
+        border: 1px solid var(--ok-border);
       }
 
       .pill-warning {
         background: var(--warning-soft);
-        color: var(--warning);
-        border: 1px solid rgba(251, 191, 36, 0.35);
+        color: var(--warn);
+        border: 1px solid var(--warn-border);
       }
 
       .pill-teal {
         background: var(--teal-soft);
         color: var(--teal);
-        border: 1px solid rgba(45, 212, 191, 0.35);
+        border: 1px solid var(--teal-border);
       }
 
       .pill-clickable {
@@ -459,7 +521,7 @@
       }
 
       .diagram-stage {
-        background: var(--bg-primary);
+        background: var(--bg-elevated);
         border: 1px solid var(--border-subtle);
         border-radius: 8px;
         padding: 6px;
@@ -502,11 +564,11 @@
       }
 
       .file-badge.risk-high {
-        border-color: rgba(251, 113, 133, 0.55);
+        border-color: var(--risk-border);
       }
 
       .file-badge.risk-medium {
-        border-color: rgba(251, 191, 36, 0.45);
+        border-color: var(--warn-border);
       }
 
       .file-badge.selected {
@@ -733,8 +795,8 @@
       }
 
       .lesson-item.confirmed {
-        border-color: var(--success);
-        background: rgba(52, 211, 153, 0.05);
+        border-color: var(--ok-border);
+        background: var(--ok-subtle);
       }
 
       .lesson-title-row {
@@ -821,7 +883,7 @@
 
       /* Complex Explainer Tab (Rung 4) */
       .explainer-stage {
-        background: #070b12;
+        background: var(--explainer-stage-bg);
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 8px;
@@ -1198,11 +1260,141 @@
           window.parent.postMessage({ jsonrpc: "2.0", method, params: params || {} }, "*");
         }
 
+        const THEME_TOKEN_DEFAULTS = {
+          dark: {
+            bgApp: "#090d13",
+            bgSurface: "#101620",
+            bgPanel: "#121924",
+            bgCard: "#182130",
+            bgCardHover: "#1e293b",
+            bgElevated: "#0d131c",
+            border: "rgba(148, 163, 184, 0.14)",
+            borderStrong: "rgba(148, 163, 184, 0.28)",
+            borderSubtle: "#1e2738",
+            textPrimary: "#e7edf6",
+            textSecondary: "#9aa9be",
+            textMuted: "#69788e",
+            textOnAccent: "#06121e",
+            textOnWarn: "#140d00",
+            accent: "#38bdf8",
+            accentSoft: "rgba(56, 189, 248, 0.14)",
+            accentBorder: "rgba(56, 189, 248, 0.36)",
+            ok: "#34d399",
+            okSoft: "rgba(52, 211, 153, 0.13)",
+            okBorder: "rgba(52, 211, 153, 0.36)",
+            warn: "#fbbf24",
+            warnSoft: "rgba(251, 191, 36, 0.14)",
+            warnBorder: "rgba(251, 191, 36, 0.38)",
+            risk: "#fb7185",
+            riskSoft: "rgba(251, 113, 133, 0.14)",
+            riskBorder: "rgba(251, 113, 133, 0.38)",
+            purple: "#a78bfa",
+            teal: "#2dd4bf"
+          },
+          light: {
+            bgApp: "#efeae0",
+            bgSurface: "#f7f4ec",
+            bgPanel: "#fbf9f4",
+            bgCard: "#ffffff",
+            bgCardHover: "#f3efe6",
+            bgElevated: "#f1ece1",
+            border: "rgba(30, 41, 59, 0.12)",
+            borderStrong: "rgba(30, 41, 59, 0.24)",
+            borderSubtle: "#e2dcd0",
+            textPrimary: "#17202e",
+            textSecondary: "#4c5a6d",
+            textMuted: "#768396",
+            textOnAccent: "#06121e",
+            textOnWarn: "#140d00",
+            accent: "#0284c7",
+            accentSoft: "rgba(2, 132, 199, 0.1)",
+            accentBorder: "rgba(2, 132, 199, 0.34)",
+            ok: "#059669",
+            okSoft: "rgba(5, 150, 105, 0.1)",
+            okBorder: "rgba(5, 150, 105, 0.34)",
+            warn: "#b45309",
+            warnSoft: "rgba(217, 119, 6, 0.12)",
+            warnBorder: "rgba(217, 119, 6, 0.36)",
+            risk: "#be123c",
+            riskSoft: "rgba(225, 29, 72, 0.1)",
+            riskBorder: "rgba(225, 29, 72, 0.34)",
+            purple: "#6d28d9",
+            teal: "#0d9488"
+          }
+        };
+
+        function isLightThemeActive() {
+          const bodyLight = Boolean(
+            document.body && document.body.classList && document.body.classList.contains("theme-light")
+          );
+          const htmlTheme =
+            document.documentElement && typeof document.documentElement.getAttribute === "function"
+              ? document.documentElement.getAttribute("data-theme")
+              : null;
+          return bodyLight || htmlTheme === "light";
+        }
+
+        function resolveThemeTokens() {
+          const light = isLightThemeActive();
+          const fallback = light ? THEME_TOKEN_DEFAULTS.light : THEME_TOKEN_DEFAULTS.dark;
+          const bodyHasLight = Boolean(
+            document.body && document.body.classList && document.body.classList.contains("theme-light")
+          );
+          const targetEl = bodyHasLight ? document.body : document.documentElement;
+          let styles = null;
+          try {
+            if (typeof getComputedStyle === "function" && targetEl) {
+              styles = getComputedStyle(targetEl);
+            }
+          } catch {}
+          const readVar = (cssName, fb) => {
+            if (!styles || typeof styles.getPropertyValue !== "function") return fb;
+            const value = String(styles.getPropertyValue(cssName) || "").trim();
+            return value || fb;
+          };
+          return {
+            theme: light ? "light" : "dark",
+            bgApp: readVar("--bg-app", fallback.bgApp),
+            bgSurface: readVar("--bg-surface", fallback.bgSurface),
+            bgPanel: readVar("--bg-panel", fallback.bgPanel),
+            bgCard: readVar("--bg-card", fallback.bgCard),
+            bgCardHover: readVar("--bg-card-hover", fallback.bgCardHover),
+            bgElevated: readVar("--bg-elevated", fallback.bgElevated),
+            border: readVar("--border", fallback.border),
+            borderStrong: readVar("--border-strong", fallback.borderStrong),
+            borderSubtle: readVar("--border-subtle", fallback.borderSubtle),
+            textPrimary: readVar("--text-primary", fallback.textPrimary),
+            textSecondary: readVar("--text-secondary", fallback.textSecondary),
+            textMuted: readVar("--text-muted", fallback.textMuted),
+            textOnAccent: readVar("--text-on-accent", fallback.textOnAccent),
+            textOnWarn: readVar("--text-on-warn", fallback.textOnWarn),
+            accent: readVar("--accent", fallback.accent),
+            accentSoft: readVar("--accent-soft", fallback.accentSoft),
+            accentBorder: readVar("--accent-border", fallback.accentBorder),
+            ok: readVar("--ok", fallback.ok),
+            okSoft: readVar("--ok-soft", fallback.okSoft),
+            okBorder: readVar("--ok-border", fallback.okBorder),
+            warn: readVar("--warn", fallback.warn),
+            warnSoft: readVar("--warn-soft", fallback.warnSoft),
+            warnBorder: readVar("--warn-border", fallback.warnBorder),
+            risk: readVar("--risk", fallback.risk),
+            riskSoft: readVar("--risk-soft", fallback.riskSoft),
+            riskBorder: readVar("--risk-border", fallback.riskBorder),
+            purple: readVar("--purple", fallback.purple),
+            teal: readVar("--teal", fallback.teal)
+          };
+        }
+
         function applyHostTheme(theme) {
-          if (theme === "light") {
-            document.body.classList.add("theme-light");
-          } else {
-            document.body.classList.remove("theme-light");
+          const isLight = theme === "light";
+          if (document.body && document.body.classList) {
+            document.body.classList.toggle("theme-light", isLight);
+          }
+          if (document.documentElement && typeof document.documentElement.setAttribute === "function") {
+            document.documentElement.setAttribute("data-theme", isLight ? "light" : "dark");
+          }
+          if (currentState && currentState.currentDebrief) {
+            renderInteractiveDiagram(currentState.currentDebrief);
           }
         }
 
@@ -1349,6 +1541,7 @@
           const edges = Array.isArray(diagram.edges) ? diagram.edges : [];
           const svg = document.getElementById("diagramSvg");
           const files = Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [];
+          const tokens = resolveThemeTokens();
 
           document.getElementById("diagramTitleLabel").textContent =
             "🗺️ " + (diagram.title || "Component & Flow Diagram");
@@ -1357,7 +1550,7 @@
 
           if (nodes.length === 0) {
             svg.setAttribute("viewBox", "0 0 460 80");
-            svg.innerHTML = `<text x="230" y="45" text-anchor="middle" fill="#9ba7b8" font-size="12">Diagram pending…</text>`;
+            svg.innerHTML = `<text x="230" y="45" text-anchor="middle" fill="${escapeHtml(tokens.textSecondary)}" font-size="12">Diagram pending…</text>`;
             return;
           }
 
@@ -1391,7 +1584,7 @@
           let svgMarkup = `
             <defs>
               <marker id="vd-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-                <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8" />
+                <path d="M 0 1 L 10 5 L 0 9 z" fill="${escapeHtml(tokens.accent)}" />
               </marker>
             </defs>`;
 
@@ -1423,11 +1616,12 @@
 
             const mx = (x1 + x2) / 2;
             const my = (y1 + y2) / 2;
-            const edgeColor = e.risk === "high" ? "#fb7185" : e.risk === "medium" ? "#fbbf24" : "#38bdf8";
+            const edgeColor =
+              e.risk === "high" ? tokens.risk : e.risk === "medium" ? tokens.warn : tokens.accent;
 
-            svgMarkup += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${edgeColor}" stroke-width="1.8" marker-end="url(#vd-arrow)" />`;
-            svgMarkup += `<circle cx="${mx}" cy="${my}" r="8.5" fill="#0b0f17" stroke="${edgeColor}" stroke-width="1.5" />`;
-            svgMarkup += `<text x="${mx}" y="${my + 3.5}" text-anchor="middle" fill="#f0f6fc" font-size="9.5" font-weight="800">${escapeHtml(e.stepNumber || idx + 1)}</text>`;
+            svgMarkup += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${escapeHtml(edgeColor)}" stroke-width="1.8" marker-end="url(#vd-arrow)" />`;
+            svgMarkup += `<circle cx="${mx}" cy="${my}" r="8.5" fill="${escapeHtml(tokens.bgApp)}" stroke="${escapeHtml(edgeColor)}" stroke-width="1.5" />`;
+            svgMarkup += `<text x="${mx}" y="${my + 3.5}" text-anchor="middle" fill="${escapeHtml(tokens.textPrimary)}" font-size="9.5" font-weight="800">${escapeHtml(e.stepNumber || idx + 1)}</text>`;
           });
 
           // Render Nodes
@@ -1435,18 +1629,24 @@
             const p = pos[n.id];
             const isSelected = selectedNodeId === n.id;
             const riskColor =
-              n.risk === "high" ? "#fb7185" : n.risk === "medium" ? "#fbbf24" : n.status === "active" ? "#38bdf8" : "#34d399";
-            const fill = isSelected ? "rgba(56,189,248,0.16)" : "#131a26";
+              n.risk === "high"
+                ? tokens.risk
+                : n.risk === "medium"
+                  ? tokens.warn
+                  : n.status === "active"
+                    ? tokens.accent
+                    : tokens.ok;
+            const fill = isSelected ? tokens.accentSoft : tokens.bgCard;
             const strokeW = isSelected ? "2.4" : "1.5";
             const shortTitle = String(n.label || "").slice(0, cols === 3 ? 16 : 22);
             const shortSub = String(n.sublabel || n.role || "").slice(0, cols === 3 ? 18 : 26);
 
             svgMarkup += `
               <g class="diagram-node-group" data-node-id="${escapeHtml(n.id)}">
-                <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${fill}" stroke="${riskColor}" stroke-width="${strokeW}" />
-                <text x="${p.x + 9}" y="${p.y + 20}" fill="#f0f6fc" font-size="11.2" font-weight="800">${escapeHtml(shortTitle)}</text>
-                <text x="${p.x + 9}" y="${p.y + 35}" fill="#9ba7b8" font-size="9.8">${escapeHtml(shortSub)}</text>
-                <text x="${p.x + 9}" y="${p.y + 49}" fill="${riskColor}" font-size="8.8" font-weight="700">${escapeHtml((n.risk || "low").toUpperCase())}${n.file ? " · FILE" : ""}</text>
+                <rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" rx="8" fill="${escapeHtml(fill)}" stroke="${escapeHtml(riskColor)}" stroke-width="${strokeW}" />
+                <text x="${p.x + 9}" y="${p.y + 20}" fill="${escapeHtml(tokens.textPrimary)}" font-size="11.2" font-weight="800">${escapeHtml(shortTitle)}</text>
+                <text x="${p.x + 9}" y="${p.y + 35}" fill="${escapeHtml(tokens.textSecondary)}" font-size="9.8">${escapeHtml(shortSub)}</text>
+                <text x="${p.x + 9}" y="${p.y + 49}" fill="${escapeHtml(riskColor)}" font-size="8.8" font-weight="700">${escapeHtml((n.risk || "low").toUpperCase())}${n.file ? " · FILE" : ""}</text>
               </g>`;
           });
 
@@ -2217,11 +2417,11 @@
               },
               protocolVersion: PROTOCOL_VERSION
             });
-            if (res && res.hostContext && res.hostContext.theme) {
-              applyHostTheme(res.hostContext.theme);
-            }
+            const theme = res && res.hostContext && res.hostContext.theme ? res.hostContext.theme : "dark";
+            applyHostTheme(theme);
             sendRpcNotification("ui/notifications/initialized", {});
           } catch (err) {
+            applyHostTheme("dark");
             console.warn("Vibe Debrief standalone/init fallback:", err);
           }
           await refreshState();
