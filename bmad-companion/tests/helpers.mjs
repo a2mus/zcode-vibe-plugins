@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,7 +38,7 @@ export function createTempWorkspace({ prefix = "bmad-companion-ws-", files = {} 
       return existsSync(join(root, relativePath));
     },
     cleanup() {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
     }
   };
 
@@ -46,6 +47,43 @@ export function createTempWorkspace({ prefix = "bmad-companion-ws-", files = {} 
   }
 
   return workspace;
+}
+
+/**
+ * Track disposable temp workspaces within a suite and remove them in LIFO
+ * order during afterEach teardown, re-throwing the first error only after all
+ * remaining cleanups run.
+ */
+export function createTempWorkspaceTracker(registerAfterEach) {
+  const tracked = [];
+  const tracker = {
+    create(options) {
+      const workspace = createTempWorkspace(options);
+      tracked.push(workspace);
+      return workspace;
+    },
+    seed(workspaceOptions, seedOptions) {
+      return seedBmadWorkspace(tracker.create(workspaceOptions), seedOptions);
+    },
+    cleanup() {
+      let firstError = null;
+      while (tracked.length > 0) {
+        const workspace = tracked.pop();
+        try {
+          workspace.cleanup();
+        } catch (err) {
+          if (!firstError) firstError = err;
+        }
+      }
+      if (firstError) throw firstError;
+    }
+  };
+
+  if (typeof registerAfterEach === "function") {
+    registerAfterEach(() => tracker.cleanup());
+  }
+
+  return tracker;
 }
 
 /**
@@ -213,7 +251,7 @@ export function readJsonFile(filePath) {
  */
 export function runNodeProcess(
   scriptPath,
-  { args = [], cwd = REPO_ROOT, env = {}, stdin = "", keepStdinOpen = false, timeoutMs = 5000 } = {}
+  { nodeArgs = [], args = [], cwd = REPO_ROOT, env = {}, stdin = "", keepStdinOpen = false, timeoutMs = 5000 } = {}
 ) {
   return new Promise((resolvePromise, rejectPromise) => {
     let settled = false;
@@ -225,7 +263,7 @@ export function runNodeProcess(
       Object.entries({ ...process.env, ...env }).filter(([, value]) => value !== undefined)
     );
 
-    const child = spawn(process.execPath, [scriptPath, ...args], {
+    const child = spawn(process.execPath, [...nodeArgs, scriptPath, ...args], {
       cwd,
       env: mergedEnv,
       windowsHide: true,
@@ -386,4 +424,135 @@ export async function runMcpServer({
     responses,
     parseError
   };
+}
+
+/**
+ * Run `node --check <scriptPath>` via runNodeProcess.
+ */
+export function runNodeSyntaxCheck(scriptPath, options = {}) {
+  return runNodeProcess(scriptPath, {
+    ...options,
+    nodeArgs: ["--check", ...(options.nodeArgs || [])]
+  });
+}
+
+/**
+ * Spawn scripts/hook-runner.mjs for one hook mode against an isolated temp
+ * workspace. Strips CLAUDE_SESSION_ID, ZCODE_SESSION_ID, OPENAI_API_KEY, and
+ * BMAD_COMPANION_OPENAI_KEY unless explicitly overridden in env.
+ */
+export async function runHookRunner({
+  workspaceRoot,
+  cwd,
+  mode,
+  payload = {},
+  stdin,
+  env = {},
+  timeoutMs = 5000
+} = {}) {
+  const isolatedRoot = resolve(workspaceRoot || cwd || tmpdir());
+  const resolvedCwd = resolve(cwd || isolatedRoot);
+  const input =
+    stdin !== undefined ? stdin : JSON.stringify({ cwd: isolatedRoot, ...(payload ?? {}) });
+
+  const result = await runNodeProcess(HOOK_RUNNER_PATH, {
+    args: mode !== undefined ? [String(mode)] : [],
+    cwd: resolvedCwd,
+    env: {
+      ZCODE_WORKSPACE_ROOT: isolatedRoot,
+      ZCODE_PROJECT_DIR: isolatedRoot,
+      CLAUDE_PROJECT_DIR: isolatedRoot,
+      ZCODE_SESSION_ID: undefined,
+      CLAUDE_SESSION_ID: undefined,
+      OPENAI_API_KEY: undefined,
+      BMAD_COMPANION_OPENAI_KEY: undefined,
+      ...env
+    },
+    stdin: input,
+    timeoutMs
+  });
+
+  const lines = splitLines(result.stdout);
+  let frames = [];
+  let parseError = null;
+  try {
+    frames = parseJsonLines(result.stdout);
+  } catch (err) {
+    parseError = err;
+  }
+
+  return {
+    ...result,
+    lines,
+    frames,
+    parseError
+  };
+}
+
+/**
+ * Assert clean exit 0, empty stderr, LF-only JSON-lines stdout (no CRLF or
+ * blank lines), and return parsed JSON frames.
+ */
+export function assertCleanJsonLinesStdout(res) {
+  assert.equal(res.code, 0, `expected exit code 0, got ${res.code} (stderr=${res.stderr})`);
+  assert.equal(res.stderr, "", `expected empty stderr, got: ${res.stderr}`);
+  assert.equal(res.stdout.includes("\r"), false, "stdout must use LF only (no CRLF)");
+
+  if ("parseError" in res) {
+    assert.equal(res.parseError, null, res.parseError?.message);
+  }
+
+  const lines = Array.isArray(res.lines) ? res.lines : splitLines(res.stdout);
+  if (lines.length > 0) {
+    assert.equal(res.stdout.endsWith("\n"), true, "non-empty stdout must end with LF");
+    assert.ok(
+      lines.every((line) => line.length > 0),
+      "stdout must not contain blank lines"
+    );
+  }
+
+  if (Array.isArray(res.frames)) return res.frames;
+  if (Array.isArray(res.responses)) return res.responses;
+  return parseJsonLines(res.stdout);
+}
+
+/**
+ * Assert strict single JSON object stdout: clean exit, empty stderr, LF-only
+ * single non-blank line parsing as a non-null, non-array object.
+ */
+export function assertSingleJsonObjectStdout(res) {
+  const frames = assertCleanJsonLinesStdout(res);
+  const lines = Array.isArray(res.lines) ? res.lines : splitLines(res.stdout);
+  assert.equal(res.stdout.endsWith("\n"), true, "stdout must end with LF");
+  assert.equal(
+    lines.length,
+    1,
+    `expected exactly one stdout line, got ${lines.length}: ${JSON.stringify(res.stdout)}`
+  );
+  assert.ok(lines[0].length > 0, "stdout line must not be blank");
+  assert.equal(frames.length, 1);
+
+  const frame = frames[0];
+  assert.equal(typeof frame, "object");
+  assert.ok(frame !== null && !Array.isArray(frame), "stdout JSON must be a non-null, non-array object");
+  return frame;
+}
+
+/**
+ * Assert strict JSON-RPC 2.0 stdout isolation and return parsed response frames.
+ */
+export function assertStrictJsonRpcStdout(res) {
+  const frames = assertCleanJsonLinesStdout(res);
+  for (const frame of frames) {
+    assert.equal(typeof frame, "object");
+    assert.ok(frame !== null);
+    assert.equal(frame.jsonrpc, "2.0");
+    assert.ok(frame.id !== undefined && frame.id !== null, "response frame must include id");
+    assert.notEqual(
+      "result" in frame,
+      "error" in frame,
+      "JSON-RPC 2.0 response must contain result xor error"
+    );
+  }
+  return frames;
 }

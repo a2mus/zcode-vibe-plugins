@@ -9,27 +9,13 @@ import {
   savePersistedState
 } from "../scripts/bmad-engine.mjs";
 import {
-  HOOK_RUNNER_PATH,
-  createTempWorkspace,
-  parseJsonLines,
+  assertSingleJsonObjectStdout,
+  createTempWorkspaceTracker,
   readJsonFile,
-  runNodeProcess,
-  seedBmadWorkspace
+  runHookRunner
 } from "./helpers.mjs";
 
-const workspaces = [];
-
-function trackWorkspace(options) {
-  const ws = createTempWorkspace(options);
-  workspaces.push(ws);
-  return ws;
-}
-
-afterEach(() => {
-  while (workspaces.length > 0) {
-    workspaces.pop().cleanup();
-  }
-});
+const workspaces = createTempWorkspaceTracker(afterEach);
 
 function addTwoTasks(ws, executionMode = "separate-sessions") {
   return manageBmadTaskQueue(ws.root, {
@@ -52,25 +38,9 @@ function addTwoTasks(ws, executionMode = "separate-sessions") {
   });
 }
 
-function runStopHook(ws, assistantMessage, extraEnv = {}) {
-  return runNodeProcess(HOOK_RUNNER_PATH, {
-    args: ["stop"],
-    cwd: ws.root,
-    env: {
-      ZCODE_PROJECT_DIR: ws.root,
-      CLAUDE_PROJECT_DIR: ws.root,
-      CLAUDE_SESSION_ID: undefined,
-      OPENAI_API_KEY: undefined,
-      BMAD_COMPANION_OPENAI_API_KEY: undefined,
-      ...extraEnv
-    },
-    stdin: JSON.stringify({ cwd: ws.root, last_assistant_message: assistantMessage })
-  });
-}
-
-describe("BMAD queue handoff chain", () => {
+describe("bmad-companion queue handoff chain", () => {
   it("keeps the next task queued until start-task claims it with a sessionId", () => {
-    const ws = seedBmadWorkspace(trackWorkspace());
+    const ws = workspaces.seed();
     const added = addTwoTasks(ws);
     const [first, second] = added.taskQueue.items;
 
@@ -114,7 +84,7 @@ describe("BMAD queue handoff chain", () => {
   });
 
   it("separate-sessions plan starts only the first task and hands off by sessionId", () => {
-    const ws = seedBmadWorkspace(trackWorkspace());
+    const ws = workspaces.seed();
     const added = addTwoTasks(ws);
     const [first, second] = added.taskQueue.items;
 
@@ -138,7 +108,7 @@ describe("BMAD queue handoff chain", () => {
   });
 
   it("Stop hook completes the active task and hands off to the next queued task", async () => {
-    const ws = seedBmadWorkspace(trackWorkspace());
+    const ws = workspaces.seed();
     const added = addTwoTasks(ws);
     const [first, second] = added.taskQueue.items;
 
@@ -146,14 +116,13 @@ describe("BMAD queue handoff chain", () => {
     manageBmadTaskQueue(ws.root, { action: "start-task", taskId: first.id, sessionId: "sess_unit_1" });
     savePersistedState(ws.root, { lastUserPrompt: first.effectivePrompt });
 
-    const res = await runStopHook(ws, "Implemented the atomic tracer and verified the suite.", {
-      CLAUDE_SESSION_ID: "sess_unit_1"
+    const res = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "Implemented the atomic tracer and verified the suite." },
+      env: { CLAUDE_SESSION_ID: "sess_unit_1" }
     });
-    assert.equal(res.code, 0, `stop hook must exit 0 (stderr=${res.stderr})`);
-
-    const frames = parseJsonLines(res.stdout);
-    assert.equal(frames.length, 1, "stop hook must emit exactly one JSON frame");
-    const frame = frames[0];
+    const frame = assertSingleJsonObjectStdout(res);
     assert.equal(frame.decision, "block", "stop hook must request continuation");
     assert.ok(String(frame.reason).includes("queue continuation"));
     assert.ok(String(frame.reason).includes(second.id), "continuation must target the next task");
@@ -168,7 +137,7 @@ describe("BMAD queue handoff chain", () => {
   });
 
   it("Stop hook ignores a task owned by another session", async () => {
-    const ws = seedBmadWorkspace(trackWorkspace());
+    const ws = workspaces.seed();
     const added = addTwoTasks(ws);
     const [first] = added.taskQueue.items;
 
@@ -176,12 +145,14 @@ describe("BMAD queue handoff chain", () => {
     manageBmadTaskQueue(ws.root, { action: "start-task", taskId: first.id, sessionId: "sess_owner" });
     savePersistedState(ws.root, { lastUserPrompt: first.effectivePrompt });
 
-    const res = await runStopHook(ws, "Unrelated turn in a sibling session.", {
-      CLAUDE_SESSION_ID: "sess_intruder"
+    const res = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "Unrelated turn in a sibling session." },
+      env: { CLAUDE_SESSION_ID: "sess_intruder" }
     });
-    const frames = parseJsonLines(res.stdout);
-    assert.equal(frames.length, 1);
-    assert.deepEqual(frames[0], {}, "a non-owning session must not complete or advance the task");
+    const frame = assertSingleJsonObjectStdout(res);
+    assert.deepEqual(frame, {}, "a non-owning session must not complete or advance the task");
 
     const state = readJsonFile(ws.statePath);
     assert.equal(
@@ -192,7 +163,7 @@ describe("BMAD queue handoff chain", () => {
   });
 
   it("Stop hook does not hand off a dynamic-workflow queue", async () => {
-    const ws = seedBmadWorkspace(trackWorkspace());
+    const ws = workspaces.seed();
     const added = addTwoTasks(ws, "dynamic-workflow");
     const [first, second] = added.taskQueue.items;
 
@@ -200,10 +171,13 @@ describe("BMAD queue handoff chain", () => {
     manageBmadTaskQueue(ws.root, { action: "start-task", taskId: first.id });
     savePersistedState(ws.root, { lastUserPrompt: first.effectivePrompt });
 
-    const res = await runStopHook(ws, "Implemented the atomic tracer.");
-    const frames = parseJsonLines(res.stdout);
-    assert.equal(frames.length, 1);
-    assert.deepEqual(frames[0], {}, "dynamic-workflow queues must not start session handoffs");
+    const res = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "Implemented the atomic tracer." }
+    });
+    const frame = assertSingleJsonObjectStdout(res);
+    assert.deepEqual(frame, {}, "dynamic-workflow queues must not start session handoffs");
 
     const state = readJsonFile(ws.statePath);
     assert.equal(state.taskQueue.items.find((it) => it.id === second.id).status, "queued");

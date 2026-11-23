@@ -1,31 +1,17 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 
 import { checkVersionSync } from "../scripts/check-version-sync.mjs";
 import {
   CHECK_VERSION_SYNC_PATH,
   REPO_ROOT,
-  createTempWorkspace,
-  runNodeProcess
+  createTempWorkspaceTracker,
+  runNodeProcess,
+  runNodeSyntaxCheck
 } from "./helpers.mjs";
 
-const workspaces = [];
-
-function trackWorkspace(options) {
-  const ws = createTempWorkspace(options);
-  workspaces.push(ws);
-  return ws;
-}
-
-afterEach(() => {
-  while (workspaces.length > 0) {
-    try {
-      workspaces.pop().cleanup();
-    } catch {}
-  }
-});
+const workspaces = createTempWorkspaceTracker(afterEach);
 
 function seedVersionFixture({
   pluginName = "bmad-companion",
@@ -39,7 +25,7 @@ function seedVersionFixture({
   invalidPluginJson = false,
   invalidMcpServer = false
 } = {}) {
-  const ws = trackWorkspace({ prefix: "bmad-version-sync-ws-" });
+  const ws = workspaces.create({ prefix: "bmad-version-sync-ws-" });
 
   if (!omitMarketplaceJson) {
     ws.write(
@@ -104,9 +90,7 @@ function seedVersionFixture({
 describe("bmad-companion version tri-sync gate", () => {
   it("checkVersionSync script exists and passes syntax validation", async () => {
     assert.equal(existsSync(CHECK_VERSION_SYNC_PATH), true);
-    const result = await runNodeProcess("--check", {
-      args: [CHECK_VERSION_SYNC_PATH]
-    });
+    const result = await runNodeSyntaxCheck(CHECK_VERSION_SYNC_PATH);
     assert.equal(result.ok, true);
     assert.equal(result.code, 0);
   });

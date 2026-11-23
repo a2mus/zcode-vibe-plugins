@@ -7,56 +7,14 @@ import {
   MCP_SERVER_PATH,
   PANEL_HTML_PATH,
   REPO_ROOT,
-  createTempWorkspace,
+  assertStrictJsonRpcStdout,
+  createTempWorkspaceTracker,
   readJsonFile,
   runMcpServer,
   runNodeProcess
 } from "./helpers.mjs";
 
-const workspaces = [];
-
-function trackWorkspace(options) {
-  const ws = createTempWorkspace(options);
-  workspaces.push(ws);
-  return ws;
-}
-
-afterEach(() => {
-  while (workspaces.length > 0) {
-    workspaces.pop().cleanup();
-  }
-});
-
-/**
- * Verify strict JSON-RPC 2.0 stdout isolation: clean exit, empty stderr,
- * LF-only lines (no CRLF, no blank lines), and valid JSON-RPC 2.0 frames.
- */
-function assertStrictJsonRpcStdout(res) {
-  assert.equal(res.code, 0, `expected exit code 0, got ${res.code} (stderr=${res.stderr})`);
-  assert.equal(res.stderr, "", `expected empty stderr, got: ${res.stderr}`);
-  assert.equal(res.stdout.includes("\r"), false, "stdout must use LF only (no CRLF)");
-  assert.equal(res.parseError, null, res.parseError?.message);
-
-  if (res.lines.length > 0) {
-    assert.equal(res.stdout.endsWith("\n"), true, "non-empty stdout must end with LF");
-    assert.ok(
-      res.lines.every((line) => line.length > 0),
-      "stdout must not contain blank lines"
-    );
-  }
-
-  for (const frame of res.responses) {
-    assert.equal(typeof frame, "object");
-    assert.ok(frame !== null);
-    assert.equal(frame.jsonrpc, "2.0");
-    assert.ok(frame.id !== undefined && frame.id !== null, "response frame must include id");
-    assert.notEqual(
-      "result" in frame,
-      "error" in frame,
-      "JSON-RPC 2.0 response must contain result xor error"
-    );
-  }
-}
+const workspaces = createTempWorkspaceTracker(afterEach);
 
 const EXPECTED_TOOLS = [
   "bmad_open_companion",
@@ -72,7 +30,7 @@ const EXPECTED_TOOLS = [
 
 describe("bmad-companion MCP stdio transport smoke harness", () => {
   it("completes initialize, ping, tools/list, resources/list, and resources/templates/list in order", async () => {
-    const ws = trackWorkspace();
+    const ws = workspaces.create();
     const pluginManifest = readJsonFile(join(REPO_ROOT, ".zcode-plugin", "plugin.json"));
 
     const res = await runMcpServer({
@@ -148,7 +106,7 @@ describe("bmad-companion MCP stdio transport smoke harness", () => {
   });
 
   it("falls back to protocolVersion 2025-11-25 when initialize omits params.protocolVersion", async () => {
-    const ws = trackWorkspace();
+    const ws = workspaces.create();
 
     const res = await runMcpServer({
       workspaceRoot: ws.root,
@@ -161,7 +119,7 @@ describe("bmad-companion MCP stdio transport smoke harness", () => {
   });
 
   it("serves assets/panel.html verbatim on resources/read with MCP App MIME and CSP metadata", async () => {
-    const ws = trackWorkspace();
+    const ws = workspaces.create();
     const expectedHtml = readFileSync(PANEL_HTML_PATH, "utf8");
 
     const res = await runMcpServer({
@@ -190,7 +148,7 @@ describe("bmad-companion MCP stdio transport smoke harness", () => {
   });
 
   it("ignores notifications and malformed JSON, emits -32602/-32601 errors, and stays alive", async () => {
-    const ws = trackWorkspace();
+    const ws = workspaces.create();
 
     const res = await runMcpServer({
       workspaceRoot: ws.root,
@@ -230,7 +188,7 @@ describe("bmad-companion MCP stdio transport smoke harness", () => {
   });
 
   it("kills a non-exiting child and rejects with diagnostic stdout/stderr when timeoutMs expires", async () => {
-    const ws = trackWorkspace();
+    const ws = workspaces.create();
 
     await assert.rejects(
       () =>

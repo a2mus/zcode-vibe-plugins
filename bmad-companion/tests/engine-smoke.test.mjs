@@ -4,21 +4,9 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { scanBmadWorkspace } from "../scripts/bmad-engine.mjs";
-import { REPO_ROOT, createTempWorkspace, seedBmadWorkspace } from "./helpers.mjs";
+import { REPO_ROOT, createTempWorkspaceTracker } from "./helpers.mjs";
 
-const workspaces = [];
-
-function trackWorkspace(options) {
-  const ws = createTempWorkspace(options);
-  workspaces.push(ws);
-  return ws;
-}
-
-afterEach(() => {
-  while (workspaces.length > 0) {
-    workspaces.pop().cleanup();
-  }
-});
+const workspaces = createTempWorkspaceTracker(afterEach);
 
 describe("bmad-companion engine smoke tracer", () => {
   it("keeps zero npm dependencies (no package.json at plugin root)", () => {
@@ -26,7 +14,7 @@ describe("bmad-companion engine smoke tracer", () => {
   });
 
   it("scans a seeded v7 + sprint-status temp workspace into a valid ScanResult", () => {
-    const workspace = seedBmadWorkspace(trackWorkspace());
+    const workspace = workspaces.seed();
 
     const result = scanBmadWorkspace(workspace.root);
 
@@ -80,7 +68,7 @@ describe("bmad-companion engine smoke tracer", () => {
   });
 
   it("falls back to v6 sprint-status.yaml when no v7 initiative directory exists", () => {
-    const workspace = trackWorkspace({
+    const workspace = workspaces.create({
       files: {
         "_bmad-output/implementation-artifacts/sprint-status.yaml": [
           "development_status:",
