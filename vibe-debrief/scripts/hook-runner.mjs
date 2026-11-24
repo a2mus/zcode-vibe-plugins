@@ -44,7 +44,7 @@ async function tryOptionalAiDebriefSynthesis(workspaceRoot, promptText, assistan
       '  "responseType": "bug" | "implementation",',
       '  "tldrHeadline": "1 short active sentence takeaway",',
       '  "realWorldAnalogy": "1-2 crisp sentences everyday visual analogy",',
-      '  "diagram": { "diagramType": "architecture" | "sequence" | "state-flow" | "cause-effect", "title": "...", "nodes": [{ "id": "n1", "label": "...", "sublabel": "...", "role": "...", "file": "...", "risk": "low"|"medium"|"high", "status": "done"|"active"|"warning" }], "edges": [{ "from": "n1", "to": "n2", "stepNumber": 1, "label": "...", "risk": "low"|"medium"|"high" }] },',
+      '  "diagram": { "diagramType": "sequence" | "flow-diff" | "subway-map" | "before-after" | "decision-tree", "title": "...", "nodes": [{ "id": "n1", "label": "...", "sublabel": "...", "role": "...", "file": "...", "risk": "low"|"medium"|"high", "status": "done"|"active"|"warning" }], "edges": [{ "from": "n1", "to": "n2", "stepNumber": 1, "label": "...", "risk": "low"|"medium"|"high" }] },',
       '  "bugReport": { "cause": "...", "plan": "...", "succeeded": "yes"|"partial"|"no", "successSummary": "...", "consequences": "..." },',
       '  "implementationReport": { "objective": "...", "planAndWhy": "...", "result": "...", "consequences": "..." },',
       '  "proofClaims": [{ "claim": "...", "evidence": "...", "status": "verified"|"inferred"|"unverified" }],',
@@ -106,7 +106,7 @@ async function main() {
     const lightGemini = discoverLightweightGeminiModels()[0]?.id || "new-provider/gemini-3.8-flash";
 
     const additionalContext = [
-      `[Vibe Debrief v0.3.0 (Karpathy Comprehension Panel) Active — Persona: ${persona.name} (${persona.badge}), STE-80: ${state.ste100Enabled !== false ? "ON" : "OFF"}]`,
+      `[Vibe Debrief v0.4.0 (Karpathy Comprehension Panel) Active — Persona: ${persona.name} (${persona.badge}), STE-80: ${state.ste100Enabled !== false ? "ON" : "OFF"}]`,
       `Reading-Boundary Principle: Reason and code normally during tasks; apply comprehension formatting only when publishing to \`vibe_debrief_publish\`.`,
       `Cost-Aware Smart Action Rule: Preferred lightweight Gemini model for ELI5 smart actions is \`${lightGemini}\`. Never spend expensive flagship models (\`opus\` / \`sonnet\`) on simple Vibe Debrief refresh/summarization tasks when \`CreateSession\` can delegate them to \`${lightGemini}\`.`,
       `- After answering a bug/error or completing an implementation (or whenever asked to simplify / explain), call \`vibe_debrief_publish\` with:`,

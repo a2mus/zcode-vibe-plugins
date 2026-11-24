@@ -52,7 +52,11 @@ describe("bmad-companion engine smoke tracer", () => {
     assert.equal(result.epics[0].stories[0].declaredStatus, "backlog");
     assert.equal(result.epics[0].stories[0].smartStatus, "done");
     assert.equal(result.epics[0].stories[0].aiReconciled, true);
+    assert.ok(result.epics[0].stories[0].smartReason);
+    assert.equal(typeof result.epics[0].stories[0].smartReason, "string");
+    assert.equal(result.epics[0].stories[0].smartReason, result.epics[0].stories[0].smartEvidence);
     assert.equal(result.epics[0].stories[1].smartStatus, "in-progress");
+    assert.equal(result.epics[0].stories[1].smartReason, null);
 
     // Artifacts contract
     assert.ok(Array.isArray(result.artifacts));

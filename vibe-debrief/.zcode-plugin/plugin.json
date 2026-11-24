@@ -1,6 +1,6 @@
 {
   "name": "vibe-debrief",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Comprehension-first right-side panel for vibe-coders: fuses 80% STE-100 clarity, always-on interactive SVG diagrams, inline proof & uncertainty checks, standalone HTML export, complex-only 3b1b animated explainers, and 1-click ZCode Memory saving.",
   "description_i18n": {
     "en": "Comprehension-first right-side panel for vibe-coders: fuses 80% STE-100 clarity, always-on interactive SVG diagrams, inline proof & uncertainty checks, standalone HTML export, complex-only 3b1b animated explainers, and 1-click ZCode Memory saving.",

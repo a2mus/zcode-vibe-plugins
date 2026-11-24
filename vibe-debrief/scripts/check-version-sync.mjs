@@ -27,7 +27,7 @@ export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SEMVER_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 /**
- * The four canonical version locations (AGENTS.md §5 "Version Synchronization").
+ * The four canonical version locations (AGENTS.md ## Policy "Version Synchronization").
  * Each extractor receives the file text and returns the declared version string
  * or null when the declaration cannot be found.
  */

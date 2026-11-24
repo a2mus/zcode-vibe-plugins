@@ -12,7 +12,10 @@ import {
   buildExplainerScenesIfComplex,
   buildFullPanelState,
   buildPlainTextScript,
+  buildStage2FallbackColumns,
+  buildXrayDualCodedMarkup,
   classifyFileRole,
+  collectXrayTechTokens,
   computeSte100Metrics,
   confirmAndSaveLessonToZCodeMemory,
   detectResponseType,
@@ -30,6 +33,7 @@ import {
   normalizeVerdict,
   normalizeWaitingOnYou,
   normalizeXray,
+  renderXrayTechHtml,
   resolveDiagramGrammar,
   savePersistedState,
   saveStandaloneHtmlArtifact,
@@ -1316,7 +1320,9 @@ describe("standalone HTML export theme parity", () => {
   it("renders the export SVG from resolved Dark HUD tokens under dark mode", () => {
     const { elements } = renderArtifactScript(buildThemedArtifact(), { theme: "dark" });
     const svg = elements.get("diagramSvg").innerHTML;
-    for (const expected of ["#38bdf8", "#182130", "#121924", "#e7edf6", "#9aa9be", "#fb7185", "#fbbf24", "#34d399"]) {
+    // Story 6.6: the 5-grammar builder (panel parity) fills step badges and
+    // station dots with --bg-app instead of the legacy single-row --bg-panel.
+    for (const expected of ["#38bdf8", "#182130", "#090d13", "#e7edf6", "#9aa9be", "#fb7185", "#fbbf24", "#34d399"]) {
       assert.ok(svg.includes(expected), `dark export SVG must use token ${expected}`);
     }
     for (const literal of LIGHT_ONLY) {
@@ -1327,7 +1333,7 @@ describe("standalone HTML export theme parity", () => {
   it("renders the export SVG from resolved Field Desk Light tokens under light mode", () => {
     const { elements } = renderArtifactScript(buildThemedArtifact(), { theme: "light" });
     const svg = elements.get("diagramSvg").innerHTML;
-    for (const expected of ["#0284c7", "#ffffff", "#fbf9f4", "#17202e", "#4c5a6d", "#be123c", "#b45309", "#059669"]) {
+    for (const expected of ["#0284c7", "#ffffff", "#efeae0", "#17202e", "#4c5a6d", "#be123c", "#b45309", "#059669"]) {
       assert.ok(svg.includes(expected), `light export SVG must use token ${expected}`);
     }
     for (const literal of DARK_ONLY) {
@@ -2824,5 +2830,198 @@ describe("zero-dependency engine guarantees", () => {
   it("never reads stdin or writes stdout from the Core Engine", () => {
     const engineSource = readFileSync(ENGINE_PATH, "utf8");
     assert.equal(/process\.stdout|process\.stdin|console\.log/.test(engineSource), false);
+  });
+});
+
+describe("Story 6.3 — X-Ray dual-coding helpers (panel/export handoff)", () => {
+  it("collects symbols, paths, commands, exit codes and touched files without duplicates", () => {
+    const tokens = collectXrayTechTokens({
+      xray: {
+        tech: {
+          symbols: ["retryWebhook", "MAX_RETRIES"],
+          paths: ["src/webhook.mjs"],
+          commands: ["node --test tests/webhook.test.mjs"],
+          exitCodes: [0, 1]
+        }
+      },
+      touchedFiles: [
+        { path: "src/webhook.mjs", shortName: "webhook.mjs" },
+        "src/limiter.mjs",
+        { shortName: "webhook.mjs" }
+      ]
+    });
+
+    assert.deepEqual(tokens, [
+      "retryWebhook",
+      "MAX_RETRIES",
+      "src/webhook.mjs",
+      "node --test tests/webhook.test.mjs",
+      "exit 0",
+      "exit 1",
+      "src/limiter.mjs",
+      "webhook.mjs"
+    ]);
+  });
+
+  it("escapes raw X-Ray text before wrapping .sym badges (C8)", () => {
+    const markup = buildXrayDualCodedMarkup({
+      plain: "Fish & <chips>",
+      tech: `retryWebhook in src/webhook.mjs </span><script>alert(1)</script>`,
+      tokens: ["retryWebhook", "src/webhook.mjs", "</span><script>alert(1)</script>"]
+    });
+
+    assert.equal(/<script\b/i.test(markup), false);
+    assert.equal(/<\/span><script>/i.test(markup), false);
+    assert.match(markup, /<span class="xray-plain">Fish &amp; &lt;chips&gt;<\/span>/);
+    assert.match(markup, /<span class="sym">retryWebhook<\/span>/);
+    assert.match(markup, /<span class="sym">src\/webhook\.mjs<\/span>/);
+    assert.match(
+      markup,
+      /<span class="sym">&lt;\/span&gt;&lt;script&gt;alert\(1\)&lt;\/script&gt;<\/span>/
+    );
+  });
+
+  it("falls back to the plain representation when Tech text is absent", () => {
+    assert.equal(
+      renderXrayTechHtml("Only plain text.", [], {}),
+      "Only plain text.",
+      "Tech falls back to escaped plain text when no tokens are supplied"
+    );
+    assert.equal(
+      renderXrayTechHtml("Only plain <text>.", []),
+      "Only plain &lt;text&gt;."
+    );
+  });
+
+  it("pre-binds both representations in the standalone export headline", () => {
+    const html = generateStandaloneHtmlArtifact(
+      buildPanelStateFixture({
+        debrief: {
+          tldrHeadline: "Guard the retry path.",
+          touchedFiles: [{ path: "src/webhook.mjs", shortName: "webhook.mjs" }],
+          xray: {
+            plain: { headline: "Guard the retry path." },
+            tech: {
+              headline: "Guard retryWebhook in src/webhook.mjs",
+              symbols: ["retryWebhook"],
+              paths: ["src/webhook.mjs"]
+            }
+          }
+        }
+      })
+    );
+
+    assert.match(html, /<body data-xray-mode="plain">/);
+    assert.match(
+      html,
+      /<h1[^>]*><span class="xray-dual"><span class="xray-plain">Guard the retry path\.<\/span>/
+    );
+    assert.match(html, /<span class="sym">retryWebhook<\/span>/);
+    assert.match(html, /<span class="sym">src\/webhook\.mjs<\/span>/);
+    assert.match(html, /body\[data-xray-mode="tech"\] \.xray-dual > \.xray-tech \{ display:inline; \}/);
+  });
+});
+
+// ============================================================================
+// Story 7.3 — Stage 2 fallback column synthesis & export options pass-through
+// ============================================================================
+
+describe("Story 7.3 — buildStage2FallbackColumns", () => {
+  it("prefers the matched concept stage2 over debrief synthesis", () => {
+    const debrief = {
+      responseType: "implementation",
+      implementationReport: { planAndWhy: "Plan text.", result: "Result text.", consequences: "Impact text." }
+    };
+    const concept = {
+      stage2: { howItWorks: "Concept how.", keyTradeOff: "Concept trade.", inYourCodebase: "Concept code." }
+    };
+    assert.deepEqual(buildStage2FallbackColumns(debrief, concept), {
+      howItWorks: "Concept how.",
+      keyTradeOff: "Concept trade.",
+      inYourCodebase: "Concept code."
+    });
+  });
+
+  it("synthesizes from plan/consequences/result + touched files when no concept matches", () => {
+    const debrief = {
+      responseType: "implementation",
+      tldrHeadline: "Headline.",
+      implementationReport: { planAndWhy: "Plan text.", result: "Result text.", consequences: "Impact text." },
+      touchedFiles: [{ path: "scripts/debrief-engine.mjs" }, { path: "assets/panel.html" }]
+    };
+    const columns = buildStage2FallbackColumns(debrief, null);
+    assert.equal(columns.howItWorks, "Plan text.");
+    assert.equal(columns.keyTradeOff, "Impact text.");
+    assert.match(columns.inYourCodebase, /scripts\/debrief-engine\.mjs, assets\/panel\.html/);
+    assert.match(columns.inYourCodebase, /Result text\./);
+  });
+
+  it("maps bug debriefs to bugReport plan/consequences and never returns empty columns", () => {
+    const columns = buildStage2FallbackColumns({
+      responseType: "bug",
+      bugReport: { plan: "Guard the token.", consequences: "No side effects." }
+    });
+    assert.equal(columns.howItWorks, "Guard the token.");
+    assert.equal(columns.keyTradeOff, "No side effects.");
+    assert.ok(columns.inYourCodebase.length > 0);
+
+    const empty = buildStage2FallbackColumns({});
+    assert.ok(empty.howItWorks.length > 0);
+    assert.ok(empty.keyTradeOff.length > 0);
+    assert.ok(empty.inYourCodebase.length > 0);
+  });
+
+  it("uses uncertainty audit reasons as the trade-off fallback when consequences are absent", () => {
+    const columns = buildStage2FallbackColumns({
+      responseType: "implementation",
+      implementationReport: { planAndWhy: "Plan." },
+      uncertaintyAudit: [{ area: "Edges", reason: "Check empty input.", riskLevel: "medium" }]
+    });
+    assert.equal(columns.keyTradeOff, "Check empty input.");
+  });
+});
+
+describe("Story 7.3 — saveStandaloneHtmlArtifact Stage 2 options", () => {
+  it("passes { conceptSlug, targetPlugin } through to the written artifact", async () => {
+    const workspace = createTempWorkspace({ prefix: "vibe-debrief-7-3-" });
+    try {
+      const panelState = buildPanelStateFixture({
+        debrief: {
+          concepts: [
+            {
+              slug: "sse-stream",
+              label: "SSE Stream",
+              targetPlugin: "visualize",
+              stage2: {
+                howItWorks: "Server writes SSE frames.",
+                keyTradeOff: "One-directional only.",
+                inYourCodebase: "Find EventSource calls."
+              }
+            }
+          ]
+        }
+      });
+      const result = await withEnv({ ZCODE_VISUALIZATION_DIR: null }, () =>
+        saveStandaloneHtmlArtifact(workspace.root, panelState, {
+          conceptSlug: "sse-stream",
+          targetPlugin: "visualize"
+        })
+      );
+      const html = readFileSync(result.filePath, "utf8");
+      assert.match(html, /id="stage2Popout"/);
+      assert.match(html, /Server writes SSE frames\./);
+      assert.match(html, /id="missingBanner"/);
+      assert.match(html, /Install visualize/);
+      assert.equal(result.bytes, Buffer.byteLength(html, "utf8"));
+
+      // Without options the same workspace export stays a plain debrief artifact.
+      const plain = await withEnv({ ZCODE_VISUALIZATION_DIR: null }, () =>
+        saveStandaloneHtmlArtifact(workspace.root, panelState)
+      );
+      const plainHtml = readFileSync(plain.filePath, "utf8");
+      assert.equal(plainHtml.includes('id="stage2Popout"'), false);
+    } finally {
+      workspace.cleanup();
+    }
   });
 });

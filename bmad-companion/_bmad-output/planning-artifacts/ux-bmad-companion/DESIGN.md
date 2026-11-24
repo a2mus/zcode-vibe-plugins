@@ -17,17 +17,17 @@ colors:
   border-subtle: '#21262d'
   text-primary: '#e6edf3'
   text-secondary: '#9198a1'
-  text-muted: '#6e7681'
+  text-muted: '#848d97'
   accent: '#388bfd'
-  accent-soft: '#388bfd24' # rgba(56,139,253,0.14)
+  accent-soft: '#388bfd14' # rgba(56,139,253,0.08)
   success: '#3fb950'
-  success-soft: '#3fb95024' # rgba(63,185,80,0.14)
+  success-soft: '#3fb9501a' # rgba(63,185,80,0.10)
   warning: '#d29922'
-  warning-soft: '#d2992226' # rgba(210,153,34,0.15)
+  warning-soft: '#d299221a' # rgba(210,153,34,0.10)
   purple: '#a371f7'
-  purple-soft: '#a371f726' # rgba(163,113,247,0.15)
+  purple-soft: '#a371f714' # rgba(163,113,247,0.08)
   danger: '#f85149'
-  danger-soft: '#f8514924' # rgba(248,81,73,0.14)
+  danger-soft: '#f8514914' # rgba(248,81,73,0.08)
   # Light overrides (body.theme-light in assets/panel.html:33-53), applied by applyHostTheme().
   bg-primary-light: '#ffffff'
   bg-secondary-light: '#f6f8fa'
@@ -37,20 +37,26 @@ colors:
   border-subtle-light: '#e5e9f0'
   text-primary-light: '#1f2328'
   text-secondary-light: '#59636e'
-  text-muted-light: '#6e7781'
-  accent-light: '#0969da'
-  accent-soft-light: '#0969da1a' # rgba(9,105,218,0.1)
-  success-light: '#1a7f37'
-  success-soft-light: '#1a7f371a' # rgba(26,127,55,0.1)
-  warning-light: '#9a6700'
-  warning-soft-light: '#9a67001f' # rgba(154,103,0,0.12)
-  purple-light: '#8250df'
-  purple-soft-light: '#8250df1a' # rgba(130,80,223,0.1)
-  danger-light: '#cf222e'
-  danger-soft-light: '#cf222e1a' # rgba(207,34,46,0.1)
+  text-muted-light: '#636c76'
+  accent-light: '#0757b6'
+  accent-soft-light: '#0757b61a' # rgba(7,87,182,0.10)
+  success-light: '#13712d'
+  success-soft-light: '#13712d1a' # rgba(19,113,45,0.10)
+  warning-light: '#7d4e00'
+  warning-soft-light: '#7d4e001a' # rgba(125,78,0,0.10)
+  purple-light: '#7445c7'
+  purple-soft-light: '#7445c71a' # rgba(116,69,199,0.10)
+  danger-light: '#bd1d28'
+  danger-soft-light: '#bd1d281a' # rgba(189,29,40,0.10)
   # Fixed literals shared by both themes (currently hard-coded in panel.html; tokenized here).
   on-primary: '#ffffff'
-  primary-gradient-end: '#2563eb' # .btn-primary gradient terminus (panel.html:162)
+  primary-gradient-start: '#1f6feb'
+  primary-gradient-end: '#2563eb' # .btn-primary gradient terminus (panel.html:175)
+  primary-gradient-start-light: '#0757b6'
+  brand-gradient-start: '#1f6feb'
+  brand-gradient-end: '#8957e5'
+  brand-gradient-start-light: '#0757b6'
+  brand-gradient-end-light: '#7445c7'
   queue-live-blue: '#3b82f624' # .live-queue-banner gradient start, rgba(59,130,246,0.14)
   queue-live-violet: '#8b5cf624' # .live-queue-banner gradient end, rgba(139,92,246,0.14)
   queue-active-tint: '#10b9811a' # .queue-item-card.is-active gradient start, rgba(16,185,129,0.1)
@@ -128,9 +134,9 @@ components:
     hover-border: '{colors.accent}'
     hover-background: '{colors.accent-soft}'
   button-primary:
-    background: 'linear-gradient(135deg, {colors.accent}, {colors.primary-gradient-end})'
+    background: 'linear-gradient(135deg, {colors.primary-gradient-start}, {colors.primary-gradient-end})'
     foreground: '{colors.on-primary}'
-    border: '{colors.accent}'
+    border: '{colors.primary-gradient-start}'
     radius: '{rounded.lg}'
     hover-opacity: '0.93'
   button-purple:
@@ -221,7 +227,7 @@ components:
     radius: '{rounded.full}'
     transition: width 0.3s ease
   brand-badge:
-    background: 'linear-gradient(135deg, {colors.accent}, {colors.purple})'
+    background: 'linear-gradient(135deg, {colors.brand-gradient-start}, {colors.brand-gradient-end})'
     foreground: '{colors.on-primary}'
     size: 26px
     radius: '{rounded.lg}'
@@ -351,12 +357,12 @@ The palette is the GitHub Primer dark/light primitive set, adopted wholesale so 
 - **Warning amber** (`{colors.warning}`) — attention without failure: in-review stories, modified-but-uncommitted artifacts.
 - **Purple** (`{colors.purple}`) — the AI/model hue: recommended-model pills, tier badges, AI-reconciled evidence, turn-analysis box, untracked artifacts, queue count. It marks machine intelligence, not human action.
 - **Danger red** (`{colors.danger}`) — high-priority recommendations, failed tasks, destructive remove (✕), and the "old status" side of a reconciliation diff.
-- **Soft fills** (`*-soft`) — each semantic hue at 10–15% alpha, used *only* as the background of its own pill/badge or the active-tab wash. A soft fill never carries a different hue's text.
-- **Fixed literals** — `{colors.on-primary}` white on primary/badge fills; `{colors.primary-gradient-end}` `#2563eb` terminates the primary-button gradient in both themes; `{colors.queue-live-blue}`/`{colors.queue-live-violet}` tint the live-queue banner; `{colors.queue-active-tint}`/`{colors.spotlight-active-tint}` wash active queue cards and the active-task spotlight; `{colors.pulse-emerald}`/`{colors.pulse-emerald-glow}` drive the running-task glow; `{colors.diff-add-bg}`/`{colors.diff-del-bg}` are the diff line washes. These are hard-coded in panel.html today and are tokenized here so future edits route through variables.
+- **Soft fills** (`*-soft`) — each semantic hue at 8–10% alpha, used *only* as the background of its own pill/badge or the active-tab wash. A soft fill never carries a different hue's text.
+- **Fixed literals** — `{colors.on-primary}` white on primary/badge fills; `{colors.primary-gradient-start}` and `{colors.primary-gradient-end}` driving `.btn-primary` gradient; `{colors.brand-gradient-start}` and `{colors.brand-gradient-end}` driving `.brand-badge` gradient; `{colors.queue-live-blue}`/`{colors.queue-live-violet}` tint the live-queue banner; `{colors.queue-active-tint}`/`{colors.spotlight-active-tint}` wash active queue cards and the active-task spotlight; `{colors.pulse-emerald}`/`{colors.pulse-emerald-glow}` drive the running-task glow; `{colors.diff-add-bg}`/`{colors.diff-del-bg}` are the diff line washes. These are hard-coded in panel.html today and are tokenized here so future edits route through variables.
 
 ### Measured contrast (WCAG 2.x relative luminance)
 
-Audited 2026-11-19 against the as-built token values with a deterministic Node script (composite soft fills over their card surface, then compute ratio). AA normal text requires **4.5:1**; non-text focus indicators require **3:1**. All panel text is small (< 18.66px bold), so the large-text 3:1 allowance never applies.
+Audited 2026-11-24 against the updated WCAG AA compliant token values with a deterministic Node script (composite soft fills over their card surface, then compute ratio). AA normal text requires **4.5:1**; non-text focus indicators require **3:1**. All panel text is small (< 18.66px bold), so the large-text 3:1 allowance never applies.
 
 | Pair | Dark | Light | AA 4.5:1 |
 |---|---|---|---|
@@ -364,34 +370,34 @@ Audited 2026-11-19 against the as-built token values with a deterministic Node s
 | text-primary / bg-secondary | 14.64 | 14.84 | ✅ both |
 | text-secondary / bg-primary | 6.50 | 6.11 | ✅ both |
 | text-secondary / bg-secondary | 5.94 | 5.74 | ✅ both |
-| text-muted / bg-primary | 4.12 | 4.55 | ⚠️ dark fails |
-| text-muted / bg-secondary | 3.77 | 4.27 | ❌ both fail |
-| accent / bg-primary (command text) | 5.66 | 5.19 | ✅ both |
-| accent / bg-secondary (active tab) | 5.17 | 4.88 | ✅ both |
-| success / bg-secondary | 6.81 | 4.77 | ✅ both |
-| warning / bg-secondary | 6.85 | 4.57 | ✅ both |
-| purple / bg-secondary | 5.16 | 4.74 | ✅ both |
-| danger / bg-secondary | 5.16 | 5.03 | ✅ both |
-| on-primary / accent (primary btn gradient start) | 3.34 | 5.19 | ⚠️ dark fails |
+| text-muted / bg-primary | 5.62 | 5.33 | ✅ both |
+| text-muted / bg-secondary | 5.14 | 5.01 | ✅ both |
+| accent / bg-primary (command text) | 5.66 | 6.89 | ✅ both |
+| accent / bg-secondary (active tab) | 5.17 | 6.47 | ✅ both |
+| success / bg-secondary | 6.81 | 5.75 | ✅ both |
+| warning / bg-secondary | 6.85 | 6.66 | ✅ both |
+| purple / bg-secondary | 5.16 | 5.77 | ✅ both |
+| danger / bg-secondary | 5.16 | 5.85 | ✅ both |
+| on-primary / primary-gradient-start | 4.63 | 6.89 | ✅ both |
 | on-primary / primary-gradient-end | 5.17 | 5.17 | ✅ both |
-| on-primary / purple (badge gradient end) | 3.35 | 5.05 | ⚠️ dark fails |
-| pill accent on accent-soft / bg-secondary | 4.28 | 4.26 | ❌ both fail |
-| pill success on success-soft / bg-secondary | 5.44 | 4.19 | ⚠️ light fails |
-| pill warning on warning-soft / bg-secondary | 5.37 | 3.94 | ⚠️ light fails |
-| pill purple on purple-soft / bg-secondary | 4.22 | 4.15 | ❌ both fail |
-| pill danger on danger-soft / bg-secondary | 4.39 | 4.31 | ❌ both fail |
+| on-primary / brand-gradient-end (purple) | 4.61 | 6.14 | ✅ both |
+| pill accent on accent-soft / bg-secondary | 4.67 | 5.56 | ✅ both |
+| pill success on success-soft / bg-secondary | 5.83 | 5.01 | ✅ both |
+| pill warning on warning-soft / bg-secondary | 5.86 | 5.75 | ✅ both |
+| pill purple on purple-soft / bg-secondary | 4.67 | 5.00 | ✅ both |
+| pill danger on danger-soft / bg-secondary | 4.77 | 4.96 | ✅ both |
 | border / bg-primary (decorative) | 1.55 | 1.45 | n/a — decoration only |
-| model-select focus border (purple) / bg-secondary | 5.16 | 4.74 | ✅ ≥3:1 both |
-| search-input focus border (accent) / bg-secondary | 5.17 | 4.88 | ✅ ≥3:1 both |
+| model-select focus border (purple) / bg-secondary | 5.16 | 5.77 | ✅ ≥3:1 both |
+| search-input focus border (accent) / bg-secondary | 5.17 | 6.47 | ✅ ≥3:1 both |
 
 **Contract.** Essential text (titles, labels, rationale, command text, status words) must reach ≥4.5:1 on the surface it actually sits on, in both themes. Focus indicators must reach ≥3:1. Body and secondary ink, the four semantic hues on card surfaces, and both focus borders already meet this.
 
-**Known contrast deviations (as-built, tracked — close before claiming full AA):**
-- **CD-1 — `text-muted`** is below 4.5:1 on dark surfaces (4.12 / 3.77) and on light `bg-secondary` (4.27). It is currently used for uppercase micro-labels and tertiary hints. Until remediated, restrict it to non-essential decoration; never put required instructions in `text-muted`.
-- **CD-2 — Pill text on soft fills** misses 4.5:1 for accent/purple/danger in both themes and success/warning in light (3.94–4.39). Pills always carry a text label (never color-only), so meaning survives, but the contrast gap is real. Remediation belongs to a token-tuning story, not ad-hoc overrides.
-- **CD-3 — Dark primary button** white label sits on a gradient whose accent start is 3.34:1 (the `#2563eb` end passes at 5.17:1). Part of the label is below AA in dark mode.
-- **CD-4 — Dark brand badge** white "BM" on the purple gradient end is 3.35:1. The badge is a brand mark, but it is still text.
-- **CD-5 — Borders** are ~1.4–1.6:1 and are purely decorative separators. They must never be the sole means of identifying a control; controls are also distinguished by fill tone, and focus is shown by the ≥3:1 accent/purple border swap.
+**Contrast debt closure (CD-1–CD-5 resolved to full WCAG AA, verified 2026-11-24):**
+- **CD-1 — `text-muted`** closed: tuned to `#848d97` (dark) and `#636c76` (light). All surfaces now achieve ≥4.5:1 (dark: 5.62 on `bg-primary`, 5.14 on `bg-secondary`, 4.53 on `bg-tertiary`; light: 5.33 on `bg-primary`, 5.01 on `bg-secondary`, 4.57 on `bg-tertiary`).
+- **CD-2 — Pill text on soft fills** closed: tuned soft fills to 8–10% alpha and balanced semantic hues so all five pills achieve ≥4.5:1 in both themes (dark: accent 4.67, success 5.83, warning 5.86, purple 4.67, danger 4.77; light: accent 5.56, success 5.01, warning 5.75, purple 5.00, danger 4.96).
+- **CD-3 — Dark primary button gradient** closed: tokenized `--primary-gradient-start` (`#1f6feb` dark, `#0757b6` light) and `--primary-gradient-end` (`#2563eb`), ensuring white text achieves ≥4.5:1 across the full gradient in both themes (dark: 4.63:1 start, 5.17:1 end; light: 6.89:1 start, 5.17:1 end).
+- **CD-4 — Dark brand badge gradient** closed: tokenized `--brand-gradient-start` (`#1f6feb` dark, `#0757b6` light) and `--brand-gradient-end` (`#8957e5` dark, `#7445c7` light), ensuring white "BM" glyph achieves ≥4.5:1 across both themes (dark: 4.63:1 start, 4.61:1 end; light: 6.89:1 start, 6.14:1 end).
+- **CD-5 — Borders** confirmed: borders are ~1.4–1.6:1 and serve as purely decorative separators; interactive controls are distinguishable by fill tone (`bg-tertiary` for buttons, `bg-secondary` for inputs), and focus indicators reach ≥3:1 (search border ≥5.17:1, model-select border ≥5.16:1, textarea focus ring ≥4.55:1).
 
 ## Typography
 
@@ -467,7 +473,7 @@ Visual specs below; token values live in the frontmatter `components` map. Behav
 | Pair every emoji icon with a text verb; keep status pills text-labeled | Convey status by color alone |
 | Keep button roles consistent across all 5 views: `btn-primary` for launch/execute/reconcile, `btn-purple` for AI/queue/diff-mode, `btn` for secondary utilities | Promote destructive or secondary utility buttons to primary gradient fills |
 | Show focus with the accent/purple border swap (≥3:1) | Remove `outline` without a replacement focus style (the cmd-textarea gap AD-1 is a bug, not a pattern) |
-| Keep essential text ≥4.5:1 in both themes; treat CD-1…CD-4 as tracked debt | Claim full WCAG AA while the muted/pill/gradient gaps remain open |
+| Keep essential text ≥4.5:1 in both themes; keep CD-1…CD-5 closed to WCAG AA | Claim full WCAG AA without verified relative-luminance contrast measurements |
 | Reserve gradients for badge, primary button, progress fill, live banner, and active queue cards | Add shadows, glows, or gradients to ordinary cards |
 | Truncate long paths/titles with ellipsis; wrap action rows | Let content overflow the narrow dock or add horizontal scroll |
 | Render all dynamic strings through `escapeHtml()`; keep CSP `unsafeEval:false`, zero CDN | Use `eval()`, `window.zcode`, external fonts/scripts, or unescaped interpolation (RULE-7) |

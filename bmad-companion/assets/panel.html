@@ -14,17 +14,21 @@
         --border-subtle: #21262d;
         --text-primary: #e6edf3;
         --text-secondary: #9198a1;
-        --text-muted: #6e7681;
+        --text-muted: #848d97;
         --accent: #388bfd;
-        --accent-soft: rgba(56, 139, 253, 0.14);
+        --accent-soft: rgba(56, 139, 253, 0.08);
         --success: #3fb950;
-        --success-soft: rgba(63, 185, 80, 0.14);
+        --success-soft: rgba(63, 185, 80, 0.10);
         --warning: #d29922;
-        --warning-soft: rgba(210, 153, 34, 0.15);
+        --warning-soft: rgba(210, 153, 34, 0.10);
         --purple: #a371f7;
-        --purple-soft: rgba(163, 113, 247, 0.15);
+        --purple-soft: rgba(163, 113, 247, 0.08);
         --danger: #f85149;
-        --danger-soft: rgba(248, 81, 73, 0.14);
+        --danger-soft: rgba(248, 81, 73, 0.08);
+        --primary-gradient-start: #1f6feb;
+        --primary-gradient-end: #2563eb;
+        --brand-gradient-start: #1f6feb;
+        --brand-gradient-end: #8957e5;
         --radius: 8px;
         --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
         --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
@@ -39,17 +43,21 @@
         --border-subtle: #e5e9f0;
         --text-primary: #1f2328;
         --text-secondary: #59636e;
-        --text-muted: #6e7781;
-        --accent: #0969da;
-        --accent-soft: rgba(9, 105, 218, 0.1);
-        --success: #1a7f37;
-        --success-soft: rgba(26, 127, 55, 0.1);
-        --warning: #9a6700;
-        --warning-soft: rgba(154, 103, 0, 0.12);
-        --purple: #8250df;
-        --purple-soft: rgba(130, 80, 223, 0.1);
-        --danger: #cf222e;
-        --danger-soft: rgba(207, 34, 46, 0.1);
+        --text-muted: #636c76;
+        --accent: #0757b6;
+        --accent-soft: rgba(7, 87, 182, 0.10);
+        --success: #13712d;
+        --success-soft: rgba(19, 113, 45, 0.10);
+        --warning: #7d4e00;
+        --warning-soft: rgba(125, 78, 0, 0.10);
+        --purple: #7445c7;
+        --purple-soft: rgba(116, 69, 199, 0.10);
+        --danger: #bd1d28;
+        --danger-soft: rgba(189, 29, 40, 0.10);
+        --primary-gradient-start: #0757b6;
+        --primary-gradient-end: #2563eb;
+        --brand-gradient-start: #0757b6;
+        --brand-gradient-end: #7445c7;
       }
 
       * {
@@ -100,7 +108,7 @@
         width: 26px;
         height: 26px;
         border-radius: 6px;
-        background: linear-gradient(135deg, var(--accent), var(--purple));
+        background: linear-gradient(135deg, var(--brand-gradient-start), var(--brand-gradient-end));
         color: #fff;
         font-weight: 700;
         font-size: 12px;
@@ -137,6 +145,11 @@
         flex-shrink: 0;
       }
 
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
       .btn {
         appearance: none;
         border: 1px solid var(--border);
@@ -159,14 +172,14 @@
       }
 
       .btn-primary {
-        background: linear-gradient(135deg, var(--accent), #2563eb);
-        border-color: var(--accent);
+        background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
+        border-color: var(--primary-gradient-start);
         color: #ffffff;
       }
 
       .btn-primary:hover {
         opacity: 0.93;
-        background: linear-gradient(135deg, var(--accent), #2563eb);
+        background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
       }
 
       .btn-purple {
@@ -419,6 +432,17 @@
         outline: none;
       }
 
+      .cmd-textarea:focus,
+      .cmd-textarea:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+        border-radius: 3px;
+      }
+
+      .cmd-editor-wrap:focus-within {
+        border-color: var(--accent);
+      }
+
       /* Recommended Model Bar */
       .model-bar {
         margin-top: 7px;
@@ -560,12 +584,12 @@
       }
 
       .diff-add {
-        background: rgba(63, 185, 80, 0.16);
+        background: color-mix(in srgb, var(--success) 16%, transparent);
         color: var(--success);
       }
 
       .diff-del {
-        background: rgba(248, 81, 73, 0.16);
+        background: color-mix(in srgb, var(--danger) 16%, transparent);
         color: var(--danger);
       }
 
@@ -695,7 +719,7 @@
 
       .live-queue-banner {
         display: none;
-        background: linear-gradient(135deg, rgba(59, 130, 246, 0.14), rgba(139, 92, 246, 0.14));
+        background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--purple) 14%, transparent));
         border-bottom: 1px solid var(--accent);
         padding: 7px 11px;
         font-size: 11.2px;
@@ -711,20 +735,33 @@
         height: 8px;
         border-radius: 50%;
         background: var(--success);
-        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 70%, transparent);
         animation: pulseGlow 1.6s infinite;
         margin-right: 5px;
       }
 
       @keyframes pulseGlow {
         0% {
-          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+          box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 70%, transparent);
         }
         70% {
-          box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+          box-shadow: 0 0 0 6px transparent;
         }
         100% {
-          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+          box-shadow: 0 0 0 0 transparent;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .pulse-dot {
+          animation: none;
+          box-shadow: none;
+        }
+
+        .bar-smart,
+        .btn,
+        .queue-item-card {
+          transition: none;
         }
       }
 
@@ -739,7 +776,7 @@
 
       .queue-item-card.is-active {
         border-color: var(--success);
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), var(--bg-secondary));
+        background: linear-gradient(135deg, var(--success-soft), var(--bg-secondary));
       }
 
       .queue-item-card.is-done {
@@ -749,7 +786,7 @@
 
       .queue-item-card.is-failed {
         border-color: var(--danger);
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), var(--bg-secondary));
+        background: linear-gradient(135deg, var(--danger-soft), var(--bg-secondary));
       }
 
       .queue-cb {
@@ -763,7 +800,7 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="top-bar">
+      <header class="top-bar" role="banner">
         <div class="brand-row">
           <div class="brand-left">
             <div class="brand-badge">BM</div>
@@ -793,25 +830,25 @@
         </div>
       </header>
 
-      <nav class="tabs-nav">
-        <button class="tab-btn active" data-tab="advisor">⚡ Next Prompts</button>
-        <button class="tab-btn" data-tab="queue" id="tabBtnQueue">⛓️ Queue <span class="pill pill-purple" id="queueTabCount" style="margin-left:3px;padding:0 5px;">0</span></button>
-        <button class="tab-btn" data-tab="progress">📊 Phases & Epics</button>
-        <button class="tab-btn" data-tab="catalog">🧭 Skills & Agents</button>
-        <button class="tab-btn" data-tab="artifacts">🗂️ Artifacts</button>
+      <nav class="tabs-nav" id="tabsNav" role="tablist" aria-label="BMAD Navigation Tabs">
+        <button class="tab-btn active" id="tabBtnAdvisor" role="tab" aria-selected="true" aria-controls="tab-advisor" tabindex="0" data-tab="advisor">⚡ Next Prompts</button>
+        <button class="tab-btn" id="tabBtnQueue" role="tab" aria-selected="false" aria-controls="tab-queue" tabindex="-1" data-tab="queue">⛓️ Queue <span class="pill pill-purple" id="queueTabCount" style="margin-left:3px;padding:0 5px;">0</span></button>
+        <button class="tab-btn" id="tabBtnProgress" role="tab" aria-selected="false" aria-controls="tab-progress" tabindex="-1" data-tab="progress">📊 Phases & Epics</button>
+        <button class="tab-btn" id="tabBtnCatalog" role="tab" aria-selected="false" aria-controls="tab-catalog" tabindex="-1" data-tab="catalog">🧭 Skills & Agents</button>
+        <button class="tab-btn" id="tabBtnArtifacts" role="tab" aria-selected="false" aria-controls="tab-artifacts" tabindex="-1" data-tab="artifacts">🗂️ Artifacts</button>
       </nav>
 
       <div class="live-queue-banner" id="liveQueueBanner">
         <div id="liveQueueBannerContent"></div>
       </div>
 
-      <div class="toast-banner" id="toastBanner">
+      <div class="toast-banner" id="toastBanner" role="status" aria-live="polite" aria-atomic="true">
         <span id="toastText">Opening a new conversation with your prompt pre-pasted…</span>
       </div>
 
-      <main class="main-scroll" id="mainScroll">
+      <main class="main-scroll" id="mainScroll" role="main">
         <!-- Tab 1: Advisor & Next Prompts -->
-        <section id="tab-advisor">
+        <section id="tab-advisor" role="tabpanel" aria-labelledby="tabBtnAdvisor" tabindex="0">
           <div class="section-card">
             <div class="section-header">
               <div class="section-title">
@@ -847,7 +884,7 @@
         </section>
 
         <!-- Tab 1.5: Multi-Task Execution Queue & Workflow Orchestrator -->
-        <section id="tab-queue" style="display: none;">
+        <section id="tab-queue" role="tabpanel" aria-labelledby="tabBtnQueue" tabindex="0" style="display: none;">
           <div class="section-card">
             <div class="section-header" style="flex-wrap: wrap; gap: 6px;">
               <div>
@@ -861,21 +898,21 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
               <div>
-                <label style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
+                <label for="queueDefaultReviewSelect" style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
                   🛡️ Default Review & Token Gate (Applies to Queue)
                 </label>
-                <select class="model-select" id="queueDefaultReviewSelect" style="width: 100%;">
+                <select class="model-select" id="queueDefaultReviewSelect" aria-label="Default Review & Token Gate (Applies to Queue)" style="width: 100%;">
                   <option value="none">⚡ Minimal: Oneshot + Deterministic Tests (review=none · ~70% token savings)</option>
                   <option value="quick">🔍 Quick: Oneshot + 1 Quick Pass (review=quick · ~45% token savings)</option>
                   <option value="thorough">🛡️ Thorough: Full Route + Multi-Lens Review (review=thorough)</option>
                 </select>
               </div>
               <div>
-                <label style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
+                <label for="queueEpicPicker" style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
                   📦 Quick-Enqueue Entire Epic (Build Order)
                 </label>
                 <div style="display: flex; gap: 4px;">
-                  <select class="model-select" id="queueEpicPicker" style="flex: 1; min-width: 0;">
+                  <select class="model-select" id="queueEpicPicker" aria-label="Quick-Enqueue Entire Epic (Build Order)" style="flex: 1; min-width: 0;">
                     <option value="">Select an epic to enqueue…</option>
                   </select>
                   <button class="btn btn-purple" id="btnQueueEntireEpic" title="Add all open stories of this epic to the queue in build order">
@@ -920,7 +957,7 @@
         </section>
 
         <!-- Tab 2: Phases, Epics & Stories -->
-        <section id="tab-progress" style="display: none;">
+        <section id="tab-progress" role="tabpanel" aria-labelledby="tabBtnProgress" tabindex="0" style="display: none;">
           <div class="section-card">
             <div class="section-header">
               <div class="section-title">📈 Static Tracker vs. Smart AI Reconciliation</div>
@@ -957,8 +994,8 @@
             <div class="section-title">📦 Epics & Stories Progress Explorer</div>
           </div>
           <div class="filter-bar">
-            <input type="text" class="search-input" id="storySearch" placeholder="Filter epics, stories, or requirement IDs…" />
-            <select class="btn" id="storyStatusFilter">
+            <input type="text" class="search-input" id="storySearch" aria-label="Filter epics, stories, or requirement IDs" placeholder="Filter epics, stories, or requirement IDs…" />
+            <select class="btn" id="storyStatusFilter" aria-label="Filter stories by status">
               <option value="all">All Statuses</option>
               <option value="open">Open (Review / Backlog / WIP)</option>
               <option value="reconciled">✨ Smart AI Reconciled</option>
@@ -969,10 +1006,10 @@
         </section>
 
         <!-- Tab 3: Skills & Agents Catalog -->
-        <section id="tab-catalog" style="display: none;">
+        <section id="tab-catalog" role="tabpanel" aria-labelledby="tabBtnCatalog" tabindex="0" style="display: none;">
           <div class="filter-bar">
-            <input type="text" class="search-input" id="skillSearch" placeholder="Search /bmad-* skills or agents (e.g. ux, build, review, sally)…" />
-            <select class="btn" id="skillPhaseFilter">
+            <input type="text" class="search-input" id="skillSearch" aria-label="Search BMAD skills or agents" placeholder="Search /bmad-* skills or agents (e.g. ux, build, review, sally)…" />
+            <select class="btn" id="skillPhaseFilter" aria-label="Filter skills by phase">
               <option value="all">All Phases</option>
               <option value="1-analysis">Phase 1 · Analysis</option>
               <option value="2-planning">Phase 2 · Planning & UX</option>
@@ -994,7 +1031,7 @@
         </section>
 
         <!-- Tab 4: Artifacts Inspector (Ordered by Last Modified + Diff Viewer) -->
-        <section id="tab-artifacts" style="display: none;">
+        <section id="tab-artifacts" role="tabpanel" aria-labelledby="tabBtnArtifacts" tabindex="0" style="display: none;">
           <div class="section-card" id="artifactPreviewCard" style="display: none; border-color: var(--accent);">
             <div class="section-header" style="flex-wrap: wrap;">
               <div style="min-width: 0;">
@@ -1020,7 +1057,7 @@
               Sorted newest-modified first. Click <b>🔀 Diff</b> to inspect the artifact's diff, or <b>↗ Open</b> to launch it in your editor.
             </div>
             <div class="filter-bar">
-              <input type="text" class="search-input" id="artifactSearch" placeholder="Filter artifacts by name, path, or phase…" />
+              <input type="text" class="search-input" id="artifactSearch" aria-label="Filter artifacts by name, path, or phase" placeholder="Filter artifacts by name, path, or phase…" />
             </div>
             <div id="artifactsDirectoryList"></div>
           </div>
@@ -1062,9 +1099,7 @@
 
         function isUserInteractingWithForm() {
           if (Date.now() < selectOpenUntil) return true;
-          const active = document.activeElement;
-          if (!active) return false;
-          const tag = active.tagName;
+          const tag = tagOf(document.activeElement);
           return tag === "TEXTAREA" || tag === "INPUT";
         }
 
@@ -1076,33 +1111,47 @@
         }
 
         document.addEventListener("pointerdown", (e) => {
-          if (e.target && e.target.closest && e.target.closest("select")) {
+          const isSelect =
+            tagOf(e.target) === "SELECT" ||
+            (e.target && typeof e.target.closest === "function" && Boolean(e.target.closest("select")));
+          if (isSelect) {
             selectOpenUntil = Date.now() + 15000;
           }
         }, true);
 
         document.addEventListener("keydown", (e) => {
           const active = document.activeElement;
-          if (active && active.tagName === "SELECT") {
+          if (!active) return;
+          const tag = tagOf(active);
+          if (tag === "SELECT") {
             if (e.key === "Escape" || e.key === "Tab") {
               selectOpenUntil = 0;
               setTimeout(flushPendingState, 0);
             } else if (e.key === " " || e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
               selectOpenUntil = Date.now() + 15000;
             }
+          } else if (tag === "TEXTAREA" || tag === "INPUT") {
+            if (e.key === "Escape") {
+              if (typeof active.blur === "function") active.blur();
+              setTimeout(flushPendingState, 0);
+            }
           }
         }, true);
 
         document.addEventListener("change", (e) => {
-          if (e.target && e.target.tagName === "SELECT") {
-            selectOpenUntil = 0;
+          const tag = tagOf(e.target);
+          if (tag === "SELECT" || tag === "INPUT") {
+            if (tag === "SELECT") {
+              selectOpenUntil = 0;
+            }
             setTimeout(flushPendingState, 0);
           }
         }, true);
 
         document.addEventListener("focusout", (e) => {
-          if (e.target && (e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "INPUT")) {
-            if (e.target.tagName === "SELECT") {
+          const tag = tagOf(e.target);
+          if (tag === "SELECT" || tag === "TEXTAREA" || tag === "INPUT") {
+            if (tag === "SELECT") {
               selectOpenUntil = 0;
             }
             setTimeout(flushPendingState, 50);
@@ -1218,7 +1267,7 @@
           const chosenModel = rawModel === "host-default" ? "" : rawModel || getFallbackModelId();
           if (!cleanCmd) return;
 
-          const modelShortLabel = chosenModel ? chosenModel.split("/").pop() : "host-default";
+          const modelShortLabel = shortModelName(chosenModel);
           showToast(`🚀 Opening new conversation [${modelShortLabel}]…`);
 
           // Best-effort browser-side clipboard copy as immediate fallback
@@ -1300,6 +1349,10 @@
         function showToast(msg) {
           const banner = document.getElementById("toastBanner");
           const txt = document.getElementById("toastText");
+          if (!banner || !txt) return;
+          const isError = /^(❌|error|failed)/i.test(msg) || /error|failed/i.test(msg);
+          banner.setAttribute("aria-live", isError ? "assertive" : "polite");
+          banner.setAttribute("role", isError ? "alert" : "status");
           txt.textContent = msg;
           banner.classList.add("visible");
           clearTimeout(toastTimer);
@@ -1312,6 +1365,67 @@
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
+        }
+
+        function tagOf(el) {
+          return String((el && el.tagName) || "").toUpperCase();
+        }
+
+        // Single section-guard/signature helper: renders only when forced or when the
+        // signature changed, and records the new signature in exactly one place.
+        function sectionNeedsRender(sectionKey, signature, force) {
+          if (force !== true && lastSectionSignatures[sectionKey] === signature) return false;
+          lastSectionSignatures[sectionKey] = signature;
+          return true;
+        }
+
+        function shortModelName(modelId) {
+          return modelId ? String(modelId).split("/").pop() : "host-default";
+        }
+
+        function dynamicFitModel() {
+          const fallback = getFallbackModelId();
+          return {
+            modelId: fallback,
+            shortName: shortModelName(fallback),
+            tier: "🤖 Dynamic Fit",
+            reason: "Dynamically resolved from active provider & subscription state."
+          };
+        }
+
+        function readFilterValue(id) {
+          return (document.getElementById(id)?.value || "").toLowerCase().trim();
+        }
+
+        function readCmdEditor(cmdId, fallbackCmd, trim) {
+          const ta = document.getElementById(cmdId);
+          if (!ta) return fallbackCmd;
+          return trim ? ta.value.trim() : ta.value;
+        }
+
+        function readModelEditor(selectId, fallbackModelId) {
+          const sel = document.getElementById(selectId);
+          return sel ? sel.value : fallbackModelId;
+        }
+
+        function wireUserEditTracking(key, serverCmd, serverModelId, cmdId, selectId) {
+          const ta = document.getElementById(cmdId);
+          const sel = document.getElementById(selectId);
+          if (ta) {
+            ta.addEventListener("input", () => {
+              userEditedPrompts.set(key, { base: serverCmd, value: ta.value });
+            });
+          }
+          if (sel) {
+            sel.addEventListener("change", () => {
+              userSelectedModels.set(key, { base: serverModelId, value: sel.value });
+            });
+          }
+        }
+
+        async function copyWithToast(cmd) {
+          await copyToClipboard(cmd);
+          showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
         }
 
         function getRecOverrideKey(r, idx) {
@@ -1336,11 +1450,12 @@
             userSelectedModels.delete(key);
             return serverModelId;
           }
-          const models = currentState?.availableModels || [];
-          if (!entry.value || models.some((m) => m.id === entry.value)) {
-            return entry.value;
+          const models = currentState?.availableModels;
+          if (entry.value && Array.isArray(models) && !models.some((m) => m.id === entry.value)) {
+            userSelectedModels.delete(key);
+            return serverModelId;
           }
-          return serverModelId;
+          return entry.value;
         }
 
         function buildModelSelectOptions(selectedModelId, recommendedModelId) {
@@ -1352,7 +1467,7 @@
           const hasSelected = selectedModelId && models.some((m) => m.id === selectedModelId);
           const list = hasSelected || !selectedModelId
             ? models
-            : [{ id: selectedModelId, modelId: selectedModelId.split("/").pop(), providerName: selectedModelId.split("/")[0] }, ...models];
+            : [{ id: selectedModelId, modelId: shortModelName(selectedModelId), providerName: selectedModelId.split("/")[0] }, ...models];
           const costTag = (tier) =>
             tier === "economy" ? " · $" : tier === "premium" ? " · $$$" : tier === "standard" ? " · $$" : "";
           const groups = new Map();
@@ -1425,15 +1540,13 @@
           const provBar = document.getElementById("providerStateBar");
           if (provBar) {
             const pState = state.providerState || {};
-            const provSig = JSON.stringify(pState);
-            if (lastSectionSignatures.providerBar !== provSig) {
-              lastSectionSignatures.providerBar = provSig;
+            if (sectionNeedsRender("providerBar", JSON.stringify(pState))) {
               const activeProvs = pState.activeProviders || [];
               const subBadges = Object.entries(pState.subscriptionSelections || {}).map(
                 ([fam, sel]) => `<span class="pill pill-accent" title="Active Subscription Selection">🔑 ${escapeHtml(fam)}: ${escapeHtml(sel?.kind || "active")}</span>`
               );
               const provBadges = activeProvs.map(
-                (p) => `<span class="pill pill-success" title="Active Provider (${escapeHtml(p.kind)} / ${escapeHtml(p.plan || "")})">⚡ ${escapeHtml(p.providerName)} (${p.modelCount})</span>`
+                (p) => `<span class="pill pill-success" title="Active Provider (${escapeHtml(p.kind)} / ${escapeHtml(p.plan || "")})">⚡ ${escapeHtml(p.providerName)} (${escapeHtml(p.modelCount)})</span>`
               );
               const syncPill = pState.syncedFromRuntime
                 ? `<span class="pill pill-purple">✓ Runtime Catalog Synced</span>`
@@ -1462,7 +1575,7 @@
           renderPhases(state.phases || []);
           renderEpics();
           renderSkillsCatalog();
-          renderArtifactsDirectory(state.phases || []);
+          renderArtifactsDirectory();
         }
 
         function isPromptOrStoryInQueue(promptText, overrideKey) {
@@ -1488,7 +1601,19 @@
           return null;
         }
 
-        function renderLiveQueueBannerAndTab() {
+        async function completeTaskAndContinue(taskId, toastMessage, fallbackMode) {
+          const updated = await manageQueue(
+            { action: "complete-task", taskId, storyStatus: "done" },
+            toastMessage
+          );
+          const mode = updated?.taskQueue?.executionMode || fallbackMode || "separate-sessions";
+          if ((updated?.taskQueue?.counts?.queued || 0) > 0) {
+            await launchQueueExecution(mode);
+          }
+          return updated;
+        }
+
+        function renderLiveQueueBannerAndTab(force = false) {
           if (!currentState) return;
           const q = currentState.taskQueue || {
             status: "idle",
@@ -1497,6 +1622,13 @@
             counts: { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 },
             items: []
           };
+          const queueSig = JSON.stringify({
+            q,
+            models: currentState.availableModels || [],
+            epics: (currentState.epics || []).map((e) => `${e.slug}:${(e.stories || []).length}:${(e.stories || []).filter((s) => s.smartStatus !== "done").length}`)
+          });
+          if (!sectionNeedsRender("taskQueue", queueSig, force)) return;
+
           const counts = q.counts || { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 };
 
           const tabCountEl = document.getElementById("queueTabCount");
@@ -1517,10 +1649,10 @@
                 q.status === "running"
                   ? `<span class="pill pill-success"><span class="pulse-dot"></span>ACTIVE QUEUE</span>`
                   : q.status === "completed" && counts.failed > 0
-                    ? `<span class="pill pill-danger">⚠️ QUEUE FINISHED (${counts.failed} FAILED)</span>`
+                    ? `<span class="pill pill-danger">⚠️ QUEUE FINISHED (${escapeHtml(counts.failed)} FAILED)</span>`
                     : q.status === "completed"
                       ? `<span class="pill pill-success">✓ QUEUE COMPLETE</span>`
-                      : `<span class="pill pill-accent">⏳ QUEUED (${counts.queued})</span>`;
+                      : `<span class="pill pill-accent">⏳ QUEUED (${escapeHtml(counts.queued)})</span>`;
 
               bannerContent.innerHTML = `
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -1533,14 +1665,14 @@
                           : nextUp
                             ? `Next in Queue: ${escapeHtml(nextUp.title)} <span class="pill pill-purple">🤖 ${escapeHtml(nextUp.modelShort)}</span>`
                             : counts.failed > 0
-                              ? `Queue ended: ${counts.done} done, ${counts.failed} failed`
-                              : `All ${counts.done} queued task(s) finished`
+                              ? `Queue ended: ${escapeHtml(counts.done)} done, ${escapeHtml(counts.failed)} failed`
+                              : `All ${escapeHtml(counts.done)} queued task(s) finished`
                       }
                     </span>
                   </div>
                   <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
-                    <span class="pill pill-accent">${counts.done}/${counts.total} Done · ${counts.queued} In Queue</span>
-                    ${counts.failed > 0 ? `<span class="pill pill-danger">⚠️ ${counts.failed} Failed</span>` : ""}
+                    <span class="pill pill-accent">${escapeHtml(counts.done)}/${escapeHtml(counts.total)} Done · ${escapeHtml(counts.queued)} In Queue</span>
+                    ${counts.failed > 0 ? `<span class="pill pill-danger">⚠️ ${escapeHtml(counts.failed)} Failed</span>` : ""}
                     ${
                       active
                         ? `<button class="btn btn-primary" id="bannerBtnCompleteActive" style="padding:2px 7px;font-size:10.3px;" title="Mark the active task Done and continue with the next queued task in the current execution mode">✓ Done & Continue</button>`
@@ -1554,20 +1686,13 @@
                   </div>
                 </div>
                 <div class="dual-bar" style="height:4px;margin-top:5px;">
-                  <div class="bar-smart" style="width:${counts.progressPct || 0}%"></div>
+                  <div class="bar-smart" style="width:${escapeHtml(counts.progressPct || 0)}%"></div>
                 </div>
               `;
 
               document.getElementById("bannerBtnOpenQueue")?.addEventListener("click", () => switchTab("queue"));
               document.getElementById("bannerBtnCompleteActive")?.addEventListener("click", async () => {
-                const updated = await manageQueue(
-                  { action: "complete-task", taskId: active.id, storyStatus: "done" },
-                  `✓ Completed ${active.title}; continuing queue…`
-                );
-                const mode = updated?.taskQueue?.executionMode || q.executionMode || "separate-sessions";
-                if ((updated?.taskQueue?.counts?.queued || 0) > 0) {
-                  await launchQueueExecution(mode);
-                }
+                await completeTaskAndContinue(active.id, `✓ Completed ${active.title}; continuing queue…`, q.executionMode);
               });
               document.getElementById("bannerBtnRunWorkflow")?.addEventListener("click", async () => {
                 await launchQueueExecution(q.executionMode || "dynamic-workflow");
@@ -1633,19 +1758,12 @@
             }
           }
 
-          const queueSig = JSON.stringify({
-            q,
-            models: currentState.availableModels || []
-          });
-          if (lastSectionSignatures.taskQueue === queueSig) return;
-          lastSectionSignatures.taskQueue = queueSig;
-
           const spotlightEl = document.getElementById("queueActiveSpotlight");
           if (spotlightEl) {
             if (q.activeTask) {
               const act = q.activeTask;
               spotlightEl.innerHTML = `
-                <div class="section-card" style="border-color: var(--success); background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), var(--bg-secondary));">
+                <div class="section-card" style="border-color: var(--success); background: linear-gradient(135deg, var(--success-soft), var(--bg-secondary));">
                   <div class="section-header">
                     <div class="section-title" style="color: var(--success);">
                       <span class="pulse-dot"></span>🟢 ACTIVE TASK NOW RUNNING
@@ -1709,14 +1827,14 @@
 
                   <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:6px;margin-bottom:6px;">
                     <div>
-                      <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">Assigned AI Model for this Task:</div>
-                      <select class="model-select" data-q-model="${escapeHtml(it.id)}" style="width:100%;">
+                      <label for="q-model-${idx}" style="font-size:10px;color:var(--text-muted);margin-bottom:2px;display:block;">Assigned AI Model for this Task:</label>
+                      <select class="model-select" id="q-model-${idx}" data-q-model="${escapeHtml(it.id)}" aria-label="Assigned AI Model for ${escapeHtml(it.title)}" style="width:100%;">
                         ${buildModelSelectOptions(it.model, it.model)}
                       </select>
                     </div>
                     <div>
-                      <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;">Review & Token Gate:</div>
-                      <select class="model-select" data-q-review="${escapeHtml(it.id)}" style="width:100%;">
+                      <label for="q-review-${idx}" style="font-size:10px;color:var(--text-muted);margin-bottom:2px;display:block;">Review & Token Gate:</label>
+                      <select class="model-select" id="q-review-${idx}" data-q-review="${escapeHtml(it.id)}" aria-label="Review and Token Gate for ${escapeHtml(it.title)}" style="width:100%;">
                         <option value="none" ${it.reviewMode === "none" ? "selected" : ""}>⚡ Minimal (Oneshot + Tests · 0 LLM Review)</option>
                         <option value="quick" ${it.reviewMode === "quick" ? "selected" : ""}>🔍 Quick (Oneshot + 1 Quick Pass)</option>
                         <option value="thorough" ${it.reviewMode === "thorough" ? "selected" : ""}>🛡️ Thorough (Full Multi-Lens Review)</option>
@@ -1730,7 +1848,7 @@
                   ${
                     it.resultSummary
                       ? isFailed
-                        ? `<div style="font-size:10.7px;color:var(--danger);background:var(--danger-soft, rgba(239, 68, 68, 0.1));border:1px solid rgba(239, 68, 68, 0.3);border-radius:5px;padding:5px 7px;margin-bottom:6px;word-break:break-word;">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
+                        ? `<div style="font-size:10.7px;color:var(--danger);background:var(--danger-soft);border:1px solid color-mix(in srgb, var(--danger) 30%, transparent);border-radius:5px;padding:5px 7px;margin-bottom:6px;word-break:break-word;">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
                         : `<div style="font-size:10.7px;color:var(--success);margin-bottom:5px;">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
                       : ""
                   }
@@ -1874,10 +1992,7 @@
             queueItems: (currentState?.taskQueue?.items || []).map((i) => i.prompt + ":" + i.status),
             checked: [...selectedRecIndices]
           });
-          if (!force && lastSectionSignatures.recommendations === recSig) {
-            return;
-          }
-          lastSectionSignatures.recommendations = recSig;
+          if (!sectionNeedsRender("recommendations", recSig, force)) return;
 
           const container = document.getElementById("recommendationsList");
           if (!recs.length) {
@@ -1892,12 +2007,7 @@
                   : r.priority === "medium"
                     ? "pill-accent"
                     : "pill-purple";
-              const recModel = r.recommendedModel || {
-                modelId: getFallbackModelId(),
-                shortName: getFallbackModelId() ? getFallbackModelId().split("/").pop() : "host-default",
-                tier: "🤖 Dynamic Fit",
-                reason: "Dynamically resolved from active provider & subscription state."
-              };
+              const recModel = r.recommendedModel || dynamicFitModel();
               const recKey = getRecOverrideKey(r, idx);
               const serverCmd = r.fullCommand || "";
               const displayCmd = resolveUserPrompt(recKey, serverCmd);
@@ -1929,16 +2039,16 @@
                   </div>
                   <div class="rec-rationale">${escapeHtml(r.rationale)}</div>
                   <div class="cmd-editor-wrap">
-                    <div class="cmd-label">
+                    <label class="cmd-label" for="rec-cmd-${idx}">
                       <span>Contextual BMAD Skill + Prompt (Editable)</span>
                       <span>${escapeHtml(r.skill)}</span>
-                    </div>
-                    <textarea class="cmd-textarea" id="rec-cmd-${idx}" rows="2">${escapeHtml(displayCmd)}</textarea>
+                    </label>
+                    <textarea class="cmd-textarea" id="rec-cmd-${idx}" rows="2" aria-label="Contextual BMAD Skill and Prompt for ${escapeHtml(r.title)}">${escapeHtml(displayCmd)}</textarea>
                   </div>
                   <div class="model-bar">
                     <div class="model-bar-top">
                       <span class="pill pill-purple">${escapeHtml(recModel.tier)}</span>
-                      <select class="model-select" id="rec-model-${idx}" title="Recommended model for the new session or queue task">
+                      <select class="model-select" id="rec-model-${idx}" aria-label="Recommended model for ${escapeHtml(r.title)}" title="Recommended model for the new session or queue task">
                         ${buildModelSelectOptions(displayModelId, serverModelId)}
                       </select>
                     </div>
@@ -1975,31 +2085,21 @@
           });
 
           recs.forEach((r, idx) => {
-            const recKey = getRecOverrideKey(r, idx);
-            const serverCmd = r.fullCommand || "";
-            const serverModelId = r.recommendedModel?.modelId || getFallbackModelId() || "";
-            const ta = document.getElementById(`rec-cmd-${idx}`);
-            const modelSel = document.getElementById(`rec-model-${idx}`);
-            if (ta) {
-              ta.addEventListener("input", () => {
-                userEditedPrompts.set(recKey, { base: serverCmd, value: ta.value });
-              });
-            }
-            if (modelSel) {
-              modelSel.addEventListener("change", () => {
-                userSelectedModels.set(recKey, { base: serverModelId, value: modelSel.value });
-              });
-            }
+            wireUserEditTracking(
+              getRecOverrideKey(r, idx),
+              r.fullCommand || "",
+              r.recommendedModel?.modelId || getFallbackModelId() || "",
+              `rec-cmd-${idx}`,
+              `rec-model-${idx}`
+            );
           });
 
           container.querySelectorAll("button[data-action]").forEach((btn) => {
             btn.addEventListener("click", async () => {
               const idx = Number(btn.getAttribute("data-idx"));
               const rec = recs[idx];
-              const ta = document.getElementById(`rec-cmd-${idx}`);
-              const modelSel = document.getElementById(`rec-model-${idx}`);
-              const cmd = ta ? ta.value.trim() : rec.fullCommand;
-              const chosenModel = modelSel ? modelSel.value : rec.recommendedModel?.modelId;
+              const cmd = readCmdEditor(`rec-cmd-${idx}`, rec.fullCommand, true);
+              const chosenModel = readModelEditor(`rec-model-${idx}`, rec.recommendedModel?.modelId);
               const action = btn.getAttribute("data-action");
               if (action === "queue-rec") {
                 await manageQueue(
@@ -2023,17 +2123,14 @@
               } else if (action === "attach-rec") {
                 await attachToChatContext(rec.title, cmd, rec.rationale, chosenModel);
               } else if (action === "copy-rec") {
-                await copyToClipboard(cmd);
-                showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
+                await copyWithToast(cmd);
               }
             });
           });
         }
 
-        function renderInsights(insights) {
-          const insSig = JSON.stringify(insights);
-          if (lastSectionSignatures.insights === insSig) return;
-          lastSectionSignatures.insights = insSig;
+        function renderInsights(insights, force = false) {
+          if (!sectionNeedsRender("insights", JSON.stringify(insights), force)) return;
 
           const list = document.getElementById("insightsList");
           if (!insights.length) {
@@ -2110,7 +2207,7 @@
           }
         }
 
-        function renderPhases(phases) {
+        function renderPhases(phases, force = false) {
           if (!currentState) return;
           const m = currentState.metrics || {};
           const phaseSig = JSON.stringify({
@@ -2128,20 +2225,19 @@
               smartOverallPct: m.smartOverallPct
             }
           });
-          if (lastSectionSignatures.phases === phaseSig) return;
-          lastSectionSignatures.phases = phaseSig;
+          if (!sectionNeedsRender("phases", phaseSig, force)) return;
 
           document.getElementById("reconciledBadge").textContent =
             `${m.reconciledStoriesCount || 0} Stories AI-Reconciled`;
           document.getElementById("metricsBreakdown").innerHTML = `
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
-              <span class="pill pill-success">✓ Done: ${m.smartDoneStories || 0}</span>
-              <span class="pill pill-warning">👁 In Review: ${m.reviewStories || 0}</span>
-              <span class="pill pill-accent">⚙ In Progress: ${m.inProgressStories || 0}</span>
-              <span class="pill pill-purple">📋 Backlog: ${m.backlogStories || 0}</span>
+              <span class="pill pill-success">✓ Done: ${escapeHtml(m.smartDoneStories || 0)}</span>
+              <span class="pill pill-warning">👁 In Review: ${escapeHtml(m.reviewStories || 0)}</span>
+              <span class="pill pill-accent">⚙ In Progress: ${escapeHtml(m.inProgressStories || 0)}</span>
+              <span class="pill pill-purple">📋 Backlog: ${escapeHtml(m.backlogStories || 0)}</span>
             </div>
             <div style="margin-top:6px;">
-              Static tracker declares <b>${m.declaredDoneStories}/${m.totalStories} (${m.declaredOverallPct}%)</b>, while Smart AI + artifact cross-checking confirms <b>${m.smartDoneStories}/${m.totalStories} (${m.smartOverallPct}%)</b> delivered.
+              Static tracker declares <b>${escapeHtml(m.declaredDoneStories)}/${escapeHtml(m.totalStories)} (${escapeHtml(m.declaredOverallPct)}%)</b>, while Smart AI + artifact cross-checking confirms <b>${escapeHtml(m.smartDoneStories)}/${escapeHtml(m.totalStories)} (${escapeHtml(m.smartOverallPct)}%)</b> delivered.
             </div>
           `;
 
@@ -2173,7 +2269,7 @@
                       ${escapeHtml(p.summary)}
                     </div>
                     <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:4px;">
-                      Generated Artifacts (${artCount}) — click file name to view diff, or <b>↗</b> to open file:
+                      Generated Artifacts (${escapeHtml(artCount)}) — click file name to view diff, or <b>↗</b> to open file:
                     </div>
                     <div class="phase-artifacts">${chips || `<span style="font-size:11px;color:var(--text-muted);">No artifacts generated in this phase yet.</span>`}</div>
                   </div>
@@ -2186,12 +2282,12 @@
                     <div class="phase-top">
                       <span style="font-weight:700;">${isExpanded ? "▾" : "▸"} ${escapeHtml(p.name)}</span>
                       <div style="display:flex;gap:4px;align-items:center;">
-                        <span class="pill pill-purple">${artCount} files</span>
-                        <span class="pill ${pillCls}">${p.progressPct}% · ${escapeHtml(p.status)}</span>
+                        <span class="pill pill-purple">${escapeHtml(artCount)} files</span>
+                        <span class="pill ${pillCls}">${escapeHtml(p.progressPct)}% · ${escapeHtml(p.status)}</span>
                       </div>
                     </div>
                     <div class="dual-bar" style="height:5px;">
-                      <div class="bar-smart" style="width:${p.progressPct}%"></div>
+                      <div class="bar-smart" style="width:${escapeHtml(p.progressPct)}%"></div>
                     </div>
                   </div>
                   ${bodyHtml}
@@ -2227,9 +2323,9 @@
           });
         }
 
-        function renderEpics() {
+        function renderEpics(force = false) {
           if (!currentState) return;
-          const query = (document.getElementById("storySearch").value || "").toLowerCase().trim();
+          const query = readFilterValue("storySearch");
           const statusFilter = document.getElementById("storyStatusFilter").value;
           const epics = currentState.epics || [];
           const epicSig = JSON.stringify({
@@ -2239,8 +2335,7 @@
             epics,
             queueItems: (currentState?.taskQueue?.items || []).map((i) => i.overrideKey + ":" + i.status)
           });
-          if (lastSectionSignatures.epics === epicSig) return;
-          lastSectionSignatures.epics = epicSig;
+          if (!sectionNeedsRender("epics", epicSig, force)) return;
 
           const container = document.getElementById("epicsList");
 
@@ -2261,7 +2356,7 @@
             const statusPill =
               epic.smartProgressPct === 100
                 ? `<span class="pill pill-success">100% Done</span>`
-                : `<span class="pill pill-accent">${epic.smartProgressPct}% Smart (${epic.declaredProgressPct}% Tracker)</span>`;
+                : `<span class="pill pill-accent">${escapeHtml(epic.smartProgressPct)}% Smart (${escapeHtml(epic.declaredProgressPct)}% Tracker)</span>`;
             const openStoriesCount = (epic.stories || []).filter((s) => s.smartStatus !== "done").length;
 
             const storiesHtml = isExpanded
@@ -2279,7 +2374,7 @@
                           ? `/bmad-code-review "Verify story ${s.id} (${s.title}) implementation and acceptance criteria"`
                           : `/bmad-build-auto "Implement ticket ${s.id} (${s.title}) in ${epic.slug}: ${s.verify || s.description || "complete all acceptance criteria and unit tests"}"`;
                       const stModel = s.recommendedModel?.modelId || getFallbackModelId();
-                      const stModelShort = s.recommendedModel?.shortName || (stModel ? stModel.split("/").pop() : "host-default");
+                      const stModelShort = s.recommendedModel?.shortName || shortModelName(stModel);
                       const qItem = isPromptOrStoryInQueue(null, s.overrideKey);
                       return `
                         <div class="story-row">
@@ -2294,7 +2389,7 @@
                               <span class="pill ${sPill}">${escapeHtml(s.smartStatus)}</span>
                             </div>
                           </div>
-                          ${s.smartEvidence ? `<div class="story-evidence">✨ ${escapeHtml(s.smartEvidence)}</div>` : ""}
+                          ${s.smartReason || s.smartEvidence ? `<div class="story-evidence">✨ ${escapeHtml(s.smartReason || s.smartEvidence)}</div>` : ""}
                           <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:3px;flex-wrap:wrap;">
                             <span class="pill pill-accent" title="Recommended Model: ${escapeHtml(stModel)}">
                               🤖 ${escapeHtml(stModelShort)}
@@ -2396,9 +2491,9 @@
           });
         }
 
-        function renderSkillsCatalog() {
+        function renderSkillsCatalog(force = false) {
           if (!currentState) return;
-          const query = (document.getElementById("skillSearch").value || "").toLowerCase().trim();
+          const query = readFilterValue("skillSearch");
           const phaseFilter = document.getElementById("skillPhaseFilter").value;
           const skills = (currentState.skillsCatalog || []).filter((s) => {
             if (phaseFilter !== "all" && s.phase !== phaseFilter) return false;
@@ -2413,8 +2508,7 @@
             skills,
             models: currentState.availableModels || []
           });
-          if (lastSectionSignatures.skillsCatalog !== skillsSig) {
-            lastSectionSignatures.skillsCatalog = skillsSig;
+          if (sectionNeedsRender("skillsCatalog", skillsSig, force)) {
             const skillsEl = document.getElementById("skillsCatalogList");
             skillsEl.innerHTML = skills
               .map((s, idx) => {
@@ -2422,11 +2516,7 @@
                   ...(s.precededBy || []).map((p) => `← ${p}`),
                   ...(s.followedBy || []).map((f) => `→ ${f}`)
                 ].join(" · ");
-                const sModel = s.recommendedModel || {
-                  modelId: getFallbackModelId(),
-                  tier: "🤖 Dynamic Fit",
-                  reason: "Dynamically resolved from active provider & subscription state."
-                };
+                const sModel = s.recommendedModel || dynamicFitModel();
                 const skillKey = getSkillOverrideKey(s);
                 const serverCmd = s.contextualCommand || "";
                 const displayCmd = resolveUserPrompt(skillKey, serverCmd);
@@ -2444,12 +2534,16 @@
                     <div class="rec-rationale">${escapeHtml(s.description)}</div>
                     ${flow ? `<div style="font-size:10.5px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono);">${escapeHtml(flow)}</div>` : ""}
                     <div class="cmd-editor-wrap">
-                      <textarea class="cmd-textarea" id="cat-cmd-${idx}" rows="2">${escapeHtml(displayCmd)}</textarea>
+                      <label class="cmd-label" for="cat-cmd-${idx}">
+                        <span>BMAD Skill Command (Editable)</span>
+                        <span>/${escapeHtml(s.skill)}</span>
+                      </label>
+                      <textarea class="cmd-textarea" id="cat-cmd-${idx}" rows="2" aria-label="BMAD Skill Command for ${escapeHtml(s.displayName)}">${escapeHtml(displayCmd)}</textarea>
                     </div>
                     <div class="model-bar">
                       <div class="model-bar-top">
                         <span class="pill pill-purple">${escapeHtml(sModel.tier)}</span>
-                        <select class="model-select" id="cat-model-${idx}">
+                        <select class="model-select" id="cat-model-${idx}" aria-label="Recommended model for ${escapeHtml(s.displayName)}">
                           ${buildModelSelectOptions(displayModelId, serverModelId)}
                         </select>
                       </div>
@@ -2466,30 +2560,20 @@
               .join("");
 
             skills.forEach((s, idx) => {
-              const skillKey = getSkillOverrideKey(s);
-              const serverCmd = s.contextualCommand || "";
-              const serverModelId = s.recommendedModel?.modelId || getFallbackModelId() || "";
-              const ta = document.getElementById(`cat-cmd-${idx}`);
-              const sel = document.getElementById(`cat-model-${idx}`);
-              if (ta) {
-                ta.addEventListener("input", () => {
-                  userEditedPrompts.set(skillKey, { base: serverCmd, value: ta.value });
-                });
-              }
-              if (sel) {
-                sel.addEventListener("change", () => {
-                  userSelectedModels.set(skillKey, { base: serverModelId, value: sel.value });
-                });
-              }
+              wireUserEditTracking(
+                getSkillOverrideKey(s),
+                s.contextualCommand || "",
+                s.recommendedModel?.modelId || getFallbackModelId() || "",
+                `cat-cmd-${idx}`,
+                `cat-model-${idx}`
+              );
             });
 
             skillsEl.querySelectorAll("[data-cat-queue]").forEach((btn) => {
               btn.addEventListener("click", async () => {
                 const idx = Number(btn.getAttribute("data-cat-queue"));
-                const ta = document.getElementById(`cat-cmd-${idx}`);
-                const sel = document.getElementById(`cat-model-${idx}`);
-                const cmd = ta ? ta.value.trim() : skills[idx].contextualCommand;
-                const model = sel ? sel.value : skills[idx].recommendedModel?.modelId;
+                const cmd = readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, true);
+                const model = readModelEditor(`cat-model-${idx}`, skills[idx].recommendedModel?.modelId);
                 await manageQueue(
                   {
                     action: "add",
@@ -2510,10 +2594,8 @@
             skillsEl.querySelectorAll("[data-cat-launch]").forEach((btn) => {
               btn.addEventListener("click", async () => {
                 const idx = Number(btn.getAttribute("data-cat-launch"));
-                const ta = document.getElementById(`cat-cmd-${idx}`);
-                const sel = document.getElementById(`cat-model-${idx}`);
-                const cmd = ta ? ta.value : skills[idx].contextualCommand;
-                const model = sel ? sel.value : skills[idx].recommendedModel?.modelId;
+                const cmd = readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, false);
+                const model = readModelEditor(`cat-model-${idx}`, skills[idx].recommendedModel?.modelId);
                 await launchPromptInNewSession(cmd, model, skills[idx].skill, skills[idx].displayName);
               });
             });
@@ -2521,18 +2603,14 @@
             skillsEl.querySelectorAll("[data-cat-send]").forEach((btn) => {
               btn.addEventListener("click", async () => {
                 const idx = Number(btn.getAttribute("data-cat-send"));
-                const ta = document.getElementById(`cat-cmd-${idx}`);
-                await sendPromptToCurrentSession(ta ? ta.value : skills[idx].contextualCommand);
+                await sendPromptToCurrentSession(readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, false));
               });
             });
 
             skillsEl.querySelectorAll("[data-cat-copy]").forEach((btn) => {
               btn.addEventListener("click", async () => {
                 const idx = Number(btn.getAttribute("data-cat-copy"));
-                const ta = document.getElementById(`cat-cmd-${idx}`);
-                const cmd = ta ? ta.value : skills[idx].contextualCommand;
-                await copyToClipboard(cmd);
-                showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
+                await copyWithToast(readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, false));
               });
             });
           }
@@ -2543,14 +2621,13 @@
             projectName: currentState.projectName,
             fallbackModel: getFallbackModelId()
           });
-          if (lastSectionSignatures.agentsCatalog !== agentsSig) {
-            lastSectionSignatures.agentsCatalog = agentsSig;
+          if (sectionNeedsRender("agentsCatalog", agentsSig, force)) {
             const agentsEl = document.getElementById("agentsCatalogList");
             agentsEl.innerHTML = agents
               .map((a) => {
                 const agentCmd = `/${a.skill} "Hi ${a.name} (${a.title}), review our current ${currentState.projectName} state and advise on ${a.focus}"`;
                 const aModel = a.recommendedModel?.modelId || getFallbackModelId();
-                const aShort = a.recommendedModel?.shortName || (aModel ? aModel.split("/").pop() : "host-default");
+                const aShort = a.recommendedModel?.shortName || shortModelName(aModel);
                 return `
                   <div class="phase-card" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                     <div>
@@ -2579,9 +2656,9 @@
           }
         }
 
-        function renderArtifactsDirectory() {
+        function renderArtifactsDirectory(force = false) {
           if (!currentState) return;
-          const query = (document.getElementById("artifactSearch")?.value || "").toLowerCase().trim();
+          const query = readFilterValue("artifactSearch");
           const rawArts = Array.isArray(currentState.artifacts) ? currentState.artifacts : [];
           // Strictly sorted by mtimeMs descending (newest modified first)
           const sortedArts = [...rawArts]
@@ -2593,8 +2670,7 @@
             });
 
           const artsSig = JSON.stringify({ query, sortedArts });
-          if (lastSectionSignatures.artifacts === artsSig) return;
-          lastSectionSignatures.artifacts = artsSig;
+          if (!sectionNeedsRender("artifacts", artsSig, force)) return;
 
           document.getElementById("artifactCountBadge").textContent = `${sortedArts.length} files`;
           const list = document.getElementById("artifactsDirectoryList");
@@ -2735,9 +2811,16 @@
           }
         }
 
-        function switchTab(tabId) {
-          document.querySelectorAll(".tab-btn").forEach((b) => {
-            b.classList.toggle("active", b.getAttribute("data-tab") === tabId);
+        function switchTab(tabId, focusBtn = false) {
+          const tabBtns = Array.from(document.querySelectorAll(".tab-btn"));
+          tabBtns.forEach((b) => {
+            const isActive = b.getAttribute("data-tab") === tabId;
+            b.classList.toggle("active", isActive);
+            b.setAttribute("aria-selected", isActive ? "true" : "false");
+            b.setAttribute("tabindex", isActive ? "0" : "-1");
+            if (isActive && focusBtn && typeof b.focus === "function") {
+              b.focus();
+            }
           });
           ["advisor", "queue", "progress", "catalog", "artifacts"].forEach((id) => {
             const el = document.getElementById("tab-" + id);
@@ -2745,9 +2828,42 @@
           });
         }
 
+        function handleTabKeydown(e) {
+          if (e.defaultPrevented) return;
+          const tabBtns = Array.from(document.querySelectorAll(".tab-btn"));
+          if (!tabBtns.length) return;
+          const activeEl = document.activeElement;
+          const currentIdx = tabBtns.findIndex((b) => b === activeEl || b === e.currentTarget);
+          if (currentIdx === -1) return;
+
+          let targetIdx = -1;
+          if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+            targetIdx = (currentIdx + 1) % tabBtns.length;
+          } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+            targetIdx = (currentIdx - 1 + tabBtns.length) % tabBtns.length;
+          } else if (e.key === "Home") {
+            targetIdx = 0;
+          } else if (e.key === "End") {
+            targetIdx = tabBtns.length - 1;
+          }
+
+          if (targetIdx !== -1) {
+            e.preventDefault();
+            const targetBtn = tabBtns[targetIdx];
+            const tabId = targetBtn.getAttribute("data-tab");
+            switchTab(tabId, true);
+          }
+        }
+
         document.querySelectorAll(".tab-btn").forEach((btn) => {
           btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")));
+          btn.addEventListener("keydown", handleTabKeydown);
         });
+
+        const tabsNav = document.getElementById("tabsNav") || document.querySelector(".tabs-nav");
+        if (tabsNav) {
+          tabsNav.addEventListener("keydown", handleTabKeydown);
+        }
 
         document.getElementById("btnSelectAllRecs")?.addEventListener("click", () => {
           const recs = currentState?.recommendations || [];
@@ -2769,13 +2885,11 @@
           for (const idx of selectedRecIndices) {
             const rec = recs[idx];
             if (!rec) continue;
-            const ta = document.getElementById(`rec-cmd-${idx}`);
-            const modelSel = document.getElementById(`rec-model-${idx}`);
             itemsToAdd.push({
               title: rec.title,
               skill: rec.skill,
-              prompt: ta ? ta.value.trim() : rec.fullCommand,
-              model: modelSel ? modelSel.value : rec.recommendedModel?.modelId
+              prompt: readCmdEditor(`rec-cmd-${idx}`, rec.fullCommand, true),
+              model: readModelEditor(`rec-model-${idx}`, rec.recommendedModel?.modelId)
             });
           }
           selectedRecIndices.clear();
@@ -2827,14 +2941,11 @@
             showToast("ℹ️ No active or queued task to complete.");
             return;
           }
-          const updated = await manageQueue(
-            { action: "complete-task", taskId: target.id, storyStatus: "done" },
-            `✓ Marked "${target.title}" Done; continuing queue…`
+          await completeTaskAndContinue(
+            target.id,
+            `✓ Marked "${target.title}" Done; continuing queue…`,
+            currentState?.taskQueue?.executionMode
           );
-          const mode = updated?.taskQueue?.executionMode || currentState?.taskQueue?.executionMode || "separate-sessions";
-          if ((updated?.taskQueue?.counts?.queued || 0) > 0) {
-            await launchQueueExecution(mode);
-          }
         });
 
         document.getElementById("btnPauseQueue")?.addEventListener("click", async () => {
@@ -2915,11 +3026,59 @@
           );
         });
 
+        function isPanelVisible() {
+          if (typeof document === "undefined") return true;
+          if (document.hidden) return false;
+          if (typeof document.visibilityState === "string" && document.visibilityState !== "visible") return false;
+          return true;
+        }
+
         setInterval(() => {
-          if (!document.hidden) {
+          if (isPanelVisible()) {
             refreshState({ isBackground: true });
           }
         }, 5000);
+
+        if (typeof window !== "undefined") {
+          window.__bmadTestHooks = {
+            isUserInteractingWithForm,
+            flushPendingState,
+            refreshState,
+            isPanelVisible,
+            getPendingWorkspaceState: () => pendingWorkspaceState,
+            setPendingWorkspaceState: (val) => {
+              pendingWorkspaceState = val;
+            },
+            getIsRefreshing: () => isRefreshing,
+            setIsRefreshing: (val) => {
+              isRefreshing = val;
+            },
+            getSelectOpenUntil: () => selectOpenUntil,
+            setSelectOpenUntil: (val) => {
+              selectOpenUntil = val;
+            },
+            getUserEditedPrompts: () => userEditedPrompts,
+            getUserSelectedModels: () => userSelectedModels,
+            getLastSectionSignatures: () => lastSectionSignatures,
+            getCurrentState: () => currentState,
+            setCurrentState: (s) => {
+              currentState = s;
+            },
+            resolveUserPrompt,
+            resolveUserModel,
+            renderWorkspaceState,
+            renderRecommendations,
+            renderLiveQueueBannerAndTab,
+            renderInsights,
+            renderPhases,
+            renderEpics,
+            renderSkillsCatalog,
+            renderArtifactsDirectory,
+            switchTab,
+            showToast,
+            handleTabKeydown
+          };
+        }
 
         initMcpApp();
       })();

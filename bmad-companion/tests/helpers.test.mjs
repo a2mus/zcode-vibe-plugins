@@ -10,7 +10,8 @@ import {
   createTempWorkspaceTracker,
   readJsonFile,
   runHookRunner,
-  runMcpServer
+  runMcpServer,
+  seedDualMetricWorkspace
 } from "./helpers.mjs";
 
 function withProcessEnv(overrides, fn) {
@@ -323,5 +324,18 @@ describe("bmad-companion test harness helpers", () => {
         assert.equal(sentinel.contextWindow, 777000);
       }
     );
+  });
+
+  it("seedDualMetric seeds v6 YAML + v7 TOML + story plans + passing test report", () => {
+    const ws = workspaces.seedDualMetric();
+
+    assert.ok(ws.exists("_bmad-output/implementation-artifacts/sprint-status.yaml"));
+    assert.ok(ws.exists("_bmad-output/initiative-demo/tickets/tickets.toml"));
+    assert.ok(ws.exists("_bmad-output/initiative-demo/tickets/epic-core/tickets/tickets.toml"));
+    assert.ok(ws.exists("_bmad-output/initiative-demo/tickets/epic-core/tickets/story-seed-fixture-plan.md"));
+    assert.ok(ws.exists("_bmad-output/implementation-artifacts/report-test-suite.md"));
+
+    const reportContent = ws.read("_bmad-output/implementation-artifacts/report-test-suite.md");
+    assert.match(reportContent, /Total:\s*10,\s*Passed:\s*10,\s*Failed:\s*0/);
   });
 });

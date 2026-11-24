@@ -15,6 +15,57 @@ export const PANEL_HTML_PATH = join(REPO_ROOT, "assets", "panel.html");
 export const CHECK_VERSION_SYNC_PATH = join(REPO_ROOT, "scripts", "check-version-sync.mjs");
 
 /**
+ * Extract the first inline <script> block body from a self-contained HTML asset.
+ */
+export function extractInlineScript(html) {
+  const match = html.match(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/i);
+  assert.ok(match, "HTML asset must contain an inline <script> block");
+  return match[1];
+}
+
+/**
+ * Extract the first inline <style> block body from a self-contained HTML asset.
+ */
+export function extractStyleContent(html) {
+  const match = html.match(/<style(?:\s[^>]*)?>([\s\S]*?)<\/style>/i);
+  assert.ok(match, "HTML asset must contain an inline <style> block");
+  return match[1];
+}
+
+/**
+ * WCAG 2.1 relative luminance calculation for a 6-digit hex color.
+ */
+export function relativeLuminance(hex) {
+  const clean = hex.replace("#", "").slice(0, 6);
+  const [r, g, b] = [0, 2, 4].map((offset) => {
+    const c = parseInt(clean.slice(offset, offset + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * WCAG 2.1 contrast ratio between two 6-digit hex colors.
+ */
+export function contrastRatio(hexA, hexB) {
+  const l1 = relativeLuminance(hexA);
+  const l2 = relativeLuminance(hexB);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+/**
+ * Alpha-blend a foreground color over a background color and return the resulting 6-digit hex color.
+ */
+export function compositeColor(fgHex, alpha, bgHex) {
+  const cleanFg = fgHex.replace("#", "").slice(0, 6);
+  const cleanBg = bgHex.replace("#", "").slice(0, 6);
+  const fg = [0, 2, 4].map((o) => parseInt(cleanFg.slice(o, o + 2), 16));
+  const bg = [0, 2, 4].map((o) => parseInt(cleanBg.slice(o, o + 2), 16));
+  const res = fg.map((c, i) => Math.round(alpha * c + (1 - alpha) * bg[i]));
+  return "#" + res.map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/**
  * Create a disposable temp workspace with file helpers and rmSync cleanup.
  */
 export function createTempWorkspace({ prefix = "bmad-companion-ws-", files = {} } = {}) {
@@ -65,6 +116,9 @@ export function createTempWorkspaceTracker(registerAfterEach) {
     seed(workspaceOptions, seedOptions) {
       return seedBmadWorkspace(tracker.create(workspaceOptions), seedOptions);
     },
+    seedDualMetric(workspaceOptions, seedOptions) {
+      return seedDualMetricWorkspace(tracker.create(workspaceOptions), seedOptions);
+    },
     cleanup() {
       let firstError = null;
       while (tracked.length > 0) {
@@ -97,7 +151,9 @@ export function seedBmadWorkspace(
     epicSlug = "epic-core",
     sprintStatus = true,
     includePlanningArtifacts = true,
-    includeStoryPlans = true
+    includeStoryPlans = true,
+    includePassingTestReport = false,
+    testReportName = "report-test-suite.md"
   } = {}
 ) {
   if (includePlanningArtifacts) {
@@ -199,7 +255,33 @@ export function seedBmadWorkspace(
     );
   }
 
+  if (includePassingTestReport) {
+    workspace.write(
+      `_bmad-output/implementation-artifacts/${testReportName}`,
+      [
+        "# Test Execution Report: Core Suite",
+        "",
+        "## Summary",
+        "Total: 10, Passed: 10, Failed: 0",
+        "",
+        "All 10 tests passed successfully."
+      ].join("\n") + "\n"
+    );
+  }
+
   return workspace;
+}
+
+/**
+ * Seed a temp workspace with the dual-metric fixture (Story 3.1):
+ * v6 sprint-status.yaml + v7 tickets.toml + story plans + a passing test report.
+ * Hands off the dual-metric fixture to Stories 3.2 and 3.3.
+ */
+export function seedDualMetricWorkspace(workspace, options = {}) {
+  return seedBmadWorkspace(workspace, {
+    includePassingTestReport: true,
+    ...options
+  });
 }
 
 /**

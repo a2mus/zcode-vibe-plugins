@@ -646,13 +646,27 @@ describe("MCP stdio JSON-RPC transport", () => {
 
       const personaResult = await callTool(
         "vibe_debrief_set_persona",
-        { persona: "indie-founder", ste100Enabled: false },
+        {
+          persona: "indie-founder",
+          ste100Enabled: false,
+          language: "fr",
+          preferredModel: "openai/gpt-5-nano",
+          themePreference: "light"
+        },
         { workspace, home }
       );
       assert.equal(personaResult.structuredContent.activePersona, "indie-founder");
       assert.equal(personaResult.structuredContent.ste100Enabled, false);
+      assert.equal(personaResult.structuredContent.language, "fr");
+      assert.equal(personaResult.structuredContent.preferredModel, "openai/gpt-5-nano");
+      assert.equal(personaResult.structuredContent.themePreference, "light");
       assert.equal(personaResult.structuredContent.currentDebrief.persona, "indie-founder");
       assert.match(personaResult.content[0].text, /indie-founder/);
+
+      const reloadedState = await callTool("vibe_debrief_get_state", { refresh: true }, { workspace, home });
+      assert.equal(reloadedState.structuredContent.language, "fr");
+      assert.equal(reloadedState.structuredContent.preferredModel, "openai/gpt-5-nano");
+      assert.equal(reloadedState.structuredContent.themePreference, "light");
 
       const toggleResult = await callTool(
         "vibe_debrief_toggle_check",
@@ -724,6 +738,65 @@ describe("MCP stdio JSON-RPC transport", () => {
     }
   });
 
+  it("export_html accepts { conceptSlug, targetPlugin } and writes the Stage 2 3-column fallback", async () => {
+    const { workspace, home, cleanup } = createSeededFixture();
+    const artifactDir = join(workspace.root, "artifacts");
+
+    try {
+      // Seed a concept so the matched-concept path is exercised end-to-end.
+      const seeded = buildDebriefFixture({
+        concepts: [
+          {
+            slug: "sse-stream",
+            label: "SSE Stream",
+            targetPlugin: "visualize",
+            stage2: {
+              howItWorks: "Server writes SSE frames over one open connection.",
+              keyTradeOff: "SSE is one-directional, unlike WebSockets.",
+              inYourCodebase: "Find EventSource calls in the frontend."
+            }
+          }
+        ]
+      });
+      savePersistedState(workspace.root, { currentDebrief: seeded });
+
+      const result = await callTool(
+        "vibe_debrief_export_html",
+        { conceptSlug: "sse-stream", targetPlugin: "visualize" },
+        { workspace, home, env: { ZCODE_VISUALIZATION_DIR: artifactDir } }
+      );
+      const artifact = result.structuredContent.exportedArtifact;
+      assert.ok(artifact, "export_html must return artifact metadata");
+      assert.equal(artifact.conceptSlug, "sse-stream");
+      assert.equal(artifact.targetPlugin, "visualize");
+      assert.equal(existsSync(artifact.filePath), true);
+
+      const html = readFileSync(artifact.filePath, "utf8");
+      assert.match(html, /id="stage2Popout"/);
+      assert.match(html, /<h3>How It Works<\/h3>/);
+      assert.match(html, /<h3>Key Trade-off<\/h3>/);
+      assert.match(html, /<h3>In Your Codebase<\/h3>/);
+      assert.match(html, /Server writes SSE frames over one open connection\./);
+      assert.match(html, /id="missingBanner"/);
+      assert.match(html, /Install visualize/);
+      assert.match(html, /id="stage2TelemetryPill"/);
+
+      // conceptSlug null still renders the fallback, synthesized from the debrief.
+      const nullResult = await callTool(
+        "vibe_debrief_export_html",
+        { conceptSlug: null, targetPlugin: "excalidraw" },
+        { workspace, home, env: { ZCODE_VISUALIZATION_DIR: artifactDir } }
+      );
+      const nullHtml = readFileSync(nullResult.structuredContent.exportedArtifact.filePath, "utf8");
+      assert.match(nullHtml, /id="stage2Popout"/);
+      assert.match(nullHtml, /Keep the change small\./);
+      assert.match(nullHtml, /Install excalidraw/);
+      assert.equal(nullHtml.includes("Server writes SSE frames"), false);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("round-trips confirm_lesson into an isolated ZCode memory directory", async () => {
     const { workspace, home, cleanup } = createSeededFixture();
     const lesson = {
@@ -780,7 +853,7 @@ describe("hook runner stdout isolation", () => {
         env: mcpEnv(workspace, home)
       });
       const sessionFrame = parseHookFrame(session, "session-start");
-      assert.match(sessionFrame.additionalContext, /Vibe Debrief v0\.3\.0/);
+      assert.match(sessionFrame.additionalContext, /Vibe Debrief v0\.4\.0/);
       assert.match(sessionFrame.additionalContext, /Persona: Vibe Mentor/);
       assert.match(sessionFrame.additionalContext, /STE-80: ON/);
       assert.match(sessionFrame.additionalContext, /Always include `diagram`/);
@@ -1068,7 +1141,7 @@ describe("hook runner stdout isolation", () => {
         env: mcpEnv(workspace, home)
       });
       const frame = parseHookFrame(result, "session-start (malformed stdin)");
-      assert.match(frame.additionalContext, /Vibe Debrief v0\.3\.0/);
+      assert.match(frame.additionalContext, /Vibe Debrief v0\.4\.0/);
     } finally {
       cleanup();
     }
@@ -1076,33 +1149,33 @@ describe("hook runner stdout isolation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4-file version sync gate (Story 4.3 / epic-panel-a11y R3)
+// 4-file version sync gate (Story 4.3 / epic-panel-a11y R3 & Story 7.5 v0.4.0)
 // ---------------------------------------------------------------------------
 
 describe("4-file version sync gate", () => {
-  it("collects a 0.3.0 declaration from every canonical version location", () => {
+  it("collects a 0.4.0 declaration from every canonical version location", () => {
     const declarations = collectVersionDeclarations(REPO_ROOT);
     assert.equal(declarations.length, 4, "the gate must cover all four version locations");
     for (const entry of declarations) {
       assert.equal(entry.error, null, `${entry.label} must be readable`);
-      assert.equal(entry.version, "0.3.0", `${entry.label} must declare 0.3.0`);
+      assert.equal(entry.version, "0.4.0", `${entry.label} must declare 0.4.0`);
     }
   });
 
-  it("passes the release gate for the real repository at 0.3.0", () => {
-    const result = checkVersionSync({ expectedVersion: "0.3.0" });
+  it("passes the release gate for the real repository at 0.4.0", () => {
+    const result = checkVersionSync({ expectedVersion: "0.4.0" });
     assert.deepEqual(result.problems, []);
     assert.equal(result.ok, true);
-    assert.equal(result.version, "0.3.0");
+    assert.equal(result.version, "0.4.0");
   });
 
   it("exits 0 as a CLI gate and reports all four locations synced", async () => {
     const result = await runNodeProcess({
-      args: [join(REPO_ROOT, "scripts", "check-version-sync.mjs"), "0.3.0"]
+      args: [join(REPO_ROOT, "scripts", "check-version-sync.mjs"), "0.4.0"]
     });
     assert.equal(result.exitCode, 0, `gate stderr: ${result.stderr}`);
     assert.equal(result.stderr, "", "a passing gate must keep stderr clean");
-    assert.match(result.stdout, /all 4 version locations synced to 0\.3\.0/);
+    assert.match(result.stdout, /all 4 version locations synced to 0\.4\.0/);
   });
 
   it("detects drift when one location disagrees with the others", () => {

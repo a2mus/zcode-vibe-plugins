@@ -154,7 +154,7 @@ Behavioral. Visual contrast lives in [DESIGN.md.Colors](./DESIGN.md#colors) (mea
 - **AD-3 — Toasts not announced.** `#toastBanner` has no `role="status"`/`aria-live`; screen readers miss launch/copy/error feedback. Contract: `aria-live="polite"` (errors `assertive`).
 - **AD-4 — Unassociated labels.** The Queue tab's review-gate and epic-picker `<label>`s (`panel.html:859, 869`) lack `for`/`id` wrapping; command-editor labels are decorative divs. Contract: associate labels with their controls.
 - **AD-5 — Motion not gated.** `.pulse-dot` animates infinitely with no `prefers-reduced-motion` fallback (`panel.html:719-729`). Contract: disable the pulse under reduced motion.
-- **AD-6 — Contrast debt.** DESIGN.md CD-1…CD-4 (muted ink, pill text, dark primary/badge white) remain below AA in places.
+- **AD-6 — Contrast debt.** Closed: DESIGN.md CD-1…CD-5 closed to full WCAG AA (essential text ≥4.5:1, focus indicators ≥3:1 in both themes).
 
 ## Responsive & Platform
 

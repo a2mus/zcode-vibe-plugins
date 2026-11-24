@@ -1,12 +1,13 @@
 import { createInterface } from "node:readline";
-import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  errorMessage,
   inspectWorkspaceArtifact,
   manageBmadTaskQueue,
   openWorkspaceArtifactExternally,
+  prepareNewSession,
   reconcileWorkspaceTrackers,
   savePersistedState,
   scanBmadWorkspace,
@@ -19,155 +20,6 @@ const PANEL_HTML_PATH = join(PLUGIN_ROOT, "assets", "panel.html");
 const PANEL_URI = "ui://bmad-companion/panel.html";
 const SURFACE_ID = "bmad-companion";
 const HTML_MIME = "text/html;profile=mcp-app";
-
-function runCommandAsync(command, args, { env = process.env, stdinText = null, timeoutMs = 8000 } = {}) {
-  return new Promise((resolvePromise) => {
-    let settled = false;
-    let stdout = "";
-    let stderr = "";
-    const child = spawn(command, args, {
-      env,
-      windowsHide: true,
-      stdio: [stdinText !== null ? "pipe" : "ignore", "pipe", "pipe"]
-    });
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        child.kill();
-      } catch {}
-      resolvePromise({ ok: false, code: null, stdout, stderr: stderr || "timeout" });
-    }, timeoutMs);
-
-    child.stdout?.on("data", (d) => {
-      stdout += d.toString();
-    });
-    child.stderr?.on("data", (d) => {
-      stderr += d.toString();
-    });
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolvePromise({ ok: false, code: null, stdout, stderr: err.message });
-    });
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolvePromise({ ok: code === 0, code, stdout, stderr });
-    });
-    if (stdinText !== null && child.stdin) {
-      child.stdin.write(stdinText, "utf8");
-      child.stdin.end();
-    }
-  });
-}
-
-async function openNewConversationWithPrompt(promptText, openDirectly = true) {
-  const text = String(promptText || "");
-  if (!text) {
-    return { copied: false, openedDirectly: false, pasted: false, method: "none", error: "empty_prompt" };
-  }
-
-  if (process.platform === "win32") {
-    const psScript = [
-      "$ErrorActionPreference = 'Stop'",
-      "Add-Type -AssemblyName System.Windows.Forms",
-      "$raw = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:BMAD_PROMPT_B64))",
-      "[System.Windows.Forms.Clipboard]::SetDataObject($raw, $true, 5, 50)",
-      "if ($env:BMAD_OPEN_DIRECTLY -eq '1') {",
-      "  Start-Sleep -Milliseconds 75",
-      "  [System.Windows.Forms.SendKeys]::SendWait('^n')",
-      "  Start-Sleep -Milliseconds 500",
-      "  [System.Windows.Forms.SendKeys]::SendWait('^v')",
-      "}"
-    ].join("; ");
-
-    const res = await runCommandAsync(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-STA", "-Command", psScript],
-      {
-        env: {
-          ...process.env,
-          BMAD_PROMPT_B64: Buffer.from(text, "utf8").toString("base64"),
-          BMAD_OPEN_DIRECTLY: openDirectly ? "1" : "0"
-        },
-        timeoutMs: 8000
-      }
-    );
-    if (res.ok) {
-      return {
-        copied: true,
-        openedDirectly: Boolean(openDirectly),
-        pasted: Boolean(openDirectly),
-        method: openDirectly ? "win32-sendkeys-ctrl-n-v" : "win32-clipboard"
-      };
-    }
-    return {
-      copied: false,
-      openedDirectly: false,
-      pasted: false,
-      method: "win32-failed",
-      error: res.stderr.trim() || `exit_${res.code}`
-    };
-  }
-
-  if (process.platform === "darwin") {
-    const copyRes = await runCommandAsync("pbcopy", [], { stdinText: text, timeoutMs: 3000 });
-    if (!copyRes.ok) {
-      return { copied: false, openedDirectly: false, pasted: false, method: "darwin-pbcopy-failed", error: copyRes.stderr.trim() };
-    }
-    if (!openDirectly) {
-      return { copied: true, openedDirectly: false, pasted: false, method: "darwin-clipboard" };
-    }
-    const osaRes = await runCommandAsync(
-      "osascript",
-      [
-        "-e", 'tell application "System Events" to keystroke "n" using command down',
-        "-e", "delay 0.5",
-        "-e", 'tell application "System Events" to keystroke "v" using command down'
-      ],
-      { timeoutMs: 6000 }
-    );
-    return {
-      copied: true,
-      openedDirectly: osaRes.ok,
-      pasted: osaRes.ok,
-      method: osaRes.ok ? "darwin-osascript-cmd-n-v" : "darwin-clipboard-only",
-      ...(osaRes.ok ? {} : { error: osaRes.stderr.trim() })
-    };
-  }
-
-  // Linux best-effort clipboard + xdotool
-  let copied = false;
-  for (const [cmd, args] of [
-    ["wl-copy", []],
-    ["xclip", ["-selection", "clipboard"]],
-    ["xsel", ["--clipboard", "--input"]]
-  ]) {
-    const r = await runCommandAsync(cmd, args, { stdinText: text, timeoutMs: 2500 });
-    if (r.ok) {
-      copied = true;
-      break;
-    }
-  }
-  if (!copied || !openDirectly) {
-    return { copied, openedDirectly: false, pasted: false, method: copied ? "linux-clipboard" : "linux-unsupported" };
-  }
-  const nRes = await runCommandAsync("xdotool", ["key", "--clearmodifiers", "ctrl+n"], { timeoutMs: 2500 });
-  if (!nRes.ok) {
-    return { copied: true, openedDirectly: false, pasted: false, method: "linux-clipboard-only", error: nRes.stderr.trim() };
-  }
-  await new Promise((r) => setTimeout(r, 500));
-  const vRes = await runCommandAsync("xdotool", ["key", "--clearmodifiers", "ctrl+v"], { timeoutMs: 2500 });
-  return {
-    copied: true,
-    openedDirectly: true,
-    pasted: vRes.ok,
-    method: vRes.ok ? "linux-xdotool-ctrl-n-v" : "linux-xdotool-ctrl-n-only"
-  };
-}
 
 function getWorkspaceRoot() {
   return resolve(
@@ -415,15 +267,18 @@ const TOOLS = [
       properties: {
         dryRun: {
           type: "boolean",
+          default: false,
           description: "If true, simulates the reconciliation and returns changes without writing files to disk."
         },
         target: {
           type: "string",
           enum: ["all", "v6-yaml", "v7-tickets"],
+          default: "all",
           description: "Choose which tracker files to reconcile: all (default), v6-yaml, or v7-tickets."
         },
         backup: {
           type: "boolean",
+          default: true,
           description: "Whether to create .bak backup copies before modifying tracker files (default true)."
         }
       },
@@ -587,7 +442,11 @@ const TOOLS = [
         },
         prompt: {
           type: "string",
-          description: "Updated prompt string when action='update-item'."
+          description: "Updated prompt string when action='update-item' or top-level add."
+        },
+        title: {
+          type: "string",
+          description: "Updated title string when action='update-item' or top-level add."
         },
         status: {
           type: "string",
@@ -631,6 +490,22 @@ const TOOLS = [
   }
 ];
 
+// Single success-result shape for every tool: text content + structuredContent.
+function toolResult(text, structuredContent) {
+  return {
+    content: [{ type: "text", text }],
+    structuredContent
+  };
+}
+
+// Single error-result shape for every tool failure (no structuredContent).
+function toolErrorResult(text) {
+  return {
+    isError: true,
+    content: [{ type: "text", text }]
+  };
+}
+
 async function handleToolCall(name, args = {}) {
   const workspaceRoot = getWorkspaceRoot();
 
@@ -642,54 +517,27 @@ async function handleToolCall(name, args = {}) {
       });
     }
     const scan = scanBmadWorkspace(workspaceRoot);
-    return {
-      content: [{ type: "text", text: formatStateMarkdown(scan) }],
-      structuredContent: scan
-    };
+    return toolResult(formatStateMarkdown(scan), scan);
   }
 
   if (name === "bmad_update_advisor") {
     const scan = updateAdvisorState(workspaceRoot, args);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Updated BMAD Companion advisor state.\n\n${formatStateMarkdown(scan)}`
-        }
-      ],
-      structuredContent: scan
-    };
+    return toolResult(
+      `Updated BMAD Companion advisor state.\n\n${formatStateMarkdown(scan)}`,
+      scan
+    );
   }
 
   if (name === "bmad_prepare_new_session") {
-    const openDirectly = args.openDirectly !== false;
-    const launchRecord = {
-      prompt: String(args.prompt || ""),
-      model: String(args.model || ""),
-      skill: String(args.skill || ""),
-      title: String(args.title || ""),
-      requestedAt: new Date().toISOString()
-    };
-    savePersistedState(workspaceRoot, {
-      lastLaunchedSession: launchRecord
-    });
-    const launchStatus = await openNewConversationWithPrompt(launchRecord.prompt, openDirectly);
-    return {
-      content: [
-        {
-          type: "text",
-          text: launchStatus.openedDirectly && launchStatus.pasted
-            ? `Opened a new conversation with prompt pre-pasted (recommended model: ${launchRecord.model}).`
-            : launchStatus.copied
-              ? `Copied prompt to clipboard (recommended model: ${launchRecord.model}). Press Ctrl+N (or Cmd+N) then paste into the new conversation.`
-              : `Prepared new conversation prompt (recommended model: ${launchRecord.model}).`
-        }
-      ],
-      structuredContent: {
-        ...launchRecord,
-        ...launchStatus
-      }
-    };
+    const structured = await prepareNewSession(workspaceRoot, args);
+    return toolResult(
+      structured.openedDirectly && structured.pasted
+        ? `Opened a new conversation with prompt pre-pasted (recommended model: ${structured.model}).`
+        : structured.copied
+          ? `Copied prompt to clipboard (recommended model: ${structured.model}). Press Ctrl+N (or Cmd+N) then paste into the new conversation.`
+          : `Prepared new conversation prompt (recommended model: ${structured.model}).`,
+      structured
+    );
   }
 
   if (name === "bmad_reconcile_trackers") {
@@ -698,21 +546,21 @@ async function handleToolCall(name, args = {}) {
     const lines = [
       `# ${modeStr}BMAD Tracker Reconciliation`,
       ``,
+      `- **Target:** \`${result.target}\``,
       `- **Updated Files:** ${result.updatedFiles.length} file(s)`,
       `- **Total Status Keys Reconciled:** ${result.changesCount}`,
       `- **Static Tracker Progress:** ${result.before.declaredOverallPct}% (${result.before.declaredDoneStories} stories) → **${result.after.declaredOverallPct}% (${result.after.declaredDoneStories} stories)**`,
       `- **Smart AI Progress:** **${result.after.smartOverallPct}% (${result.after.smartDoneStories} stories)**`,
       ``,
       `### Reconciled Changes`,
-      ...result.changes.slice(0, 15).map(
-        (c) => `- \`${c.key}\` in *${c.file}*: \`${c.oldStatus}\` → **\`${c.newStatus}\`** (${c.reason})`
-      ),
+      ...(result.changes.length === 0
+        ? ["- *(No tracker files required status changes; trackers already match code reality)*"]
+        : result.changes.slice(0, 15).map(
+            (c) => `- \`${c.key}\` in *${c.file}*: \`${c.oldStatus}\` → **\`${c.newStatus}\`** (${c.reason})`
+          )),
       ...(result.changes.length > 15 ? [`... and ${result.changes.length - 15} more changes`] : [])
     ];
-    return {
-      content: [{ type: "text", text: lines.join("\n") }],
-      structuredContent: result
-    };
+    return toolResult(lines.join("\n"), result);
   }
 
   if (name === "bmad_recommend_next") {
@@ -747,43 +595,30 @@ async function handleToolCall(name, args = {}) {
           `- **${s.displayName}** (\`${s.skill}\` · ${s.phase} · Model: \`${s.recommendedModel?.modelId}\`):\n  \`${s.contextualCommand}\``
       )
     ];
-    return {
-      content: [{ type: "text", text: lines.join("\n") }],
-      structuredContent: {
-        recommendations: scan.recommendations,
-        matchingSkills: matchingSkills.slice(0, 12)
-      }
-    };
+    return toolResult(lines.join("\n"), {
+      recommendations: scan.recommendations,
+      matchingSkills: matchingSkills.slice(0, 12)
+    });
   }
 
   if (name === "bmad_inspect_artifact") {
     const info = inspectWorkspaceArtifact(workspaceRoot, args.relPath);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `# Artifact: ${info.relPath}\n- Last Modified: ${info.lastModifiedIso}\n- Diff Source: ${info.diffSource}\n\n## Git Diff\n\`\`\`diff\n${info.diff}\n\`\`\`\n\n## Content Preview\n${info.preview}${info.truncated ? "\n\n...[truncated]" : ""}`
-        }
-      ],
-      structuredContent: info
-    };
+    return toolResult(
+      `# Artifact: ${info.relPath}\n- Last Modified: ${info.lastModifiedIso}\n- Diff Source: ${info.diffSource}\n\n## Git Diff\n\`\`\`diff\n${info.diff}\n\`\`\`\n\n## Content Preview\n${info.preview}${info.truncated ? "\n\n...[truncated]" : ""}`,
+      info
+    );
   }
 
   if (name === "bmad_open_artifact_file") {
     const openedResult = openWorkspaceArtifactExternally(workspaceRoot, args.relPath);
     const info = inspectWorkspaceArtifact(workspaceRoot, args.relPath);
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Opened artifact ${info.relPath} (${openedResult.opened ? "launched in desktop editor" : "preview loaded"}).\n\n## Git Diff (${info.diffSource})\n\`\`\`diff\n${info.diff}\n\`\`\``
-        }
-      ],
-      structuredContent: {
+    return toolResult(
+      `Opened artifact ${info.relPath} (${openedResult.opened ? "launched in desktop editor" : "preview loaded"}).\n\n## Git Diff (${info.diffSource})\n\`\`\`diff\n${info.diff}\n\`\`\``,
+      {
         ...info,
         openedExternally: openedResult.opened
       }
-    };
+    );
   }
 
   if (name === "bmad_queue_manage") {
@@ -792,29 +627,32 @@ async function handleToolCall(name, args = {}) {
     const wf = res.generatedWorkflow;
     const summaryLines = [
       `# BMAD Companion Task Queue (${res.action})`,
-      `- **Queue Status:** ${q.status.toUpperCase()} (${q.counts.done}/${q.counts.total} complete · ${q.counts.queued} in queue · ${q.counts.running} active)`,
+      `- **Queue Status:** ${q.status.toUpperCase()} (${q.counts.done}/${q.counts.total} complete · ${q.counts.queued} in queue · ${q.counts.running} active${q.counts.failed > 0 ? ` · ${q.counts.failed} failed` : ""})`,
       `- **Execution Mode:** \`${q.executionMode}\` · **Default Review Gate:** \`${q.defaultReviewMode}\``,
       q.activeTask
         ? `- 🟢 **Active Task:** **${q.activeTask.title}** (\`${q.activeTask.model}\` · review: \`${q.activeTask.reviewMode}\`)`
         : `- ⏸ **Active Task:** None`,
       ...(wf
-        ? [
-            `- ⚡ **Generated Dynamic Workflow:** \`${wf.workflowRelPath}\` (${wf.tasksCount} tasks)`,
-            `  - Workflow Launch Command: \`${wf.workflowLaunchPrompt}\``
-          ]
+        ? q.executionMode === "separate-sessions" && wf.separateSessionsPrompt
+          ? [
+              `- 🚀 **Separate-Sessions Launch Plan (${wf.tasksCount} tasks):**`,
+              `  - ${wf.separateSessionsPrompt.split("\n")[0]}`,
+              `  - Generated Workflow Artifact: \`${wf.workflowRelPath}\``
+            ]
+          : [
+              `- ⚡ **Generated Dynamic Workflow:** \`${wf.workflowRelPath}\` (${wf.tasksCount} tasks)`,
+              `  - Workflow Launch Command: \`${wf.workflowLaunchPrompt}\``
+            ]
         : [])
     ];
-    return {
-      content: [{ type: "text", text: summaryLines.join("\n") }],
-      structuredContent: {
-        ...res.scan,
-        queueActionResult: {
-          action: res.action,
-          taskQueue: res.taskQueue,
-          generatedWorkflow: res.generatedWorkflow
-        }
+    return toolResult(summaryLines.join("\n"), {
+      ...res.scan,
+      queueActionResult: {
+        action: res.action,
+        taskQueue: res.taskQueue,
+        generatedWorkflow: res.generatedWorkflow
       }
-    };
+    });
   }
 
   throw new Error(`Unknown tool: ${name}`);
@@ -836,7 +674,7 @@ function sendError(id, code, message) {
 
 const rl = createInterface({ input: process.stdin, terminal: false });
 
-rl.on("line", async (line) => {
+async function processLine(line) {
   const trimmed = line.trim();
   if (!trimmed) return;
   let message;
@@ -883,15 +721,7 @@ rl.on("line", async (line) => {
         const result = await handleToolCall(toolName, toolArgs);
         sendResponse(id, result);
       } catch (err) {
-        sendResponse(id, {
-          isError: true,
-          content: [
-            {
-              type: "text",
-              text: err instanceof Error ? err.message : String(err)
-            }
-          ]
-        });
+        sendResponse(id, toolErrorResult(errorMessage(err)));
       }
       return;
     }
@@ -946,6 +776,11 @@ rl.on("line", async (line) => {
 
     sendError(id, -32601, `Method not found: ${method}`);
   } catch (err) {
-    sendError(id, -32603, err instanceof Error ? err.message : String(err));
+    sendError(id, -32603, errorMessage(err));
   }
+}
+
+let lineQueue = Promise.resolve();
+rl.on("line", (line) => {
+  lineQueue = lineQueue.then(() => processLine(line)).catch(() => {});
 });

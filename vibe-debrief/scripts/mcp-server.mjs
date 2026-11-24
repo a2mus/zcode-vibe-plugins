@@ -619,7 +619,7 @@ const TOOLS = [
   {
     name: "vibe_debrief_set_persona",
     description:
-      "Switch the active persona, view mode (bug vs implementation), or STE-80 clarity toggle in the Vibe Debrief panel.",
+      "Switch the active persona, view mode (bug vs implementation), STE-80 clarity toggle, language, preferred clarification model, or surface theme preference in the Vibe Debrief panel.",
     inputSchema: {
       type: "object",
       properties: {
@@ -633,6 +633,19 @@ const TOOLS = [
         },
         ste100Enabled: {
           type: "boolean"
+        },
+        language: {
+          type: "string",
+          description: "Active explanation language code (e.g. 'en', 'fr')."
+        },
+        preferredModel: {
+          type: "string",
+          description: "Preferred clarification model ID or 'auto-cheapest'."
+        },
+        themePreference: {
+          type: "string",
+          enum: ["auto", "dark", "light"],
+          description: "Surface theme override ('auto', 'dark', or 'light')."
         }
       },
       additionalProperties: false
@@ -675,10 +688,20 @@ const TOOLS = [
   {
     name: "vibe_debrief_export_html",
     description:
-      "Generate and save a standalone, zero-dependency discardable HTML explainer artifact for the current debrief (includes STE-80 summary, interactive SVG diagram, checklist, and complex explainer player if applicable).",
+      "Generate and save a standalone, zero-dependency discardable HTML explainer artifact for the current debrief (includes STE-80 summary, interactive SVG diagram, checklist, and complex explainer player if applicable). Pass { conceptSlug, targetPlugin } to render the mandatory Stage 2 3-column HTML fallback (How It Works / Key Trade-off / In Your Codebase) with a missing-banner when the target visual plugin is not installed.",
     inputSchema: {
       type: "object",
-      properties: {},
+      properties: {
+        conceptSlug: {
+          type: "string",
+          description: "Optional concept slug from currentDebrief.concepts. When null/omitted, the Stage 2 columns are synthesized from the debrief plan/result/consequences."
+        },
+        targetPlugin: {
+          type: "string",
+          enum: ["excalidraw", "visualize", "vectorcraft", "designcraft"],
+          description: "Optional missing visual plugin. When set, the export includes the stage2-popout 3-column fallback grid, floating telemetry pill, and missing-banner with Install CTA."
+        }
+      },
       additionalProperties: false
     },
     annotations: { readOnlyHint: false },
@@ -935,25 +958,55 @@ async function handleToolCall(name, args = {}) {
 
   if (name === "vibe_debrief_set_persona") {
     const state = loadPersistedState(workspaceRoot);
-    const activePersona = args.persona || state.activePersona || "vibe-mentor";
-    const ste100Enabled = args.ste100Enabled !== undefined ? Boolean(args.ste100Enabled) : state.ste100Enabled !== false;
+    const validPersonas = PERSONAS.map((p) => p.id);
+    const activePersona = validPersonas.includes(args.persona)
+      ? args.persona
+      : state.activePersona || "vibe-mentor";
+    const ste100Enabled =
+      args.ste100Enabled !== undefined ? Boolean(args.ste100Enabled) : state.ste100Enabled !== false;
+    const language =
+      typeof args.language === "string" && args.language.trim()
+        ? args.language.trim().slice(0, 16)
+        : state.language || "en";
+    const preferredModel =
+      typeof args.preferredModel === "string" && args.preferredModel.trim()
+        ? args.preferredModel.trim().slice(0, 128)
+        : state.preferredModel || "auto-cheapest";
+    const themePreference = ["auto", "dark", "light"].includes(args.themePreference)
+      ? args.themePreference
+      : ["auto", "dark", "light"].includes(state.themePreference)
+        ? state.themePreference
+        : "auto";
+    const validResponseType =
+      args.responseType === "bug" || args.responseType === "implementation"
+        ? args.responseType
+        : undefined;
+
     const currentDebrief = state.currentDebrief
       ? {
           ...state.currentDebrief,
           persona: activePersona,
-          responseType: args.responseType || state.currentDebrief.responseType
+          responseType: validResponseType || state.currentDebrief.responseType
         }
       : undefined;
 
     savePersistedState(workspaceRoot, {
       activePersona,
       ste100Enabled,
+      language,
+      preferredModel,
+      themePreference,
       ...(currentDebrief ? { currentDebrief } : {})
     });
 
     const panelState = buildFullPanelState(workspaceRoot);
     return {
-      content: [{ type: "text", text: `Updated Vibe Debrief settings (persona: ${activePersona}, STE-80: ${ste100Enabled ? "on" : "off"}).` }],
+      content: [
+        {
+          type: "text",
+          text: `Updated Vibe Debrief settings (persona: ${activePersona}, STE-80: ${ste100Enabled ? "on" : "off"}, lang: ${language}, theme: ${themePreference}, model: ${preferredModel}).`
+        }
+      ],
       structuredContent: panelState
     };
   }
@@ -978,7 +1031,12 @@ async function handleToolCall(name, args = {}) {
 
   if (name === "vibe_debrief_export_html") {
     const panelState = buildFullPanelState(workspaceRoot);
-    const artifact = saveStandaloneHtmlArtifact(workspaceRoot, panelState);
+    // Story 7.3 (AD-17) — optional Stage 2 missing-plugin fallback contract.
+    const exportOptions = {
+      conceptSlug: args.conceptSlug ? String(args.conceptSlug) : null,
+      targetPlugin: args.targetPlugin ? String(args.targetPlugin) : null
+    };
+    const artifact = saveStandaloneHtmlArtifact(workspaceRoot, panelState, exportOptions);
     return {
       content: [
         {
@@ -988,7 +1046,7 @@ async function handleToolCall(name, args = {}) {
       ],
       structuredContent: {
         ...panelState,
-        exportedArtifact: artifact
+        exportedArtifact: { ...artifact, ...exportOptions }
       }
     };
   }
@@ -1081,7 +1139,7 @@ rl.on("line", async (line) => {
         },
         serverInfo: {
           name: "vibe-debrief",
-          version: "0.3.0"
+          version: "0.4.0"
         }
       });
       return;

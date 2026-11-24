@@ -1706,19 +1706,345 @@ function escapeHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-export function generateStandaloneHtmlArtifact(panelState) {
+// ----------------------------------------------------------------------------
+// Story 6.3 — X-Ray dual-coding helpers (Plain STE-80 <-> Tech).
+// The panel pre-binds both representations and swaps them with CSS only; the
+// standalone HTML export (Story 6.6) reuses this exact markup contract, and
+// Story 6.4 reuses collectXrayTechTokens() for the SVG node inspector.
+// Raw X-Ray text is escaped BEFORE any .sym badge wrapping (C8). Tokens are
+// matched against the already-escaped string, so a token can never re-match
+// inside badge markup that a previous pass produced.
+// ----------------------------------------------------------------------------
+function clipXrayHeadline(rawText, maxWords = 0) {
+  const text = String(rawText ?? "").trim();
+  const limit = Number(maxWords) || 0;
+  if (limit <= 0) return text;
+  const words = text.split(/\s+/);
+  if (words.length <= limit) return text;
+  return `${words.slice(0, limit).join(" ")}…`;
+}
+
+function escapeRegExpLiteral(text) {
+  return String(text ?? "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Collect the technical tokens that become .sym badges in Tech mode.
+ * Sources: the OQ-5 xray.tech payload (symbols, paths, commands, exit codes)
+ * plus the turn's touched files, so Tech stays useful on older payloads.
+ */
+export function collectXrayTechTokens(debrief = {}) {
+  const source = debrief && typeof debrief === "object" ? debrief : {};
+  const tech = source.xray && typeof source.xray === "object" ? source.xray.tech || {} : {};
+  const tokens = [];
+  for (const key of ["symbols", "paths", "commands"]) {
+    if (!Array.isArray(tech[key])) continue;
+    for (const value of tech[key]) tokens.push(String(value || ""));
+  }
+  if (Array.isArray(tech.exitCodes)) {
+    for (const code of tech.exitCodes) tokens.push(`exit ${code}`);
+  }
+  if (Array.isArray(source.touchedFiles)) {
+    for (const file of source.touchedFiles) {
+      if (typeof file === "string") tokens.push(file);
+      else if (file && typeof file === "object") tokens.push(file.path || file.file || file.shortName || "");
+    }
+  }
+  return Array.from(new Set(tokens.map((token) => token.trim()).filter((token) => token.length >= 2)));
+}
+
+/**
+ * Tech representation: escape the raw string first, then wrap the already
+ * escaped technical tokens in <span class="sym"> badges (C8).
+ */
+export function renderXrayTechHtml(rawText, tokens = [], { maxWords = 0 } = {}) {
+  const safe = escapeHtml(clipXrayHeadline(rawText, maxWords));
+  const escapedTokens = Array.from(
+    new Set(
+      (Array.isArray(tokens) ? tokens : [])
+        .map((token) => String(token || "").trim())
+        .filter((token) => token.length >= 2)
+        .map((token) => escapeHtml(token))
+    )
+  ).sort((a, b) => b.length - a.length);
+  if (!safe || escapedTokens.length === 0) return safe;
+  const pattern = new RegExp(`(${escapedTokens.map(escapeRegExpLiteral).join("|")})`, "g");
+  let html = "";
+  let lastIndex = 0;
+  for (const match of safe.matchAll(pattern)) {
+    html += safe.slice(lastIndex, match.index);
+    html += `<span class="sym">${match[0]}</span>`;
+    lastIndex = match.index + match[0].length;
+  }
+  return html + safe.slice(lastIndex);
+}
+
+/**
+ * Pre-bind both representations into one markup string. `tech` falls back to
+ * `plain` so Tech mode is never blank on legacy payloads. The result keeps the
+ * panel's .xray-dual / .xray-plain / .xray-tech contract so the HTML export can
+ * reuse the same CSS-only swap.
+ */
+export function buildXrayDualCodedMarkup({ plain = "", tech = "", tokens = [], maxWords = 0 } = {}) {
+  const plainRaw = String(plain ?? "").trim();
+  const techRaw = String(tech ?? "").trim() || plainRaw;
+  return (
+    `<span class="xray-dual">` +
+    `<span class="xray-plain">${escapeHtml(clipXrayHeadline(plainRaw, maxWords))}</span>` +
+    `<span class="xray-tech">${renderXrayTechHtml(techRaw, tokens, { maxWords })}</span>` +
+    `</span>`
+  );
+}
+
+const EXPORT_GRAMMAR_LABELS = Object.freeze({
+  sequence: "Sequence",
+  "flow-diff": "FlowDiff",
+  "subway-map": "Subway Map",
+  "before-after": "Before → After",
+  "decision-tree": "Decision Tree"
+});
+
+const EXPORT_WAITING_ICONS = Object.freeze({
+  choice: "🗳️",
+  action: "⚡",
+  reply: "💬",
+  blocked: "⛔",
+  none: "✅"
+});
+
+// Story 7.3 — display labels for the Stage 2 missing-plugin HTML fallback.
+const EXPORT_PLUGIN_LABELS = Object.freeze({
+  excalidraw: "Excalidraw",
+  visualize: "Interactive Gen UI",
+  vectorcraft: "VectorCraft",
+  designcraft: "DesignCraft"
+});
+
+/**
+ * Story 7.3 (AD-17) — resolve the 3-column Stage 2 deep explanation content.
+ * A matched concept's `stage2` wins; when `conceptSlug` is null (powerup-dock
+ * fallback) or unmatched, synthesize from the debrief's plan/result/consequences
+ * summary at zero LLM cost. Every column always carries a readable sentence.
+ */
+export function buildStage2FallbackColumns(debrief, concept = null) {
+  const d = debrief || {};
+  const isBug = d.responseType === "bug";
+  const report = isBug ? d.bugReport || {} : d.implementationReport || {};
+  const planText = String(report.planAndWhy || report.plan || "").trim();
+  const resultText = String(report.result || report.successSummary || "").trim();
+  const consequencesText = String(report.consequences || "").trim();
+  const auditReasons = (Array.isArray(d.uncertaintyAudit) ? d.uncertaintyAudit : [])
+    .map((u) => String(u?.reason || "").trim())
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" ");
+  const files = (Array.isArray(d.touchedFiles) ? d.touchedFiles : [])
+    .map((f) => String(f?.path || f?.file || f || "").trim())
+    .filter(Boolean)
+    .slice(0, 4);
+
+  const conceptStage2 = concept?.stage2 || {};
+  const howItWorks =
+    String(conceptStage2.howItWorks || "").trim() ||
+    planText ||
+    String(d.tldrHeadline || "").trim() ||
+    "This turn changed the codebase. Read the plan card below for the step-by-step flow.";
+  const keyTradeOff =
+    String(conceptStage2.keyTradeOff || "").trim() ||
+    consequencesText ||
+    auditReasons ||
+    "No explicit trade-off was recorded for this turn. Check the Watch Out audit rows below.";
+  const inYourCodebase =
+    String(conceptStage2.inYourCodebase || "").trim() ||
+    (files.length > 0
+      ? `Start with these touched files: ${files.join(", ")}. ${resultText}`.trim()
+      : resultText || "No files were recorded for this turn. Use the diagram below to locate the change.");
+
+  return { howItWorks, keyTradeOff, inYourCodebase };
+}
+
+export function generateStandaloneHtmlArtifact(panelState, options = {}) {
   const d = ensureDebriefEnriched(panelState?.currentDebrief || createWelcomeDebrief(panelState?.projectName || "Workspace"), panelState);
   const isBug = d.responseType === "bug";
   const personaObj = PERSONAS.find((p) => p.id === (d.persona || panelState?.activePersona)) || PERSONAS[0];
   const metrics = d.ste100Metrics || computeSte100Metrics(d);
   const diagram = d.diagram || buildDefaultDiagram(d);
+  const grammar = String(diagram.grammar || "subway-map");
+  const grammarLabel = EXPORT_GRAMMAR_LABELS[grammar] || "Subway Map";
   const scenes = Array.isArray(d.explainerScenes) ? d.explainerScenes : [];
   const scriptText = buildPlainTextScript(scenes);
+  const xrayTokens = collectXrayTechTokens(d);
+  const choices = Array.isArray(d.choices) ? d.choices : [];
+  const microBlocks = Array.isArray(d.microBlocks) ? d.microBlocks : [];
+  const lessons = Array.isArray(d.lessonsLearned) ? d.lessonsLearned : [];
+  const proofs = Array.isArray(d.proofClaims) ? d.proofClaims : [];
+  const checks = Array.isArray(d.verificationChecklist) ? d.verificationChecklist : [];
+  const verifiedCount = proofs.filter((p) => p.status === "verified").length;
+  const unverifiedCount = proofs.filter((p) => p.status === "unverified").length;
+  const checksLeft = checks.filter((c) => !c.checked).length;
+  const verdict = d.verdict || (isBug ? "Solved" : "Built");
+  const waiting = d.waitingOnYou && typeof d.waitingOnYou === "object"
+    ? d.waitingOnYou
+    : { state: "none", label: "All Clear", prompt: "", chips: [] };
+  const waitingState = ["choice", "action", "reply", "blocked", "none"].includes(waiting.state) ? waiting.state : "none";
+  const waitingChips = waitingState === "none" ? [] : Array.isArray(waiting.chips) ? waiting.chips : [];
+  const techProofLines = Array.isArray(d.xray?.tech?.proofLines) ? d.xray.tech.proofLines.map(String) : [];
+
+  // Story 6.6 — the DATA payload carries the 5-grammar diagram spec (with
+  // techTitle/groups/techLabel nodes), the Canvas tour scenes, touched files,
+  // and the waiting strip so every export interaction stays local: zero RPC,
+  // zero external URLs. `<` stays escaped as \u003c (C8/XSS contract).
   const payloadJson = JSON.stringify({
     diagram,
     scenes,
-    touchedFiles: d.touchedFiles || []
+    touchedFiles: d.touchedFiles || [],
+    waiting
   }).replace(/</g, "\\u003c");
+
+  // Dual-coded X-Ray helper — the same buildXrayDualCodedMarkup contract the
+  // panel binds live (Story 6.3), pre-bound here so the export toggle is a
+  // single body[data-xray-mode] attribute write.
+  const dual = (plain, tech, maxWords = 0) =>
+    buildXrayDualCodedMarkup({ plain, tech, tokens: xrayTokens, maxWords });
+
+  const verdictCls =
+    verdict === "Blocked" ? "bug" : verdict === "Solved" || verdict === "Built" ? "ok" : verdict === "Planned" ? "warn" : "impl";
+  const verifyCls = unverifiedCount > 0 ? "bug" : checksLeft > 0 ? "warn" : "ok";
+  const verifyText =
+    unverifiedCount > 0
+      ? `${verifiedCount} verified · ${unverifiedCount} unverified`
+      : checksLeft > 0
+      ? `${verifiedCount} verified · ${checksLeft} check${checksLeft === 1 ? "" : "s"} left`
+      : `${verifiedCount} verified`;
+
+  // Story 7.3 (AD-17) — mandatory missing-plugin Stage 2 HTML fallback. When
+  // export_html receives { conceptSlug, targetPlugin }, render the stage2-popout
+  // shell: header, amber missing-banner + Install CTA, floating telemetry pill,
+  // and the 3-column deep explanation grid. Offline artifact: the Install CTA
+  // reveals a local note instead of dispatching ui/message (zero RPC, C1/C3).
+  const requestedPlugin = String(options?.targetPlugin || "").trim().toLowerCase();
+  const stage2TargetPlugin = VALID_TARGET_PLUGINS.includes(requestedPlugin) ? requestedPlugin : null;
+  let stage2Markup = "";
+  if (stage2TargetPlugin) {
+    const conceptSlug = options?.conceptSlug ? String(options.conceptSlug) : null;
+    const concepts = Array.isArray(d.concepts) ? d.concepts : [];
+    const matchedConcept = conceptSlug ? concepts.find((c) => c.slug === conceptSlug) || null : null;
+    const columns = buildStage2FallbackColumns(d, matchedConcept);
+    const pluginLabel = EXPORT_PLUGIN_LABELS[stage2TargetPlugin];
+    const stage2Title = matchedConcept?.label || d.tldrHeadline || "Stage 2 Deep Dive";
+    const stage2Cards = [
+      { k: "How It Works", v: columns.howItWorks, cls: "how" },
+      { k: "Key Trade-off", v: columns.keyTradeOff, cls: "trade" },
+      { k: "In Your Codebase", v: columns.inYourCodebase, cls: "code" }
+    ];
+    stage2Markup = `
+  <section class="stage2-popout" id="stage2Popout" role="region" aria-label="Stage 2 deep dive fallback for ${escapeHtml(pluginLabel)}">
+    <div class="stage2-header">
+      <h2 class="stage2-title">🔬 ${escapeHtml(stage2Title)}</h2>
+      <span class="pill target-tag">${escapeHtml(pluginLabel)}</span>
+      <span class="pill warn">Built-in HTML fallback</span>
+    </div>
+    <div class="missing-banner" id="missingBanner" role="status" aria-live="polite">
+      <span class="missing-text">⚠️ <strong>${escapeHtml(pluginLabel)}</strong> is not installed. This 3-column explainer is your built-in Stage 2 fallback.</span>
+      <button class="btn install-cta" id="btnInstallPluginExport" type="button" aria-label="Install ${escapeHtml(stage2TargetPlugin)} plugin">Install ${escapeHtml(stage2TargetPlugin)}</button>
+      <span class="install-offline-note" id="installOfflineNote" hidden>Offline export — install ${escapeHtml(stage2TargetPlugin)} from the live panel or the ZCode plugin marketplace.</span>
+    </div>
+    <div class="stage2-stage">
+      <span class="telemetry-pill" id="stage2TelemetryPill" role="status" aria-label="Export telemetry">${escapeHtml(verdict)} · ${escapeHtml(verifyText)} · 📖 ~${metrics.estimatedReadSeconds}s · STE-80 ${metrics.score}%</span>
+      <div class="stage2-deep-grid">
+      ${stage2Cards
+        .map(
+          (c) => `<div class="stage2-deep-card ${c.cls}"><h3>${escapeHtml(c.k)}</h3><div>${escapeHtml(c.v)}</div></div>`
+        )
+        .join("\n      ")}
+      </div>
+    </div>
+  </section>
+`;
+  }
+
+  const timestamp = d.createdAt
+    ? new Date(d.createdAt).toISOString().slice(11, 16)
+    : "Latest Turn";
+
+  // Story 6.2 — Waiting On You strip (5 states). Offline export: chips select
+  // locally and surface the prompt to send from the live panel; no ui/message.
+  const waitingChipsMarkup = waitingChips
+    .map((chip) => {
+      const labelMarkup = dual(chip.label, chip.techLabel || chip.label);
+      return `<button class="action-chip ${chip.primary ? "primary" : ""}" type="button" data-chip-id="${escapeHtml(chip.id)}" aria-pressed="false" title="${escapeHtml(chip.messagePrompt || chip.label)}">${labelMarkup}</button>`;
+    })
+    .join("\n        ");
+
+  // Story 6.2 — composable choice-grid microBlock (34x4px trade-off bars).
+  const choicesMarkup =
+    microBlocks.includes("choices") && choices.length > 0
+      ? choices
+          .map((c) => {
+            const plainSub = String(c.plainSubtext || "").trim();
+            const techSub = String(c.techSubtext || "").trim() || plainSub;
+            const subMarkup = plainSub || techSub ? dual(plainSub, techSub) : "";
+            const barsMarkup = Array.isArray(c.tradeOffs) && c.tradeOffs.length
+              ? `<div class="tradeoff-bars">${c.tradeOffs
+                  .map(
+                    (t) =>
+                      `<span class="tbar"><span>${escapeHtml(t.label)}</span><span class="tbar-track"><span class="tbar-fill" style="width:${Math.min(100, Math.max(0, Number(t.score) || 0))}%"></span></span></span>`
+                  )
+                  .join("")}</div>`
+              : "";
+            const picked = Boolean(c.picked);
+            return `<button class="choice-item ${picked ? "picked" : ""}" type="button" data-choice-id="${escapeHtml(c.id)}" data-choice-key="${escapeHtml(c.key)}" aria-pressed="${picked ? "true" : "false"}" aria-label="${escapeHtml(`Option ${c.key}: ${c.title}`)}"><span class="choice-key">${escapeHtml(c.key)}</span><span class="choice-text">${dual(c.title, c.title)}${subMarkup}${barsMarkup}</span></button>`;
+          })
+          .join("\n    ")
+      : "";
+
+  // Story 6.2/6.3 — proof pills (expandable proof-detail) + audit rows.
+  const proofPillsMarkup = proofs
+    .map((p, idx) => {
+      const kind = p.status === "verified" ? "ok" : p.status === "unverified" ? "risk" : "info";
+      const icon = p.status === "verified" ? "✅" : p.status === "unverified" ? "❌" : "ℹ️";
+      const claimMarkup = dual(p.claim, techProofLines[idx] || (p.evidence ? `${p.claim} · ${p.evidence}` : p.claim));
+      return `<button class="proof-pill ${kind}" type="button" data-proof-idx="${idx}" aria-expanded="false" aria-controls="proofDetail-${idx}" title="${escapeHtml(p.evidence || "")}">${icon} ${claimMarkup}</button>`;
+    })
+    .join("\n      ");
+
+  const proofDetailsMarkup = proofs
+    .map((p, idx) => {
+      const plainDetail = p.detail || p.evidence || "No additional detail recorded.";
+      const techDetail = [p.detail, p.evidence].filter(Boolean).join(" · ") || plainDetail;
+      return `<div class="proof-detail" id="proofDetail-${idx}" role="region" aria-label="${escapeHtml(`Proof detail: ${p.claim}`)}">${dual(plainDetail, techDetail)}</div>`;
+    })
+    .join("\n      ");
+
+  const auditRowsMarkup = (Array.isArray(d.uncertaintyAudit) ? d.uncertaintyAudit : [])
+    .map(
+      (u) =>
+        `<div class="audit-row">⚠️ <strong>[${escapeHtml(String(u.riskLevel || "med").toUpperCase())}] ${escapeHtml(u.area)}:</strong> <span class="muted">${escapeHtml(u.reason)}</span></div>`
+    )
+    .join("\n      ");
+
+  // Story 6.6 — lessons microBlock (static, no RPC needed offline).
+  const lessonsMarkup =
+    microBlocks.includes("lessons") && lessons.length > 0
+      ? `<div class="box micro-block">
+    <h3 style="margin:0 0 8px;">📚 Lessons Learned</h3>
+    ${lessons
+      .map(
+        (l) =>
+          `<div style="margin-bottom:8px;font-size:13px;">📖 <strong>${escapeHtml(l.title)}</strong><br><span class="muted">${escapeHtml(l.summary)}</span></div>`
+      )
+      .join("\n    ")}
+  </div>`
+      : "";
+
+  // Story 6.5 — Canvas tour scene pills (jump to any scene, keyboard via
+  // native button semantics).
+  const scenePillsMarkup = scenes
+    .map(
+      (s, idx) =>
+        `<button class="scene-pill ${idx === 0 ? "active" : ""}" type="button" data-scene-idx="${idx}" aria-pressed="${idx === 0 ? "true" : "false"}">${escapeHtml(s.title || `Scene ${idx + 1}`)}</button>`
+    )
+    .join("");
 
   const cardData = isBug
     ? [
@@ -1751,6 +2077,7 @@ export function generateStandaloneHtmlArtifact(panelState) {
       --warn:#fbbf24; --warn-soft:rgba(251,191,36,0.14); --warn-border:rgba(251,191,36,0.38);
       --risk:#fb7185; --risk-soft:rgba(251,113,133,0.14); --risk-border:rgba(251,113,133,0.38);
       --purple:#a78bfa; --teal:#2dd4bf;
+      --text-on-warn:#140d00; --telemetry-pill-bg:#0c111ad6; --grid-dot:#94a3b81f;
       --explainer-stage-bg:#070b12; --canvas-grid-line:rgba(56,189,248,0.08);
       /* Legacy artifact aliases mapped to DESIGN.md tokens */
       --bg:var(--bg-app); --card:var(--bg-card); --panel:var(--bg-panel); --text:var(--text-primary); --muted:var(--text-secondary); --bad:var(--risk);
@@ -1766,11 +2093,23 @@ export function generateStandaloneHtmlArtifact(panelState) {
         --warn:#b45309; --warn-soft:rgba(217,119,6,0.12); --warn-border:rgba(217,119,6,0.36);
         --risk:#be123c; --risk-soft:rgba(225,29,72,0.1); --risk-border:rgba(225,29,72,0.34);
         --purple:#6d28d9; --teal:#0d9488;
+        --text-on-warn:#ffffff; --telemetry-pill-bg:#0c111ad6; --grid-dot:rgba(30,41,59,0.12);
         --explainer-stage-bg:#f1ece1; --canvas-grid-line:rgba(2,132,199,0.08);
       }
       .pill.impl { color:var(--text-primary); background:var(--accent-soft); }
       .pill.ste { color:var(--text-primary); background:var(--ok-soft); }
+      .pill.ok { color:var(--text-primary); background:var(--ok-soft); }
+      .pill.warn { color:var(--text-primary); background:var(--warn-soft); }
       .script-summary { color:var(--text-primary); }
+      /* Story 6.6 — Field Desk Light semantic wash: readable ink over soft
+         fills for selected/primary interactive states (panel parity). */
+      .action-chip.primary,
+      .action-chip.selected,
+      .proof-pill.ok,
+      .proof-pill.risk,
+      .choice-item.picked,
+      .xray-toggle[data-mode="tech"],
+      .scene-pill.active { color:var(--text-primary); }
     }
     * { box-sizing:border-box; }
     :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
@@ -1795,6 +2134,25 @@ export function generateStandaloneHtmlArtifact(panelState) {
     .card.result { border-left-color:var(--ok); }
     .card.impact { border-left-color:var(--warn); }
     .card h3 { margin:0 0 8px; font-size:14px; }
+    /* Story 7.3 — Stage 2 pop-out fallback shell (DESIGN.md stage2-popout tokens) */
+    .stage2-popout { background:var(--bg-surface); border:1px solid var(--border-strong); border-radius:14px; padding:16px; margin-bottom:16px; }
+    .stage2-header { display:flex; align-items:center; gap:8px; flex-wrap:wrap; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+    .stage2-title { margin:0; font-size:17px; flex:1 1 auto; }
+    .pill.target-tag { background:var(--purple); color:var(--bg-app); border-color:var(--purple); }
+    .missing-banner { display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--warn-soft); border:1px solid var(--warn-border); border-radius:10px; padding:9px 12px; margin-bottom:10px; color:var(--text-primary); font-size:13px; }
+    .missing-banner .missing-text { flex:1 1 240px; }
+    .missing-banner strong { color:var(--warn); }
+    .install-cta { background:var(--warn); color:var(--text-on-warn); border:1px solid var(--warn-border); font-weight:700; }
+    .install-offline-note { flex-basis:100%; font-size:12px; color:var(--text-secondary); }
+    .stage2-stage { position:relative; background:var(--bg-elevated); background-image:radial-gradient(var(--grid-dot) 1px, transparent 1px); background-size:18px 18px; border:1px solid var(--border); border-radius:10px; padding:34px 12px 12px; min-height:270px; }
+    .telemetry-pill { position:absolute; top:8px; right:10px; background:var(--telemetry-pill-bg); color:#e7edf6; border:1px solid var(--border-strong); border-radius:999px; padding:3px 10px; font-size:11px; font-weight:600; }
+    .stage2-deep-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+    @media (max-width:740px) { .stage2-deep-grid { grid-template-columns:1fr; } }
+    .stage2-deep-card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; font-size:13px; color:var(--text-secondary); }
+    .stage2-deep-card h3 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
+    .stage2-deep-card.how { border-top:3px solid var(--accent); }
+    .stage2-deep-card.trade { border-top:3px solid var(--warn); }
+    .stage2-deep-card.code { border-top:3px solid var(--ok); }
     .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
     .chip { font-size:11.5px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); cursor:pointer; color:var(--text); }
     .chip.high { border-color:var(--bad); }
@@ -1809,27 +2167,119 @@ export function generateStandaloneHtmlArtifact(panelState) {
     .btn:hover { border-color:var(--accent); }
     pre { background:var(--bg); border:1px solid var(--border); padding:12px; border-radius:8px; white-space:pre-wrap; font-size:12.5px; color:var(--muted); }
     svg { width:100%; height:auto; display:block; }
+    /* Story 6.3 — X-Ray dual-coding contract (Plain STE-80 <-> Tech).
+       The panel and this export share the markup; Story 6.6 adds the local
+       toggle button that flips body[data-xray-mode]. */
+    .xray-dual > .xray-plain { display:inline; }
+    .xray-dual > .xray-tech { display:none; }
+    body[data-xray-mode="tech"] .xray-dual > .xray-plain { display:none; }
+    body[data-xray-mode="tech"] .xray-dual > .xray-tech { display:inline; }
+    .sym { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:0.86em; font-weight:600; padding:1px 5px; border-radius:5px; background:var(--accent-soft); color:var(--accent); border:1px solid var(--accent-border); overflow-wrap:anywhere; }
+    /* Story 6.6 — 10s Radar card, local X-Ray toggle & microBlocks parity.
+       All colors resolve from the Dark HUD / Field Desk Light tokens above;
+       no literal palette values live here (see theme-parity assertions). */
+    .radar-card { display:flex; flex-direction:column; gap:8px; }
+    .radar-top { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+    .radar-badges { display:flex; flex-wrap:wrap; gap:6px; }
+    .pill.ok { color:var(--ok); border-color:var(--ok-border); }
+    .pill.warn { color:var(--warn); border-color:var(--warn-border); }
+    .pill.grammar { color:var(--accent); border-color:var(--accent-border); }
+    .xray-toggle { appearance:none; display:inline-flex; align-items:center; gap:4px; padding:4px 9px; border-radius:999px; border:1px solid var(--border-strong); background:var(--bg-card); font-family:inherit; font-size:11px; font-weight:700; color:var(--text-secondary); cursor:pointer; white-space:nowrap; }
+    .xray-toggle:hover { border-color:var(--accent-border); color:var(--text-primary); }
+    .xray-toggle[data-mode="tech"] { background:var(--accent-soft); border-color:var(--accent-border); color:var(--accent); }
+    .radar-meta-row { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+    .radar-time { font-size:11px; color:var(--text-muted); margin-left:auto; }
+    .tldr-headline { font-size:15px; line-height:1.45; word-break:break-word; }
+    .wait-strip { border-top:1px solid var(--border); padding-top:8px; display:flex; flex-direction:column; gap:6px; }
+    .wait-badge { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:700; color:var(--text-primary); }
+    .wait-badge.none { color:var(--ok); }
+    .wait-badge.blocked { color:var(--risk); }
+    .wait-badge.choice, .wait-badge.action, .wait-badge.reply { color:var(--warn); }
+    .wait-prompt { font-size:12.5px; color:var(--text-secondary); }
+    .wait-chips { display:flex; flex-wrap:wrap; gap:6px; }
+    .action-chip { appearance:none; display:inline-flex; align-items:center; gap:5px; padding:5px 9px; border-radius:7px; font-size:11.5px; font-weight:600; border:1px solid var(--border-strong); background:var(--bg-elevated); color:var(--text-primary); cursor:pointer; word-break:break-word; }
+    .action-chip:hover { border-color:var(--accent-border); background:var(--accent-soft); color:var(--accent); }
+    .action-chip.primary { background:var(--accent-soft); border-color:var(--accent-border); color:var(--accent); }
+    .action-chip.selected { background:var(--ok-soft); border-color:var(--ok-border); color:var(--ok); }
+    .wait-offline-note { font-size:11.5px; color:var(--text-muted); font-style:italic; }
+    .micro-block { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px; }
+    .block-head { display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .choice-grid { display:flex; flex-direction:column; gap:6px; }
+    .choice-item { appearance:none; display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:8px 9px; border-radius:8px; border:1px solid var(--border); background:var(--bg-elevated); text-align:left; cursor:pointer; color:var(--text-primary); word-break:break-word; }
+    .choice-item:hover { border-color:var(--accent-border); background:var(--bg-card-hover); }
+    .choice-item.picked { border-color:var(--ok-border); background:var(--ok-soft); }
+    .choice-key { width:20px; height:20px; border-radius:5px; background:var(--bg-card); border:1px solid var(--border-strong); display:inline-flex; align-items:center; justify-content:center; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; font-weight:700; flex-shrink:0; margin-top:1px; }
+    .choice-text { flex:1; min-width:0; font-size:12px; }
+    .tradeoff-bars { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+    .tbar { font-size:10px; color:var(--text-muted); display:inline-flex; align-items:center; gap:4px; }
+    .tbar-track { width:34px; height:4px; border-radius:99px; background:var(--border); overflow:hidden; display:inline-block; }
+    .tbar-fill { height:100%; background:var(--accent); border-radius:99px; display:block; }
+    .proof-pill-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+    .proof-pill { appearance:none; display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border-radius:7px; font-size:11px; font-weight:600; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text-secondary); cursor:pointer; word-break:break-word; }
+    .proof-pill.ok { color:var(--ok); border-color:var(--ok-border); background:var(--ok-soft); }
+    .proof-pill.risk { color:var(--risk); border-color:var(--risk-border); background:var(--risk-soft); }
+    .proof-pill.info { color:var(--text-secondary); }
+    .proof-detail { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; color:var(--text-secondary); background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; padding:6px 8px; display:none; white-space:pre-wrap; word-break:break-word; margin-bottom:6px; }
+    .proof-detail.open { display:block; }
+    .audit-row { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:5px 8px; border-radius:6px; background:var(--bg-elevated); border:1px solid var(--border-subtle); margin-bottom:5px; font-size:11.6px; }
+    .scene-pill-row { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:9px; }
+    .scene-pill { appearance:none; border:1px solid var(--border); background:var(--bg-panel); color:var(--text-secondary); border-radius:6px; padding:4px 8px; font-size:11px; font-weight:600; cursor:pointer; }
+    .scene-pill.active { border-color:var(--accent); background:var(--accent-soft); color:var(--text-primary); }
+    .muted { color:var(--muted); }
+    /* Story 6.4 — kinetic dash-flow edges (animation disabled by the global
+       prefers-reduced-motion rule above). */
+    .dash-flow { stroke-dasharray:5 4; animation:flowDash 1.4s linear infinite; }
+    @keyframes flowDash { to { stroke-dashoffset:-18; } }
   </style>
 </head>
-<body>
+<body data-xray-mode="plain">
 <div class="wrap">
-  <div class="hero">
-    <div class="pills">
-      <span class="pill ${isBug ? "bug" : "impl"}">${isBug ? "🐛 BUG / ERROR FIX" : "🚀 IMPLEMENTATION"}</span>
+  <div class="hero radar-card" role="region" aria-label="10 second radar summary">
+    <div class="radar-top">
+      <div class="radar-badges">
+        <span class="pill ${verdictCls}" id="radarVerdictPill">${escapeHtml(verdict)}</span>
+        <span class="pill ${verifyCls}" id="radarVerifyCount">${escapeHtml(verifyText)}</span>
+      </div>
+      <button class="xray-toggle" id="btnXrayToggle" type="button" data-mode="plain" aria-pressed="false" aria-label="Toggle X-Ray Plain and Technical view" title="Swap Plain STE-80 and Technical symbols locally (no network)">⚡ X-Ray</button>
+    </div>
+    <h1 class="tldr-headline" id="tldrHeadline">${dual(
+      d.xray?.plain?.headline || d.tldrHeadline,
+      d.xray?.tech?.headline || d.tldrHeadline,
+      14
+    )}</h1>
+    <div class="radar-meta-row">
+      <span class="pill ${isBug ? "bug" : "impl"}" id="activeModePill">${isBug ? "🐛 BUG FIX" : "🚀 IMPLEMENTATION"}</span>
       <span class="pill">${escapeHtml(personaObj.badge)}</span>
       <span class="pill ste">📖 ~${metrics.estimatedReadSeconds}s · ${escapeHtml(metrics.grade)} (${metrics.score}%)</span>
-      <span class="pill">${d.complexity?.level === "complex" ? "🧩 Complex Workflow" : "⚡ Focused Turn"}</span>
+      <span class="pill ${d.complexity?.level === "complex" ? "warn" : ""}">${d.complexity?.level === "complex" ? "🧩 Complex Workflow" : "⚡ Focused Turn"}</span>
+      <span class="radar-time">${escapeHtml(timestamp)}</span>
     </div>
-    <h1>${escapeHtml(d.tldrHeadline)}</h1>
     <div class="analogy"><strong>💡 Picture It Like This:</strong> ${escapeHtml(d.realWorldAnalogy)}</div>
-  </div>
-
-  <div class="box">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <strong>🗺️ ${escapeHtml(diagram.title || "Architecture & Flow Diagram")}</strong>
-      <span style="font-size:12px;color:var(--muted)">Click any node to inspect file & risk</span>
+    <div class="wait-strip" id="radarWaitingStrip">
+      <span class="wait-badge ${waitingState}">${EXPORT_WAITING_ICONS[waitingState]} ${escapeHtml(waiting.label || "All Clear")}</span>
+      <div class="wait-prompt" id="waitingPromptText">${dual(waiting.prompt || "All changes verified. Ready for next task.", waiting.prompt || "All changes verified. Ready for next task.")}</div>
+      <div class="wait-chips" id="waitingChipsRow">${waitingChipsMarkup}</div>
+      <div class="wait-offline-note" id="waitOfflineNote" hidden>Offline export — send replies from the live panel.</div>
     </div>
-    <svg id="diagramSvg" viewBox="0 0 880 210"></svg>
+  </div>
+${stage2Markup}
+  ${
+    choicesMarkup
+      ? `<div class="micro-block" id="microBlockChoices">
+    <div class="block-head"><strong>🗳️ Waiting On You — Pick a Path</strong><span class="pill" id="choicePickedPill" hidden>Selected</span></div>
+    <div class="choice-grid" id="choiceGrid">
+    ${choicesMarkup}
+    </div>
+  </div>`
+      : ""
+  }
+
+  <div class="box micro-block" id="microBlockDiagram">
+    <div class="block-head">
+      <strong>🗺️ ${dual(diagram.title || "Architecture & Flow Diagram", diagram.techTitle || diagram.title || "Architecture & Flow Diagram")}</strong>
+      <span class="pill grammar">${escapeHtml(grammarLabel)}</span>
+    </div>
+    <svg id="diagramSvg" viewBox="0 0 460 190" data-grammar="${escapeHtml(grammar)}" role="group" aria-label="${escapeHtml(grammarLabel)} diagram — click or press Enter on a node to inspect it"></svg>
     <div class="chips" id="fileChips"></div>
     <div class="inspector" id="nodeInspector" role="status" aria-live="polite" aria-atomic="true">Click or press Enter on a diagram node or file chip to inspect its role and risk level.</div>
   </div>
@@ -1843,15 +2293,16 @@ export function generateStandaloneHtmlArtifact(panelState) {
   </div>
 
   <div class="grid2">
-    <div class="box">
+    <div class="box micro-block" id="microBlockProofAudit">
       <h3 style="margin:0 0 8px;">🔍 Ground-Truth Proof & Watch Out</h3>
-      ${(d.proofClaims || [])
-        .map((p) => `<div style="margin-bottom:6px;font-size:13px;">${p.status === "verified" ? "✅" : p.status === "unverified" ? "❌" : "ℹ️"} <strong>${escapeHtml(p.claim)}</strong> <span style="color:var(--muted)">(${escapeHtml(p.evidence)})</span></div>`)
-        .join("")}
+      <div class="proof-pill-row" id="proofPillRow">
+      ${proofPillsMarkup}
+      </div>
+      <div id="proofDetailList">
+      ${proofDetailsMarkup}
+      </div>
       <hr style="border:none;border-top:1px solid var(--border);margin:10px 0;">
-      ${(d.uncertaintyAudit || [])
-        .map((u) => `<div style="margin-bottom:6px;font-size:13px;">⚠️ <strong>[${escapeHtml(String(u.riskLevel || "med").toUpperCase())}] ${escapeHtml(u.area)}:</strong> <span style="color:var(--muted)">${escapeHtml(u.reason)}</span></div>`)
-        .join("")}
+      ${auditRowsMarkup}
     </div>
     <div class="box">
       <h3 style="margin:0 0 8px;">☑️ Human Verification Checklist</h3>
@@ -1863,16 +2314,19 @@ export function generateStandaloneHtmlArtifact(panelState) {
     </div>
   </div>
 
+  ${lessonsMarkup}
+
   ${
     scenes.length > 0
-      ? `<div class="box">
+      ? `<div class="box micro-block" id="explainerStageWrap">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <strong>🎬 Complex-Workflow Animated Explainer</strong>
+      <strong>🎬 ${d.complexity?.level === "complex" ? "Complex-Workflow" : "Anytime"} Animated Explainer</strong>
       <div style="display:flex;gap:6px;">
         <button class="btn" id="btnPlayScene" aria-pressed="false" aria-label="Play animated explainer">▶ Play</button>
         <button class="btn" id="btnPauseScene" aria-pressed="true" aria-label="Pause animated explainer">⏸ Pause</button>
       </div>
     </div>
+    <div class="scene-pill-row" id="explainerScenePills" role="group" aria-label="Explainer scenes">${scenePillsMarkup}</div>
     <canvas id="sceneCanvas" width="880" height="230" style="width:100%;background:var(--explainer-stage-bg);border-radius:10px;border:1px solid var(--border);"></canvas>
     <div id="sceneCaption" style="margin-top:8px;font-weight:600;"></div>
     <details style="margin-top:10px;"><summary class="script-summary">📄 Plain-Text Narration Script (Verify Claims)</summary><pre>${escapeHtml(scriptText)}</pre></details>
@@ -1883,17 +2337,14 @@ export function generateStandaloneHtmlArtifact(panelState) {
 <script>
 (function(){
   var DATA = ${payloadJson};
+  var SVG_W = 460;
   var svg = document.getElementById("diagramSvg");
   var inspector = document.getElementById("nodeInspector");
   var chipsEl = document.getElementById("fileChips");
   var nodes = DATA.diagram.nodes || [];
   var edges = DATA.diagram.edges || [];
-  var cols = Math.max(1, nodes.length);
-  var w = 880, pad = 24, gap = 24;
-  var boxW = Math.min(185, Math.floor((w - pad*2 - gap*(cols-1)) / cols));
-  var totalW = boxW * cols + gap * (cols - 1);
-  var startX = Math.floor((w - totalW) / 2);
-  var pos = {};
+  var groups = DATA.diagram.groups || [];
+  var grammar = String(DATA.diagram.grammar || "subway-map");
   function esc(v){
     return String(v == null ? "" : v)
       .replace(/&/g, "&amp;")
@@ -1909,20 +2360,392 @@ export function generateStandaloneHtmlArtifact(panelState) {
       return String(cs.getPropertyValue(name) || "").trim();
     }
     return {
-      bgApp: v("--bg-app"), bgCard: v("--bg-card"), bgPanel: v("--bg-panel"),
-      borderStrong: v("--border-strong"),
-      textPrimary: v("--text-primary"), textSecondary: v("--text-secondary"),
-      accent: v("--accent"), accentSoft: v("--accent-soft"),
-      ok: v("--ok"), warn: v("--warn"), risk: v("--risk"),
+      bgApp: v("--bg-app"), bgCard: v("--bg-card"), bgPanel: v("--bg-panel"), bgElevated: v("--bg-elevated"),
+      border: v("--border"), borderStrong: v("--border-strong"), borderSubtle: v("--border-subtle"),
+      textPrimary: v("--text-primary"), textSecondary: v("--text-secondary"), textMuted: v("--text-muted"),
+      accent: v("--accent"), accentSoft: v("--accent-soft"), accentBorder: v("--accent-border"),
+      ok: v("--ok"), okSoft: v("--ok-soft"), okBorder: v("--ok-border"),
+      warn: v("--warn"), warnSoft: v("--warn-soft"), warnBorder: v("--warn-border"),
+      risk: v("--risk"), riskSoft: v("--risk-soft"), riskBorder: v("--risk-border"),
       explainerStageBg: v("--explainer-stage-bg"), canvasGridLine: v("--canvas-grid-line")
     };
   }
   var selectedNodeId = null;
   var selectedFilePath = null;
   var defaultInspectorText = "Click or press Enter on a diagram node or file chip to inspect its role and risk level.";
-  nodes.forEach(function(n, i){
-    pos[n.id] = { x: startX + i*(boxW+gap), y: 58, w: boxW, h: 86 };
-  });
+
+  // ---- Story 6.4 / 6.6 — 5-grammar inline SVG builder (panel parity, ES5).
+  // All colors resolve from CSS tokens so Dark HUD and Field Desk Light (via
+  // prefers-color-scheme) restyle the export without a re-embed. Raw node and
+  // edge text is escaped before interpolation (C8). ----
+  function nodeRiskColor(n, T){
+    if (n.risk === "high") return T.risk;
+    if (n.risk === "medium") return T.warn;
+    if (n.status === "active") return T.accent;
+    return T.ok;
+  }
+  function edgeColor(e, T, fallback){
+    if (e.risk === "high") return T.risk;
+    if (e.risk === "medium") return T.warn;
+    return fallback || T.accent;
+  }
+  function arrowMarkerId(e, T, fallback){
+    if (e.risk === "high") return "vd-arrow-risk";
+    if (e.risk === "medium") return "vd-arrow-warn";
+    if (fallback === T.ok) return "vd-arrow-ok";
+    return "vd-arrow";
+  }
+  function defsMarkup(T){
+    function marker(id, fill){
+      return '<marker id="' + id + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="' + esc(fill) + '" /></marker>';
+    }
+    return '<defs>' + marker("vd-arrow", T.accent) + marker("vd-arrow-risk", T.risk) + marker("vd-arrow-warn", T.warn) + marker("vd-arrow-ok", T.ok) + '</defs>';
+  }
+  function stepBadge(mx, my, stepNumber, color, T){
+    return '<circle cx="' + mx + '" cy="' + my + '" r="8.5" fill="' + esc(T.bgApp) + '" stroke="' + esc(color) + '" stroke-width="1.5" />' +
+      '<text x="' + mx + '" y="' + (my + 3.5) + '" text-anchor="middle" fill="' + esc(T.textPrimary) + '" font-size="9.5" font-weight="800">' + esc(stepNumber) + '</text>';
+  }
+  function nodeBox(n, p, T, isSelected, opts){
+    opts = opts || {};
+    var maxTitle = opts.maxTitleChars || 20;
+    var maxSub = opts.maxSubChars || 24;
+    var titleSize = opts.titleSize || "11";
+    var riskColor = nodeRiskColor(n, T);
+    var fill = isSelected ? T.accentSoft : T.bgCard;
+    var strokeW = isSelected ? "2.4" : "1.5";
+    var textX = p.x + (opts.accentLeftBar ? 12 : 9);
+    var shortPlain = String(n.label || "").slice(0, maxTitle);
+    var shortTech = String(n.techLabel || n.label || "").slice(0, maxTitle);
+    var shortSub = String(n.sublabel || n.role || "").slice(0, maxSub);
+    var nAria = (n.label || "Node") + " — " + (n.role || "Step") + ", risk " + String(n.risk || "low").toUpperCase() + (n.file ? ", file " + n.file : "");
+    var titleMarkup = (n.techLabel && n.techLabel !== n.label)
+      ? '<text class="xray-dual" x="' + textX + '" y="' + (p.y + 19) + '" fill="' + esc(T.textPrimary) + '" font-size="' + titleSize + '" font-weight="800"><tspan class="xray-plain">' + esc(shortPlain) + '</tspan><tspan class="xray-tech">' + esc(shortTech) + '</tspan></text>'
+      : '<text x="' + textX + '" y="' + (p.y + 19) + '" fill="' + esc(T.textPrimary) + '" font-size="' + titleSize + '" font-weight="800">' + esc(shortPlain) + '</text>';
+    var leftBarMarkup = opts.accentLeftBar
+      ? '<rect x="' + (p.x + 2.5) + '" y="' + (p.y + 6) + '" width="3.5" height="' + Math.max(12, p.h - 12) + '" rx="2" fill="' + esc(riskColor) + '" />'
+      : "";
+    var stationDotMarkup = opts.stationDot
+      ? '<circle cx="' + (p.x + p.w - 11) + '" cy="' + (p.y + 11) + '" r="3.8" fill="' + esc(T.bgApp) + '" stroke="' + esc(riskColor) + '" stroke-width="1.8" />'
+      : "";
+    return '<g class="dnode" tabindex="0" role="button" aria-pressed="' + (isSelected ? "true" : "false") + '" aria-label="' + esc(nAria) + '" data-id="' + esc(n.id) + '" style="cursor:pointer">' +
+      '<rect x="' + p.x + '" y="' + p.y + '" width="' + p.w + '" height="' + p.h + '" rx="8" fill="' + esc(fill) + '" stroke="' + esc(riskColor) + '" stroke-width="' + strokeW + '" />' +
+      leftBarMarkup + stationDotMarkup + titleMarkup +
+      '<text x="' + textX + '" y="' + (p.y + 34) + '" fill="' + esc(T.textSecondary) + '" font-size="9.5">' + esc(shortSub) + '</text>' +
+      '<text x="' + textX + '" y="' + (p.y + 48) + '" fill="' + esc(riskColor) + '" font-size="8.6" font-weight="700">' + esc(String(n.risk || "low").toUpperCase()) + ' · ' + esc(n.role || "") + '</text>' +
+      '</g>';
+  }
+  function buildGrammarMarkup(T){
+    // 1. SEQUENCE: actor headers along the top, dashed lifelines, step arrows.
+    if (grammar === "sequence") {
+      var count = nodes.length;
+      var padX = 10;
+      var gapX = count >= 5 ? 8 : 14;
+      var seqBoxW = Math.floor((SVG_W - padX * 2 - gapX * (count - 1)) / count);
+      var boxH = 54;
+      var headerY = 12;
+      var edgeStepY = 30;
+      var seqSvgH = Math.max(122, headerY + boxH + 26 + Math.max(1, edges.length) * edgeStepY + 10);
+      var lifelineEndY = seqSvgH - 10;
+      var pos = {};
+      var maxTitle = count >= 5 ? 10 : count === 4 ? 13 : 18;
+      var maxSub = count >= 5 ? 11 : count === 4 ? 15 : 22;
+      var lifelinesMarkup = "";
+      var nodesMarkup = "";
+      nodes.forEach(function(n, i){
+        var x = padX + i * (seqBoxW + gapX);
+        var cx = Math.round(x + seqBoxW / 2);
+        pos[n.id] = { x: x, y: headerY, w: seqBoxW, h: boxH, cx: cx };
+        lifelinesMarkup += '<line x1="' + cx + '" y1="' + (headerY + boxH) + '" x2="' + cx + '" y2="' + lifelineEndY + '" stroke="' + esc(T.borderStrong) + '" stroke-width="1.3" stroke-dasharray="3 3" />';
+        nodesMarkup += nodeBox(n, pos[n.id], T, selectedNodeId === n.id, { maxTitleChars: maxTitle, maxSubChars: maxSub, titleSize: count >= 5 ? "9.8" : "10.8" });
+      });
+      var edgesMarkup = "";
+      edges.forEach(function(e, idx){
+        var a = pos[e.from], b = pos[e.to];
+        if (!a || !b) return;
+        var ey = headerY + boxH + 24 + idx * edgeStepY;
+        var color = edgeColor(e, T);
+        var marker = arrowMarkerId(e, T);
+        var stepNum = e.stepNumber || idx + 1;
+        if (a.cx === b.cx) {
+          var lx = a.cx;
+          edgesMarkup += '<path d="M ' + lx + ' ' + (ey - 8) + ' C ' + (lx + 26) + ' ' + (ey - 8) + ', ' + (lx + 26) + ' ' + (ey + 8) + ', ' + (lx + 4) + ' ' + (ey + 8) + '" fill="none" class="dash-flow" stroke="' + esc(color) + '" stroke-width="1.8" marker-end="url(#' + marker + ')" />';
+          edgesMarkup += stepBadge(lx + 18, ey, stepNum, color, T);
+        } else {
+          var dir = b.cx > a.cx ? 1 : -1;
+          var x1 = a.cx + dir * 4;
+          var x2 = b.cx - dir * 6;
+          var mx = Math.round((x1 + x2) / 2);
+          edgesMarkup += '<line x1="' + x1 + '" y1="' + ey + '" x2="' + x2 + '" y2="' + ey + '" class="dash-flow" stroke="' + esc(color) + '" stroke-width="1.8" marker-end="url(#' + marker + ')" />';
+          if (e.label) {
+            edgesMarkup += '<text x="' + mx + '" y="' + (ey - 11) + '" text-anchor="middle" fill="' + esc(T.textSecondary) + '" font-size="8.6">' + esc(String(e.label).slice(0, 18)) + '</text>';
+          }
+          edgesMarkup += stepBadge(mx, ey, stepNum, color, T);
+        }
+      });
+      return { svgH: seqSvgH, markup: defsMarkup(T) + lifelinesMarkup + edgesMarkup + nodesMarkup };
+    }
+
+    // 2. BEFORE-AFTER: two-lane split with the AD-14 lane-safe edge guard.
+    if (grammar === "before-after") {
+      var hasExplicitLanes = nodes.some(function(n){ return n.lane === "before" || n.lane === "after"; });
+      var beforeNodes = hasExplicitLanes
+        ? nodes.filter(function(n){ return n.lane === "before"; })
+        : nodes.slice(0, Math.ceil(nodes.length / 2));
+      var afterNodes = hasExplicitLanes
+        ? nodes.filter(function(n){ return n.lane !== "before"; })
+        : nodes.slice(Math.ceil(nodes.length / 2));
+      var beforeGroup = (Array.isArray(groups) ? groups : []).find(function(g){ return g.lane === "before"; });
+      var afterGroup = (Array.isArray(groups) ? groups : []).find(function(g){ return g.lane === "after"; });
+      var beforeTitle = (beforeGroup && beforeGroup.label) || "BEFORE";
+      var afterTitle = (afterGroup && afterGroup.label) || "AFTER";
+      var laneW = 214;
+      var leftX = 8;
+      var rightX = 238;
+      var nodeW = 194;
+      var nodeH = 54;
+      var startY = 34;
+      var gapY = 24;
+      var maxRows = Math.max(1, beforeNodes.length, afterNodes.length);
+      var laneH = 34 + maxRows * nodeH + Math.max(0, maxRows - 1) * gapY + 12;
+      var baSvgH = laneH + 16;
+      var lanesMarkup = '<rect x="' + leftX + '" y="8" width="' + laneW + '" height="' + laneH + '" rx="10" fill="' + esc(T.riskSoft) + '" stroke="' + esc(T.riskBorder) + '" stroke-width="1.2" />' +
+        '<text x="' + (leftX + 12) + '" y="24" fill="' + esc(T.risk) + '" font-size="9.5" font-weight="800">' + esc(String(beforeTitle).toUpperCase()) + '</text>' +
+        '<rect x="' + rightX + '" y="8" width="' + laneW + '" height="' + laneH + '" rx="10" fill="' + esc(T.okSoft) + '" stroke="' + esc(T.okBorder) + '" stroke-width="1.2" />' +
+        '<text x="' + (rightX + 12) + '" y="24" fill="' + esc(T.ok) + '" font-size="9.5" font-weight="800">' + esc(String(afterTitle).toUpperCase()) + '</text>';
+      var pos = {};
+      var laneOf = {};
+      var nodesMarkup = "";
+      beforeNodes.forEach(function(n, idx){
+        var p = { x: leftX + 10, y: startY + idx * (nodeH + gapY), w: nodeW, h: nodeH };
+        pos[n.id] = p;
+        laneOf[n.id] = "before";
+        nodesMarkup += nodeBox(n, p, T, selectedNodeId === n.id, { maxTitleChars: 23, maxSubChars: 26 });
+      });
+      afterNodes.forEach(function(n, idx){
+        var p = { x: rightX + 10, y: startY + idx * (nodeH + gapY), w: nodeW, h: nodeH };
+        pos[n.id] = p;
+        laneOf[n.id] = "after";
+        nodesMarkup += nodeBox(n, p, T, selectedNodeId === n.id, { maxTitleChars: 23, maxSubChars: 26 });
+      });
+      var edgesMarkup = "";
+      edges.forEach(function(e, idx){
+        var a = pos[e.from], b = pos[e.to];
+        if (!a || !b) return;
+        if (laneOf[e.from] !== laneOf[e.to]) return;
+        var x1 = Math.round(a.x + a.w / 2);
+        var y1 = a.y + a.h;
+        var x2 = Math.round(b.x + b.w / 2);
+        var y2 = b.y - 4;
+        var mx = Math.round((x1 + x2) / 2);
+        var my = Math.round((y1 + y2) / 2);
+        var laneFallback = laneOf[e.from] === "after" ? T.ok : T.risk;
+        var color = edgeColor(e, T, laneFallback);
+        var marker = arrowMarkerId(e, T, laneFallback);
+        edgesMarkup += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="dash-flow" stroke="' + esc(color) + '" stroke-width="1.8" marker-end="url(#' + marker + ')" />';
+        edgesMarkup += stepBadge(mx, my, e.stepNumber || idx + 1, color, T);
+      });
+      return { svgH: baSvgH, markup: defsMarkup(T) + lanesMarkup + edgesMarkup + nodesMarkup };
+    }
+
+    // 3. DECISION-TREE: root decision node -> branched choice leaves.
+    if (grammar === "decision-tree") {
+      var rootNode = nodes.find(function(n){ return n.branch === "root"; }) || nodes[0];
+      var branchNodes = nodes.filter(function(n){ return n.id !== rootNode.id; });
+      var pos = {};
+      var nodesMarkup = "";
+      if (branchNodes.length === 0) {
+        var soloPos = { x: 130, y: 16, w: 200, h: 56 };
+        pos[rootNode.id] = soloPos;
+        nodesMarkup += nodeBox(rootNode, soloPos, T, selectedNodeId === rootNode.id, { maxTitleChars: 24, maxSubChars: 28 });
+        return { svgH: 92, markup: defsMarkup(T) + nodesMarkup };
+      }
+      var rootPos = { x: 135, y: 12, w: 190, h: 54 };
+      pos[rootNode.id] = rootPos;
+      nodesMarkup += nodeBox(rootNode, rootPos, T, selectedNodeId === rootNode.id, { maxTitleChars: 22, maxSubChars: 25 });
+      var bCols = branchNodes.length <= 3 ? branchNodes.length : 3;
+      var bPadX = 12;
+      var bGapX = 14;
+      var bW = Math.floor((SVG_W - bPadX * 2 - bGapX * (bCols - 1)) / bCols);
+      var bH = 56;
+      var branchStartY = 102;
+      var rowGap = 28;
+      branchNodes.forEach(function(n, idx){
+        var row = Math.floor(idx / bCols);
+        var col = idx % bCols;
+        var p = { x: bPadX + col * (bW + bGapX), y: branchStartY + row * (bH + rowGap), w: bW, h: bH };
+        pos[n.id] = p;
+        nodesMarkup += nodeBox(n, p, T, selectedNodeId === n.id, { maxTitleChars: bCols === 3 ? 16 : 21, maxSubChars: bCols === 3 ? 18 : 24 });
+      });
+      var bRows = Math.ceil(branchNodes.length / bCols);
+      var dtSvgH = branchStartY + bRows * bH + Math.max(0, bRows - 1) * rowGap + 14;
+      var edgesMarkup = "";
+      edges.forEach(function(e, idx){
+        var a = pos[e.from], b = pos[e.to];
+        if (!a || !b) return;
+        var sx = Math.round(a.x + a.w / 2);
+        var sy = a.y + a.h;
+        var tx = Math.round(b.x + b.w / 2);
+        var ty = b.y - 4;
+        var midY = Math.round((sy + ty) / 2);
+        var mx = Math.round((sx + tx) / 2);
+        var color = edgeColor(e, T);
+        var marker = arrowMarkerId(e, T);
+        edgesMarkup += '<path d="M ' + sx + ' ' + sy + ' C ' + sx + ' ' + midY + ', ' + tx + ' ' + midY + ', ' + tx + ' ' + ty + '" fill="none" class="dash-flow" stroke="' + esc(color) + '" stroke-width="1.8" marker-end="url(#' + marker + ')" />';
+        edgesMarkup += stepBadge(mx, midY, e.stepNumber || idx + 1, color, T);
+      });
+      return { svgH: dtSvgH, markup: defsMarkup(T) + edgesMarkup + nodesMarkup };
+    }
+
+    // 4. SUBWAY-MAP: grouped layer tracks or subway-line station nodes.
+    if (grammar === "subway-map") {
+      var laneNames = [];
+      nodes.forEach(function(n){
+        var lane = String(n.lane || "").trim();
+        if (lane && laneNames.indexOf(lane) === -1) laneNames.push(lane);
+      });
+      var useLaneTracks = laneNames.length >= 2 || (Array.isArray(groups) && groups.length >= 2);
+      var pos = {};
+      var trackMarkup = "";
+      var nodesMarkup = "";
+      var smSvgH = 160;
+      if (useLaneTracks) {
+        var orderedLanes = [];
+        (Array.isArray(groups) ? groups : []).forEach(function(g){
+          var laneId = String((g && (g.lane || g.id)) || "").trim();
+          if (laneId && orderedLanes.indexOf(laneId) === -1) orderedLanes.push(laneId);
+        });
+        laneNames.forEach(function(laneId){
+          if (orderedLanes.indexOf(laneId) === -1) orderedLanes.push(laneId);
+        });
+        var laneBuckets = orderedLanes
+          .map(function(laneId){
+            var label = laneId;
+            (Array.isArray(groups) ? groups : []).forEach(function(g){
+              if (g && (g.lane === laneId || g.id === laneId) && g.label) label = g.label;
+            });
+            return {
+              id: laneId,
+              label: label,
+              items: nodes.filter(function(n){ return (n.lane || orderedLanes[0]) === laneId; })
+            };
+          })
+          .filter(function(b){ return b.items.length > 0; });
+        var unplaced = nodes.filter(function(n){ return !pos[n.id] && !laneBuckets.some(function(b){ return b.items.indexOf(n) !== -1; }); });
+        if (unplaced.length > 0 && laneBuckets.length > 0) {
+          unplaced.forEach(function(n){ laneBuckets[laneBuckets.length - 1].items.push(n); });
+        }
+        var lanePad = 10;
+        var laneGap = 14;
+        var laneBoxH = 78;
+        var cursorY = 10;
+        laneBuckets.forEach(function(bucket){
+          var count = bucket.items.length;
+          var innerPad = 12;
+          var gapX = 18;
+          var boxW = Math.min(200, Math.floor((SVG_W - lanePad * 2 - innerPad * 2 - gapX * (count - 1)) / count));
+          var boxH = 54;
+          var railY = cursorY + 26;
+          trackMarkup += '<rect x="' + lanePad + '" y="' + cursorY + '" width="' + (SVG_W - lanePad * 2) + '" height="' + laneBoxH + '" rx="9" fill="' + esc(T.bgCard) + '" fill-opacity="0.35" stroke="' + esc(T.border) + '" stroke-width="1" />';
+          trackMarkup += '<text x="' + (lanePad + 10) + '" y="' + (cursorY + 13) + '" fill="' + esc(T.textMuted) + '" font-size="9" font-weight="800">' + esc(String(bucket.label).toUpperCase()) + '</text>';
+          trackMarkup += '<line x1="' + (lanePad + 12) + '" y1="' + (railY + 20) + '" x2="' + (SVG_W - lanePad - 12) + '" y2="' + (railY + 20) + '" stroke="' + esc(T.borderStrong) + '" stroke-width="2.5" />';
+          bucket.items.forEach(function(n, idx){
+            var p = { x: lanePad + innerPad + idx * (boxW + gapX), y: cursorY + 18, w: boxW, h: boxH };
+            pos[n.id] = p;
+            nodesMarkup += nodeBox(n, p, T, selectedNodeId === n.id, { maxTitleChars: count >= 3 ? 16 : 22, maxSubChars: count >= 3 ? 18 : 26, stationDot: true });
+          });
+          cursorY += laneBoxH + laneGap;
+        });
+        smSvgH = cursorY;
+      } else {
+        var cols = nodes.length <= 2 ? nodes.length : nodes.length <= 4 ? 2 : 3;
+        var rows = Math.ceil(nodes.length / cols);
+        var padX = 14;
+        var padY = 16;
+        var gapX = 26;
+        var gapY = 30;
+        var boxW = Math.floor((SVG_W - padX * 2 - gapX * (cols - 1)) / cols);
+        var boxH = 58;
+        smSvgH = padY * 2 + rows * boxH + Math.max(0, rows - 1) * gapY;
+        for (var r = 0; r < rows; r++) {
+          var railY = padY + r * (boxH + gapY) + Math.round(boxH / 2);
+          trackMarkup += '<line x1="' + padX + '" y1="' + railY + '" x2="' + (SVG_W - padX) + '" y2="' + railY + '" stroke="' + esc(T.borderStrong) + '" stroke-width="2.4" />';
+        }
+        nodes.forEach(function(n, i){
+          var row = Math.floor(i / cols);
+          var colInRow = i % cols;
+          var col = row % 2 === 1 ? cols - 1 - colInRow : colInRow;
+          var p = { x: padX + col * (boxW + gapX), y: padY + row * (boxH + gapY), w: boxW, h: boxH };
+          pos[n.id] = p;
+          nodesMarkup += nodeBox(n, p, T, selectedNodeId === n.id, { maxTitleChars: cols === 3 ? 16 : 22, maxSubChars: cols === 3 ? 18 : 26, stationDot: true });
+        });
+      }
+      var edgesMarkup = "";
+      edges.forEach(function(e, idx){
+        var a = pos[e.from], b = pos[e.to];
+        if (!a || !b) return;
+        var ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+        var bx = b.x + b.w / 2, by = b.y + b.h / 2;
+        var x1 = ax, y1 = ay, x2 = bx, y2 = by;
+        if (Math.abs(ay - by) < 10) {
+          x1 = bx > ax ? a.x + a.w : a.x;
+          x2 = bx > ax ? b.x - 4 : b.x + b.w + 4;
+        } else {
+          y1 = by > ay ? a.y + a.h : a.y;
+          y2 = by > ay ? b.y - 4 : b.y + b.h + 4;
+        }
+        var mx = Math.round((x1 + x2) / 2);
+        var my = Math.round((y1 + y2) / 2);
+        var color = edgeColor(e, T);
+        var marker = arrowMarkerId(e, T);
+        edgesMarkup += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="dash-flow" stroke="' + esc(color) + '" stroke-width="2" marker-end="url(#' + marker + ')" />';
+        edgesMarkup += stepBadge(mx, my, e.stepNumber || idx + 1, color, T);
+      });
+      return { svgH: smSvgH, markup: defsMarkup(T) + trackMarkup + edgesMarkup + nodesMarkup };
+    }
+
+    // 5. FLOW-DIFF (default): directional left-accented diff cards.
+    var cols = nodes.length <= 2 ? nodes.length : nodes.length <= 4 ? 2 : 3;
+    var rows = Math.ceil(nodes.length / cols);
+    var padX = 14;
+    var padY = 16;
+    var gapX = 26;
+    var gapY = 30;
+    var boxW = Math.floor((SVG_W - padX * 2 - gapX * (cols - 1)) / cols);
+    var boxH = 58;
+    var fdSvgH = padY * 2 + rows * boxH + Math.max(0, rows - 1) * gapY;
+    var pos = {};
+    var nodesMarkup = "";
+    nodes.forEach(function(n, i){
+      var row = Math.floor(i / cols);
+      var colInRow = i % cols;
+      var col = row % 2 === 1 ? cols - 1 - colInRow : colInRow;
+      var p = { x: padX + col * (boxW + gapX), y: padY + row * (boxH + gapY), w: boxW, h: boxH };
+      pos[n.id] = p;
+      nodesMarkup += nodeBox(n, p, T, selectedNodeId === n.id, { maxTitleChars: cols === 3 ? 15 : 21, maxSubChars: cols === 3 ? 17 : 25, accentLeftBar: true });
+    });
+    var edgesMarkup = "";
+    edges.forEach(function(e, idx){
+      var a = pos[e.from], b = pos[e.to];
+      if (!a || !b) return;
+      var ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+      var bx = b.x + b.w / 2, by = b.y + b.h / 2;
+      var x1 = ax, y1 = ay, x2 = bx, y2 = by;
+      if (Math.abs(ay - by) < 10) {
+        x1 = bx > ax ? a.x + a.w : a.x;
+        x2 = bx > ax ? b.x - 4 : b.x + b.w + 4;
+      } else {
+        y1 = by > ay ? a.y + a.h : a.y;
+        y2 = by > ay ? b.y - 4 : b.y + b.h + 4;
+      }
+      var mx = Math.round((x1 + x2) / 2);
+      var my = Math.round((y1 + y2) / 2);
+      var color = edgeColor(e, T);
+      var marker = arrowMarkerId(e, T);
+      edgesMarkup += '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" class="dash-flow" stroke="' + esc(color) + '" stroke-width="1.8" marker-end="url(#' + marker + ')" />';
+      edgesMarkup += stepBadge(mx, my, e.stepNumber || idx + 1, color, T);
+    });
+    return { svgH: fdSvgH, markup: defsMarkup(T) + edgesMarkup + nodesMarkup };
+  }
   function syncInspector(text, active){
     inspector.textContent = text;
     if (inspector.classList && inspector.classList.toggle) {
@@ -1987,34 +2810,12 @@ export function generateStandaloneHtmlArtifact(panelState) {
   function renderDiagram(){
     var T = resolveTokens();
     if (!nodes.length) {
-      svg.innerHTML = '<text x="440" y="105" text-anchor="middle" fill="'+T.textSecondary+'" font-size="13">Diagram pending…</text>';
+      svg.innerHTML = '<text x="230" y="105" text-anchor="middle" fill="'+T.textSecondary+'" font-size="13">Diagram pending…</text>';
       return;
     }
-    var html = '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="'+T.accent+'"/></marker></defs>';
-    edges.forEach(function(e){
-      var a = pos[e.from], b = pos[e.to];
-      if(!a || !b) return;
-      var x1 = a.x + a.w, y1 = a.y + a.h/2, x2 = b.x - 4, y2 = b.y + b.h/2;
-      var mx = (x1+x2)/2;
-      html += '<path d="M '+x1+' '+y1+' L '+x2+' '+y2+'" stroke="'+T.accent+'" stroke-width="2" marker-end="url(#arr)"/>';
-      html += '<circle cx="'+mx+'" cy="'+(y1-16)+'" r="10" fill="'+T.bgPanel+'" stroke="'+T.accent+'"/>';
-      html += '<text x="'+mx+'" y="'+(y1-12)+'" text-anchor="middle" fill="'+T.textPrimary+'" font-size="11" font-weight="700">'+esc(e.stepNumber)+'</text>';
-    });
-    nodes.forEach(function(n){
-      var p = pos[n.id];
-      var isSel = selectedNodeId === n.id;
-      var stroke = n.risk === "high" ? T.risk : n.risk === "medium" ? T.warn : T.ok;
-      var fill = isSel ? T.accentSoft : T.bgCard;
-      var sw = isSel ? "2.6" : "2";
-      var nAria = (n.label || "Node") + " — " + (n.role || "Step") + ", risk " + (n.risk || "low").toUpperCase() + (n.file ? ", file " + n.file : "");
-      html += '<g class="dnode" tabindex="0" role="button" aria-pressed="'+(isSel?"true":"false")+'" aria-label="'+esc(nAria)+'" data-id="'+esc(n.id)+'" style="cursor:pointer">';
-      html += '<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="10" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"/>';
-      html += '<text x="'+(p.x+10)+'" y="'+(p.y+26)+'" fill="'+T.textPrimary+'" font-size="12.5" font-weight="700">'+esc((n.label||"").slice(0,22))+'</text>';
-      html += '<text x="'+(p.x+10)+'" y="'+(p.y+46)+'" fill="'+T.textSecondary+'" font-size="11">'+esc((n.sublabel||"").slice(0,26))+'</text>';
-      html += '<text x="'+(p.x+10)+'" y="'+(p.y+68)+'" fill="'+stroke+'" font-size="10" font-weight="700">'+esc((n.risk||"low").toUpperCase())+' · '+esc(n.role||"")+'</text>';
-      html += '</g>';
-    });
-    svg.innerHTML = html;
+    var built = buildGrammarMarkup(T);
+    if (svg.setAttribute) svg.setAttribute("viewBox", "0 0 " + SVG_W + " " + built.svgH);
+    svg.innerHTML = built.markup;
     svg.querySelectorAll(".dnode").forEach(function(g){
       function activate(fromKb){
         var id = g.getAttribute("data-id");
@@ -2097,7 +2898,124 @@ export function generateStandaloneHtmlArtifact(panelState) {
         if(raf) cancelAnimationFrame(raf);
       });
     }
+    // Story 6.5/6.6 — Canvas tour scene pills: jump to any scene (the active
+    // pill tracks idx; playback keeps advancing from the jumped scene).
+    var pillsEl = document.getElementById("explainerScenePills");
+    function syncScenePills(){
+      var pills = pillsEl && pillsEl.querySelectorAll ? pillsEl.querySelectorAll(".scene-pill") : [];
+      for (var si = 0; si < pills.length; si++) {
+        var isOn = Number(pills[si].getAttribute("data-scene-idx")) === idx;
+        pills[si].className = "scene-pill" + (isOn ? " active" : "");
+        pills[si].setAttribute("aria-pressed", isOn ? "true" : "false");
+      }
+    }
+    if (pillsEl && pillsEl.querySelectorAll) {
+      var pills = pillsEl.querySelectorAll(".scene-pill");
+      for (var pi = 0; pi < pills.length; pi++) {
+        (function(pill){
+          pill.addEventListener("click", function(){
+            idx = Number(pill.getAttribute("data-scene-idx")) || 0;
+            t = 0;
+            syncScenePills();
+            drawFrame();
+          });
+        })(pills[pi]);
+      }
+      syncScenePills();
+    }
   }
+  // ---- Story 6.6 — local X-Ray toggle (Plain STE-80 <-> Tech).
+  // One body[data-xray-mode] attribute write swaps every pre-bound
+  // .xray-plain/.xray-tech pair with CSS only: zero RPC, zero network.
+  var xrayRoot = (typeof document !== "undefined" && document.body) || document.documentElement;
+  var xrayBtn = document.getElementById("btnXrayToggle");
+  function currentXrayMode(){
+    var mode = xrayRoot && xrayRoot.getAttribute ? xrayRoot.getAttribute("data-xray-mode") : null;
+    return String(mode || "plain") === "tech" ? "tech" : "plain";
+  }
+  function syncXrayButton(){
+    if (!xrayBtn) return;
+    var mode = currentXrayMode();
+    xrayBtn.setAttribute("data-mode", mode);
+    xrayBtn.setAttribute("aria-pressed", mode === "tech" ? "true" : "false");
+    xrayBtn.textContent = mode === "tech" ? "⚡ X-Ray · Tech" : "⚡ X-Ray · Plain";
+  }
+  function toggleXrayMode(){
+    if (xrayRoot && xrayRoot.setAttribute) {
+      xrayRoot.setAttribute("data-xray-mode", currentXrayMode() === "tech" ? "plain" : "tech");
+      syncXrayButton();
+    }
+  }
+  if (xrayBtn) {
+    xrayBtn.addEventListener("click", toggleXrayMode);
+  }
+  syncXrayButton();
+
+  // ---- Story 6.2 offline microBlocks: local selection state only. ----
+  function queryButtons(containerId, selector){
+    var container = document.getElementById(containerId);
+    if (!container || !container.querySelectorAll || typeof container.querySelectorAll !== "function") return [];
+    return container.querySelectorAll(selector);
+  }
+  // Waiting chips: select locally + surface the prompt to send from the live
+  // panel (offline artifacts cannot dispatch ui/message).
+  var waitNote = document.getElementById("waitOfflineNote");
+  var waitingPayload = (DATA.waiting && Array.isArray(DATA.waiting.chips)) ? DATA.waiting.chips : [];
+  queryButtons("waitingChipsRow", ".action-chip").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var chipId = btn.getAttribute("data-chip-id");
+      var prompt = "";
+      waitingPayload.forEach(function(c){
+        if (c && c.id === chipId) prompt = String(c.messagePrompt || c.label || "");
+      });
+      var all = queryButtons("waitingChipsRow", ".action-chip");
+      for (var i = 0; i < all.length; i++) {
+        var picked = all[i].getAttribute("data-chip-id") === chipId;
+        all[i].className = "action-chip" + (picked ? " selected" : "");
+        all[i].setAttribute("aria-pressed", picked ? "true" : "false");
+      }
+      if (waitNote) {
+        waitNote.textContent = prompt
+          ? "Offline export — send this reply from the live panel: " + prompt
+          : "Offline export — send replies from the live panel.";
+        if (waitNote.removeAttribute) waitNote.removeAttribute("hidden");
+      }
+    });
+  });
+  // Choice grid: mark the picked option locally (offline; no chat dispatch).
+  queryButtons("choiceGrid", ".choice-item").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var all = queryButtons("choiceGrid", ".choice-item");
+      var pickedKey = null;
+      for (var i = 0; i < all.length; i++) {
+        var picked = all[i] === btn;
+        if (picked) pickedKey = all[i].getAttribute("data-choice-key");
+        all[i].className = "choice-item" + (picked ? " picked" : "");
+        all[i].setAttribute("aria-pressed", picked ? "true" : "false");
+      }
+      var pickedPill = document.getElementById("choicePickedPill");
+      if (pickedPill) {
+        pickedPill.textContent = "Selected: " + (pickedKey || "?");
+        if (pickedPill.removeAttribute) pickedPill.removeAttribute("hidden");
+      }
+    });
+  });
+  // Proof pills: expand/collapse the matching proof-detail locally.
+  queryButtons("proofPillRow", ".proof-pill").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var idxAttr = btn.getAttribute("data-proof-idx");
+      var detail = document.getElementById("proofDetail-" + idxAttr);
+      var open = detail && detail.classList && detail.classList.contains && detail.classList.contains("open");
+      if (detail && detail.classList && detail.classList.toggle) detail.classList.toggle("open", !open);
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+  });
+  // Story 7.3 — offline Install CTA: reveal the local install note (zero RPC).
+  var installBtn = document.getElementById("btnInstallPluginExport");
+  if (installBtn) installBtn.addEventListener("click", function(){
+    var note = document.getElementById("installOfflineNote");
+    if (note && note.removeAttribute) note.removeAttribute("hidden");
+  });
   function rerenderVisuals(){
     renderDiagram();
     if(drawFrame) drawFrame();
@@ -2113,8 +3031,8 @@ export function generateStandaloneHtmlArtifact(panelState) {
 </html>`;
 }
 
-export function saveStandaloneHtmlArtifact(workspaceRoot, panelState) {
-  const html = generateStandaloneHtmlArtifact(panelState);
+export function saveStandaloneHtmlArtifact(workspaceRoot, panelState, options = {}) {
+  const html = generateStandaloneHtmlArtifact(panelState, options);
   const outDir = process.env.ZCODE_VISUALIZATION_DIR || join(workspaceRoot, ".zcode", "vibe-debrief-artifacts");
   mkdirSync(outDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);

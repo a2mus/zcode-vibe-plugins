@@ -99,7 +99,15 @@ function createPanelTestHarness({
         if (!this.listeners.has(type)) this.listeners.set(type, []);
         this.listeners.get(type).push(fn);
       },
-      querySelectorAll() {
+      dispatchEvent(evt) {
+        const list = this.listeners.get(evt?.type) || [];
+        for (const fn of list) fn(evt);
+        return true;
+      },
+      querySelectorAll(selector) {
+        if (selector === ".concept-pill" && Array.isArray(this._children)) {
+          return this._children;
+        }
         return [];
       },
       scrollIntoView() {}
@@ -110,6 +118,16 @@ function createPanelTestHarness({
       },
       set(val) {
         el._innerHTML = String(val ?? "");
+        const matches = [];
+        const re = /<button\s+([^>]*class="[^"]*concept-pill[^"]*"[^>]*)>/gi;
+        for (const m of el._innerHTML.matchAll(re)) {
+          const child = makeElement("", "button");
+          for (const a of m[1].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
+            child.setAttribute(a[1], a[2]);
+          }
+          matches.push(child);
+        }
+        el._children = matches;
       }
     });
     if (id) elements.set(id, el);
@@ -157,6 +175,7 @@ function createPanelTestHarness({
     "implProofStrip",
     "implConsequencesText",
     "implOversightBlock",
+    "microBlockConcepts",
     "lessonsListContainer",
     "customLessonForm",
     "customLessonTitle",
@@ -325,6 +344,7 @@ function createPanelTestHarness({
     body,
     documentElement,
     diagramSvg: elements.get("diagramSvg"),
+    microBlockConcepts: elements.get("microBlockConcepts"),
     canvasOps,
     outboundMessages,
     notifyHostTheme(theme) {
@@ -528,8 +548,9 @@ describe("DESIGN.md CSS custom properties & legacy aliases", () => {
 describe("renderInteractiveDiagram & CSP static safety", () => {
   const scriptText = extractInlineScript(PANEL_HTML);
   const diagramFnSource = extractFunctionSource(scriptText, "renderInteractiveDiagram");
+  const grammarBuilderSource = extractFunctionSource(scriptText, "build5GrammarSvgMarkup");
 
-  it("contains zero hardcoded dark-only hex or rgba literals in renderInteractiveDiagram", () => {
+  it("contains zero hardcoded dark-only hex or rgba literals in renderInteractiveDiagram and build5GrammarSvgMarkup", () => {
     const forbidden = [
       "#0b0f17",
       "#131a26",
@@ -541,12 +562,17 @@ describe("renderInteractiveDiagram & CSP static safety", () => {
       "#34d399",
       "rgba(56,189,248"
     ];
-    for (const literal of forbidden) {
-      assert.equal(
-        diagramFnSource.includes(literal),
-        false,
-        `renderInteractiveDiagram must not hardcode ${literal}`
-      );
+    for (const [fnName, src] of [
+      ["renderInteractiveDiagram", diagramFnSource],
+      ["build5GrammarSvgMarkup", grammarBuilderSource]
+    ]) {
+      for (const literal of forbidden) {
+        assert.equal(
+          src.includes(literal),
+          false,
+          `${fnName} must not hardcode ${literal}`
+        );
+      }
     }
     assert.ok(
       diagramFnSource.includes("resolveThemeTokens()"),
@@ -728,6 +754,44 @@ describe("Live host theme sync & SVG diagram parity", () => {
     // Unknown risk/status defaults cleanly to ok (#059669 in light mode)
     assert.ok(svg.includes("#059669"));
   });
+
+  it("renders all 5 diagramSpec grammars in both Dark HUD and Field Desk Light without dark-literal leakage", async () => {
+    const grammars = ["sequence", "flow-diff", "subway-map", "before-after", "decision-tree"];
+    for (const grammar of grammars) {
+      const debrief = buildDebriefFixture({
+        diagramSpec: {
+          grammar,
+          title: `${grammar} theme check`,
+          nodes: [
+            { id: "n1", label: "Before Node", role: "Input", lane: "before", risk: "high", status: "warning" },
+            { id: "n2", label: "Mid Node", role: "Logic", lane: "after", risk: "medium", status: "active" },
+            { id: "n3", label: "After Node", role: "Output", lane: "after", risk: "low", status: "done" }
+          ],
+          edges: [
+            { from: "n1", to: "n2", stepNumber: 1, risk: "high" },
+            { from: "n2", to: "n3", stepNumber: 2, risk: "low" }
+          ]
+        },
+        diagram: undefined
+      });
+      const harness = createPanelTestHarness({ initTheme: "light", debrief });
+      await harness.flush();
+
+      const lightSvg = harness.diagramSvg.innerHTML;
+      assert.equal(harness.diagramSvg.getAttribute("data-grammar"), grammar);
+      assert.ok(lightSvg.includes("#ffffff"), `${grammar} light nodes must use #ffffff card fill`);
+      assert.ok(lightSvg.includes("#17202e"), `${grammar} light labels must use #17202e primary text`);
+      for (const darkHex of ["#182130", "#e7edf6", "#38bdf8", "#fb7185", "#fbbf24", "#34d399"]) {
+        assert.equal(lightSvg.includes(darkHex), false, `${grammar} light SVG leaked dark literal ${darkHex}`);
+      }
+
+      harness.notifyHostTheme("dark");
+      const darkSvg = harness.diagramSvg.innerHTML;
+      assert.ok(darkSvg.includes("#182130"), `${grammar} dark nodes must use #182130 card fill`);
+      assert.ok(darkSvg.includes("#e7edf6"), `${grammar} dark labels must use #e7edf6 primary text`);
+      assert.equal(darkSvg.includes("#ffffff"), false, `${grammar} dark SVG leaked light literal #ffffff`);
+    }
+  });
 });
 
 describe("Canvas explainer theme parity (drawExplainerFrame)", () => {
@@ -841,5 +905,53 @@ describe("Canvas explainer theme parity (drawExplainerFrame)", () => {
     assert.ok(styles.includes("#f1ece1"), "light stage fallback must apply");
     assert.ok(styles.includes("#0284c7"), "light accent fallback must apply");
     assert.ok(styles.includes("rgba(2, 132, 199, 0.08)"), "light grid fallback must apply");
+  });
+});
+
+describe("Story 7.1 — Stage 1 104px micro-visual theme parity", () => {
+  const conceptDebrief = {
+    id: "turn-stage1-theme",
+    responseType: "implementation",
+    tldrHeadline: "Added SSE concept drawer.",
+    touchedFiles: [{ path: "src/sse.mjs", shortName: "sse.mjs", role: "Logic", risk: "low" }],
+    complexity: { level: "simple", score: 2, reason: "Focused turn" },
+    waitingOnYou: { state: "none", label: "All Clear", prompt: "Ready.", chips: [] },
+    microBlocks: ["diagram", "proof-audit", "concepts"],
+    concepts: [
+      {
+        slug: "sse-stream",
+        label: "SSE Stream",
+        techSymbol: "EventSource",
+        targetPlugin: "visualize",
+        stage1: {
+          definition: "Server pushes chunks over one open connection.",
+          analogy: "Like a live radio feed.",
+          microVisualSpec: { type: "loop-3node", nodes: ["Client", "Stream", "Chunk"] }
+        }
+      }
+    ]
+  };
+
+  it("renders the 104px stage1 micro-visual in Dark HUD and Field Desk Light and re-renders on host-context-changed", async () => {
+    const harness = createPanelTestHarness({ initTheme: "dark", debrief: conceptDebrief });
+    await harness.flush();
+
+    const block = harness.microBlockConcepts;
+    const pill = block.querySelectorAll(".concept-pill")[0];
+    assert.ok(pill, "concept-pill must render");
+    pill.dispatchEvent({ type: "click" });
+
+    assert.ok(block.innerHTML.includes('id="stage1MicroSvg"'), "stage1MicroSvg must render");
+    assert.ok(block.innerHTML.includes('data-theme="dark"'), "dark micro-visual must tag dark theme");
+    assert.ok(block.innerHTML.includes("#121924"), "dark micro-visual must use Dark HUD --bg-panel");
+    assert.ok(block.innerHTML.includes("#38bdf8"), "dark micro-visual must use Dark HUD --accent");
+
+    harness.notifyHostTheme("light");
+    assert.ok(block.innerHTML.includes('id="stage1MicroSvg"'), "stage1MicroSvg must remain open after theme toggle");
+    assert.ok(block.innerHTML.includes('data-theme="light"'), "light micro-visual must tag light theme");
+    assert.ok(block.innerHTML.includes("#fbf9f4"), "light micro-visual must use Field Desk Light --bg-panel");
+    assert.ok(block.innerHTML.includes("#0284c7"), "light micro-visual must use Field Desk Light --accent");
+    assert.equal(block.innerHTML.includes("#121924"), false, "dark-only bg-panel must not leak into light micro-visual");
+    assert.equal(block.innerHTML.includes("#38bdf8"), false, "dark-only accent must not leak into light micro-visual");
   });
 });

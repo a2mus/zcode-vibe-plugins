@@ -1,7 +1,19 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { readFileSync, symlinkSync } from "node:fs";
+import { relative, resolve } from "node:path";
 
 import {
+  inspectWorkspaceArtifact,
+  openNewConversationWithPrompt,
+  openWorkspaceArtifactExternally,
+  prepareNewSession,
+  resolveWorkspaceArtifactPath,
+  runCommandAsync
+} from "../scripts/bmad-engine.mjs";
+import {
+  PANEL_HTML_PATH,
   assertStrictJsonRpcStdout,
   createTempWorkspaceTracker,
   runMcpServer
@@ -639,5 +651,617 @@ describe("bmad_update_advisor contract (Epic 2 Story 2)", () => {
     }
     assert.equal(scan.recommendations[0].skill, "/bmad-ux");
     assert.equal(scan.recommendations[0].fullCommand, '/bmad-ux "Audit panel contrast tokens"');
+  });
+});
+
+describe("bmad_prepare_new_session & clean-session launch (Epic 2 Story 3)", () => {
+  it("persists lastLaunchedSession via savePersistedState and guards empty prompts over MCP stdio", async () => {
+    const ws = seedSurfaceWorkspace();
+
+    const res = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [
+        toolCall(1, "bmad_prepare_new_session", {
+          prompt: "   ",
+          model: "test/claude-sonnet-5-5-high",
+          skill: "/bmad-build",
+          title: "Story 2.3"
+        }),
+        toolCall(2, "bmad_get_state")
+      ]
+    });
+
+    assertStrictJsonRpcStdout(res);
+    assert.equal(res.responses.length, 2);
+    const prep = res.responses[0].result;
+    assert.ok(!prep.isError);
+    assert.equal(prep.structuredContent.prompt, "   ");
+    assert.equal(prep.structuredContent.model, "test/claude-sonnet-5-5-high");
+    assert.equal(prep.structuredContent.skill, "/bmad-build");
+    assert.equal(prep.structuredContent.title, "Story 2.3");
+    assert.ok(!Number.isNaN(Date.parse(prep.structuredContent.requestedAt)));
+    assert.equal(prep.structuredContent.copied, false);
+    assert.equal(prep.structuredContent.openedDirectly, false);
+    assert.equal(prep.structuredContent.pasted, false);
+    assert.equal(prep.structuredContent.method, "none");
+    assert.equal(prep.structuredContent.error, "empty_prompt");
+
+    const persisted = JSON.parse(ws.read(".zcode/bmad-companion/state.json"));
+    assert.equal(persisted.lastLaunchedSession.model, "test/claude-sonnet-5-5-high");
+    assert.equal(persisted.lastLaunchedSession.skill, "/bmad-build");
+    assert.equal(persisted.lastLaunchedSession.title, "Story 2.3");
+    assert.equal(
+      res.responses[1].result.structuredContent.turnAnalysis.lastLaunchedSession.requestedAt,
+      prep.structuredContent.requestedAt
+    );
+  });
+
+  it("persists lastLaunchedSession and executes win32 SendKeys ^n/^v with 8000ms timeout, clipboard fallback, and zero auto-submit", async () => {
+    const ws = seedSurfaceWorkspace();
+    const prompt = '/bmad-build "Implement Story 2.3 with ~ special {ENTER} chars"\nSecond line';
+    const calls = [];
+
+    const launched = await prepareNewSession(
+      ws.root,
+      {
+        prompt,
+        model: "test/claude-sonnet-5-5-high",
+        skill: "/bmad-build",
+        title: "Win32 Launch"
+      },
+      {
+        platform: "win32",
+        runCommand: async (command, args, opts) => {
+          calls.push({ command, args, opts });
+          return { ok: true, code: 0, timedOut: false, stdout: "BMAD_CLIPBOARD_OK\n", stderr: "" };
+        }
+      }
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].command, "powershell.exe");
+    assert.equal(calls[0].opts.timeoutMs, 8000);
+    assert.equal(calls[0].opts.env.BMAD_OPEN_DIRECTLY, "1");
+    assert.equal(
+      Buffer.from(calls[0].opts.env.BMAD_PROMPT_B64, "base64").toString("utf8"),
+      prompt
+    );
+    const psCmd = calls[0].args[calls[0].args.length - 1];
+    assert.match(psCmd, /SendKeys\]::SendWait\('\^n'\)/);
+    assert.match(psCmd, /SendKeys\]::SendWait\('\^v'\)/);
+    assert.equal(/SendWait\(['"][^'"]*(?:\{ENTER\}|~)/i.test(psCmd), false, "must never auto-submit");
+
+    assert.equal(launched.copied, true);
+    assert.equal(launched.openedDirectly, true);
+    assert.equal(launched.pasted, true);
+    assert.equal(launched.method, "win32-sendkeys-ctrl-n-v");
+    const persisted = JSON.parse(ws.read(".zcode/bmad-companion/state.json"));
+    assert.equal(persisted.lastLaunchedSession.prompt, prompt);
+
+    // openDirectly: false skips SendKeys while copying to clipboard.
+    const clipOnlyCalls = [];
+    const clipOnly = await openNewConversationWithPrompt(prompt, false, {
+      platform: "win32",
+      runCommand: async (command, args, opts) => {
+        clipOnlyCalls.push({ command, args, opts });
+        return { ok: true, code: 0, timedOut: false, stdout: "BMAD_CLIPBOARD_OK\n", stderr: "" };
+      }
+    });
+    assert.equal(clipOnlyCalls[0].opts.env.BMAD_OPEN_DIRECTLY, "0");
+    assert.deepEqual(clipOnly, {
+      copied: true,
+      openedDirectly: false,
+      pasted: false,
+      method: "win32-clipboard"
+    });
+
+    // SendKeys blocked after clipboard succeeded -> graceful clipboard-only fallback (copied: true).
+    const blocked = await openNewConversationWithPrompt(prompt, true, {
+      platform: "win32",
+      runCommand: async () => ({
+        ok: false,
+        code: 2,
+        timedOut: false,
+        stdout: "BMAD_CLIPBOARD_OK\r\n",
+        stderr: "SendKeys access denied\r\n"
+      })
+    });
+    assert.deepEqual(blocked, {
+      copied: true,
+      openedDirectly: false,
+      pasted: false,
+      method: "win32-clipboard-only",
+      error: "SendKeys access denied"
+    });
+
+    // Timeout after clipboard succeeded -> still preserves copied: true fallback.
+    const timedOutAfterCopy = await openNewConversationWithPrompt(prompt, true, {
+      platform: "win32",
+      runCommand: async () => ({
+        ok: false,
+        code: null,
+        timedOut: true,
+        stdout: "BMAD_CLIPBOARD_OK\n",
+        stderr: "timeout"
+      })
+    });
+    assert.deepEqual(timedOutAfterCopy, {
+      copied: true,
+      openedDirectly: false,
+      pasted: false,
+      method: "win32-clipboard-only",
+      error: "timeout"
+    });
+
+    // Clipboard failure before BMAD_CLIPBOARD_OK -> win32-failed.
+    const failed = await openNewConversationWithPrompt(prompt, true, {
+      platform: "win32",
+      runCommand: async () => ({
+        ok: false,
+        code: 1,
+        timedOut: false,
+        stdout: "",
+        stderr: "Clipboard unavailable"
+      })
+    });
+    assert.deepEqual(failed, {
+      copied: false,
+      openedDirectly: false,
+      pasted: false,
+      method: "win32-failed",
+      error: "Clipboard unavailable"
+    });
+  });
+
+  it("handles darwin pbcopy + osascript automation, 3000/6000ms timeouts, fallback, and zero auto-submit", async () => {
+    const prompt = '/bmad-ux "Audit Story 2.3 panel toast"';
+    const calls = [];
+
+    const okRes = await openNewConversationWithPrompt(prompt, true, {
+      platform: "darwin",
+      runCommand: async (command, args, opts) => {
+        calls.push({ command, args, opts });
+        return { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" };
+      }
+    });
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].command, "pbcopy");
+    assert.equal(calls[0].opts.stdinText, prompt);
+    assert.equal(calls[0].opts.timeoutMs, 3000);
+    assert.equal(calls[1].command, "osascript");
+    assert.equal(calls[1].opts.timeoutMs, 6000);
+    const osaJoined = calls[1].args.join(" ");
+    assert.match(osaJoined, /keystroke "n" using command down/);
+    assert.match(osaJoined, /keystroke "v" using command down/);
+    assert.equal(/keystroke return|key code 36/i.test(osaJoined), false, "must never auto-submit");
+    assert.deepEqual(okRes, {
+      copied: true,
+      openedDirectly: true,
+      pasted: true,
+      method: "darwin-osascript-cmd-n-v"
+    });
+
+    // openDirectly: false -> pbcopy only.
+    const clipOnlyCalls = [];
+    const clipOnly = await openNewConversationWithPrompt(prompt, false, {
+      platform: "darwin",
+      runCommand: async (command, args, opts) => {
+        clipOnlyCalls.push({ command, args, opts });
+        return { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" };
+      }
+    });
+    assert.equal(clipOnlyCalls.length, 1);
+    assert.deepEqual(clipOnly, {
+      copied: true,
+      openedDirectly: false,
+      pasted: false,
+      method: "darwin-clipboard"
+    });
+
+    // osascript blocked (Accessibility permission denied) -> clipboard-only fallback.
+    const blocked = await openNewConversationWithPrompt(prompt, true, {
+      platform: "darwin",
+      runCommand: async (command) =>
+        command === "pbcopy"
+          ? { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" }
+          : { ok: false, code: 1, timedOut: false, stdout: "", stderr: "osascript is not allowed assistive access" }
+    });
+    assert.deepEqual(blocked, {
+      copied: true,
+      openedDirectly: false,
+      pasted: false,
+      method: "darwin-clipboard-only",
+      error: "osascript is not allowed assistive access"
+    });
+
+    // pbcopy fails -> darwin-pbcopy-failed.
+    const pbFailed = await openNewConversationWithPrompt(prompt, true, {
+      platform: "darwin",
+      runCommand: async () => ({ ok: false, code: 1, timedOut: false, stdout: "", stderr: "pbcopy error" })
+    });
+    assert.deepEqual(pbFailed, {
+      copied: false,
+      openedDirectly: false,
+      pasted: false,
+      method: "darwin-pbcopy-failed",
+      error: "pbcopy error"
+    });
+  });
+
+  it("handles linux wl-copy/xclip/xsel + xdotool fallback chain, 2500ms timeouts, and zero auto-submit", async () => {
+    const prompt = '/bmad-code-review "Verify Linux clean-session launch"';
+    const calls = [];
+    const sleepCalls = [];
+
+    // wl-copy missing, xclip succeeds, xdotool ctrl+n + ctrl+v succeed.
+    const okRes = await openNewConversationWithPrompt(prompt, true, {
+      platform: "linux",
+      sleep: async (ms) => {
+        sleepCalls.push(ms);
+      },
+      runCommand: async (command, args, opts) => {
+        calls.push({ command, args, opts });
+        if (command === "wl-copy") {
+          return { ok: false, code: null, timedOut: false, stdout: "", stderr: "spawn wl-copy ENOENT" };
+        }
+        return { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" };
+      }
+    });
+    assert.deepEqual(
+      calls.map((c) => [c.command, c.args, c.opts.timeoutMs]),
+      [
+        ["wl-copy", [], 2500],
+        ["xclip", ["-selection", "clipboard"], 2500],
+        ["xdotool", ["key", "--clearmodifiers", "ctrl+n"], 2500],
+        ["xdotool", ["key", "--clearmodifiers", "ctrl+v"], 2500]
+      ]
+    );
+    assert.deepEqual(sleepCalls, [500]);
+    assert.equal(calls.some((c) => c.args.includes("Return")), false, "must never auto-submit");
+    assert.deepEqual(okRes, {
+      copied: true,
+      openedDirectly: true,
+      pasted: true,
+      method: "linux-xdotool-ctrl-n-v"
+    });
+
+    // xsel fallback when wl-copy & xclip fail, with openDirectly: false.
+    const xselCalls = [];
+    const xselRes = await openNewConversationWithPrompt(prompt, false, {
+      platform: "linux",
+      runCommand: async (command, args, opts) => {
+        xselCalls.push({ command, args, opts });
+        if (command === "xsel") return { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" };
+        return { ok: false, code: 1, timedOut: false, stdout: "", stderr: "missing" };
+      }
+    });
+    assert.deepEqual(
+      xselCalls.map((c) => c.command),
+      ["wl-copy", "xclip", "xsel"]
+    );
+    assert.deepEqual(xselRes, {
+      copied: true,
+      openedDirectly: false,
+      pasted: false,
+      method: "linux-clipboard"
+    });
+
+    // xdotool ctrl+n blocked -> linux-clipboard-only (copied: true).
+    const blockedN = await openNewConversationWithPrompt(prompt, true, {
+      platform: "linux",
+      runCommand: async (command) =>
+        command === "wl-copy"
+          ? { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" }
+          : { ok: false, code: 1, timedOut: false, stdout: "", stderr: "xdotool unavailable" }
+    });
+    assert.deepEqual(blockedN, {
+      copied: true,
+      openedDirectly: false,
+      pasted: false,
+      method: "linux-clipboard-only",
+      error: "xdotool unavailable"
+    });
+
+    // xdotool ctrl+v fails after ctrl+n succeeded -> linux-xdotool-ctrl-n-only with copied: true.
+    const blockedV = await openNewConversationWithPrompt(prompt, true, {
+      platform: "linux",
+      sleep: async () => {},
+      runCommand: async (command, args) => {
+        if (command === "wl-copy") return { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" };
+        if (args.includes("ctrl+n")) return { ok: true, code: 0, timedOut: false, stdout: "", stderr: "" };
+        return { ok: false, code: null, timedOut: true, stdout: "", stderr: "timeout" };
+      }
+    });
+    assert.deepEqual(blockedV, {
+      copied: true,
+      openedDirectly: true,
+      pasted: false,
+      method: "linux-xdotool-ctrl-n-only",
+      error: "timeout"
+    });
+
+    // No clipboard tool available -> linux-unsupported.
+    const unsupported = await openNewConversationWithPrompt(prompt, true, {
+      platform: "linux",
+      runCommand: async () => ({ ok: false, code: null, timedOut: false, stdout: "", stderr: "ENOENT" })
+    });
+    assert.deepEqual(unsupported, {
+      copied: false,
+      openedDirectly: false,
+      pasted: false,
+      method: "linux-unsupported",
+      error: "ENOENT"
+    });
+  });
+
+  it("enforces hard child-process timeouts, retains partial stdout, and prevents EPIPE crashes in runCommandAsync", async () => {
+    const start = Date.now();
+    const timedOutRes = await runCommandAsync(
+      process.execPath,
+      ["-e", 'process.stdout.write("BMAD_CLIPBOARD_OK\\n"); setInterval(() => {}, 1000);'],
+      { timeoutMs: 150 }
+    );
+    const elapsed = Date.now() - start;
+
+    assert.equal(timedOutRes.ok, false);
+    assert.equal(timedOutRes.timedOut, true);
+    assert.equal(timedOutRes.code, null);
+    assert.match(timedOutRes.stdout, /BMAD_CLIPBOARD_OK/);
+    assert.equal(timedOutRes.stderr, "timeout");
+    assert.ok(elapsed < 1500, `timeout cleanup took ${elapsed}ms, expected < 1500ms`);
+
+    // Immediate exit while piping stdin must not emit an unhandled EPIPE crash.
+    const epipeRes = await runCommandAsync(
+      process.execPath,
+      ["-e", "process.exit(1);"],
+      { stdinText: "x".repeat(64 * 1024), timeoutMs: 2500 }
+    );
+    assert.equal(epipeRes.ok, false);
+    assert.equal(epipeRes.timedOut, false);
+    assert.equal(epipeRes.code, 1);
+  });
+
+  it("renders instructional clipboard fallback toast in assets/panel.html when keystrokes are blocked", () => {
+    const panelHtml = readFileSync(PANEL_HTML_PATH, "utf8");
+    assert.match(panelHtml, /callServerTool\("bmad_prepare_new_session",\s*\{[\s\S]*?openDirectly:\s*true/);
+    assert.match(panelHtml, /if\s*\(status\.openedDirectly\s*&&\s*status\.pasted\)/);
+    assert.match(panelHtml, /if\s*\(status\.copied\)[\s\S]*?Prompt copied! Press Ctrl\+N then Ctrl\+V/);
+  });
+});
+
+describe("bmad_inspect_artifact & bmad_open_artifact_file confinement + git diff (Epic 2 Story 4)", () => {
+  it("rejects .. traversal, absolute escapes, directories, empty paths, and symlink escapes under workspace confinement", async () => {
+    const ws = seedSurfaceWorkspace();
+    const outsideWs = workspaces.create();
+    const outsideFile = outsideWs.write("outside-secret.md", "# Secret\nDo not leak\n");
+    const escapeRel = relative(ws.root, outsideFile).replace(/\\/g, "/");
+    const backslashEscape = escapeRel.replace(/\//g, "\\");
+    const nestedEscape = `_bmad-output/../../${relative(resolve(ws.root, ".."), outsideFile).replace(/\\/g, "/")}`;
+
+    const requests = [
+      toolCall(1, "bmad_inspect_artifact", { relPath: escapeRel }),
+      toolCall(2, "bmad_inspect_artifact", { relPath: backslashEscape }),
+      toolCall(3, "bmad_inspect_artifact", { relPath: nestedEscape }),
+      toolCall(4, "bmad_inspect_artifact", { relPath: outsideFile }),
+      toolCall(5, "bmad_inspect_artifact", { relPath: "/etc/passwd" }),
+      toolCall(6, "bmad_inspect_artifact", { relPath: "." }),
+      toolCall(7, "bmad_inspect_artifact", { relPath: "_bmad-output" }),
+      toolCall(8, "bmad_inspect_artifact", { relPath: "   " }),
+      toolCall(9, "bmad_inspect_artifact", { relPath: "_bmad-output/missing.md" }),
+      toolCall(10, "bmad_open_artifact_file", { relPath: escapeRel }),
+      toolCall(11, "bmad_open_artifact_file", { relPath: "_bmad-output" }),
+      toolCall(12, "bmad_open_artifact_file", { relPath: "_bmad-output/missing.md" })
+    ];
+
+    const res = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests
+    });
+
+    assertStrictJsonRpcStdout(res);
+    assert.equal(res.responses.length, requests.length);
+
+    for (const frame of res.responses) {
+      assert.equal(frame.result.isError, true, `request ${frame.id} must return isError: true`);
+      assert.equal(frame.result.structuredContent, undefined);
+    }
+
+    const msg = (id) => res.responses.find((f) => f.id === id).result.content[0].text;
+    for (const id of [1, 2, 3, 4, 5, 6, 10]) {
+      assert.equal(msg(id), "Artifact path must stay within the workspace root.");
+    }
+    assert.equal(msg(7), "Artifact path must refer to a file: _bmad-output");
+    assert.equal(msg(8), "Artifact path must be a non-empty workspace-relative path.");
+    assert.equal(msg(9), "Artifact not found: _bmad-output/missing.md");
+    assert.equal(msg(11), "Artifact path must refer to a file: _bmad-output");
+    assert.equal(msg(12), "Artifact not found: _bmad-output/missing.md");
+
+    // Verify null-byte and drive-relative rejections directly in resolveWorkspaceArtifactPath.
+    assert.throws(() => resolveWorkspaceArtifactPath(ws.root, "docs/ok.md\0.txt"), /workspace root/);
+    assert.throws(() => resolveWorkspaceArtifactPath(ws.root, "C:drive-relative.md"), /workspace root/);
+
+    // Verify symlink escape rejection when OS privileges allow creating symlinks.
+    let symlinkCreated = false;
+    try {
+      symlinkSync(outsideFile, ws.path("escape-link.md"));
+      symlinkCreated = true;
+    } catch {}
+    if (symlinkCreated) {
+      assert.throws(() => inspectWorkspaceArtifact(ws.root, "escape-link.md"), /workspace root/);
+      assert.throws(
+        () =>
+          openWorkspaceArtifactExternally(ws.root, "escape-link.md", {
+            platform: "linux",
+            execFileSync: () => {
+              throw new Error("must not execute");
+            }
+          }),
+        /workspace root/
+      );
+    }
+  });
+
+  it("normalizes / paths and returns metadata, preview (with truncation), and live git diff over MCP stdio", async () => {
+    const ws = seedSurfaceWorkspace();
+    const gitEnv = {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Test Runner",
+      GIT_AUTHOR_EMAIL: "test@example.com",
+      GIT_COMMITTER_NAME: "Test Runner",
+      GIT_COMMITTER_EMAIL: "test@example.com"
+    };
+    const runGit = (args) => execFileSync("git", ["-C", ws.root, ...args], { env: gitEnv, stdio: "pipe" });
+
+    ws.write(
+      "docs/guide.md",
+      "---\ntitle: Confinement Guide\nstatus: draft\n---\n\n# Guide\nInitial line\n"
+    );
+    ws.write("docs/large.md", "A".repeat(13500));
+
+    runGit(["init"]);
+    runGit(["add", "docs/guide.md"]);
+    runGit(["commit", "-m", "Add confinement guide"]);
+
+    // 1. Clean committed file -> Last commit diff, backslash & ./ path normalization.
+    const cleanRes = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [
+        toolCall(1, "bmad_inspect_artifact", { relPath: ".\\docs//sub/../guide.md" }),
+        toolCall(2, "bmad_inspect_artifact", { relPath: "docs\\large.md" })
+      ]
+    });
+
+    assertStrictJsonRpcStdout(cleanRes);
+    const cleanInfo = cleanRes.responses[0].result.structuredContent;
+    assert.ok(!cleanRes.responses[0].result.isError);
+    assert.equal(cleanInfo.relPath, "docs/guide.md");
+    assert.equal(cleanInfo.name, "guide.md");
+    assert.equal(typeof cleanInfo.size, "number");
+    assert.equal(typeof cleanInfo.mtimeMs, "number");
+    assert.ok(!Number.isNaN(Date.parse(cleanInfo.lastModifiedIso)));
+    assert.deepEqual(cleanInfo.meta, { title: "Confinement Guide", status: "draft" });
+    assert.equal(cleanInfo.diffSource, "Last commit diff (working tree is clean)");
+    assert.match(cleanInfo.diff, /Add confinement guide/);
+    assert.match(cleanInfo.diff, /\+Initial line/);
+    assert.match(cleanInfo.preview, /# Guide\nInitial line/);
+    assert.equal(cleanInfo.truncated, false);
+
+    const largeInfo = cleanRes.responses[1].result.structuredContent;
+    assert.equal(largeInfo.relPath, "docs/large.md");
+    assert.equal(largeInfo.preview.length, 12000);
+    assert.equal(largeInfo.truncated, true);
+    assert.equal(largeInfo.diffSource, "Untracked / New Artifact Diff");
+    assert.match(largeInfo.diff, /^\-\-\- \/dev\/null\n\+\+\+ b\/docs\/large\.md/);
+
+    // 2. Modified committed file -> Working tree diff vs HEAD.
+    ws.write(
+      "docs/guide.md",
+      "---\ntitle: Confinement Guide\nstatus: review\n---\n\n# Guide\nUpdated line\n"
+    );
+
+    const dirtyRes = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [toolCall(1, "bmad_inspect_artifact", { relPath: "docs/guide.md" })]
+    });
+
+    assertStrictJsonRpcStdout(dirtyRes);
+    const dirtyInfo = dirtyRes.responses[0].result.structuredContent;
+    assert.equal(dirtyInfo.diffSource, "Working tree diff vs HEAD");
+    assert.match(dirtyInfo.diff, /-Initial line/);
+    assert.match(dirtyInfo.diff, /\+Updated line/);
+    assert.deepEqual(dirtyInfo.meta, { title: "Confinement Guide", status: "review" });
+    assert.match(dirtyRes.responses[0].result.content[0].text, /^# Artifact: docs\/guide\.md/);
+  });
+
+  it("opens confined artifacts using platform-appropriate cmd /c start | open | xdg-open and rejects escapes before spawning", () => {
+    const ws = seedSurfaceWorkspace();
+    const expectedFull = ws.path("_bmad-output/planning-artifacts/prd-demo/prd-demo.md");
+    const calls = [];
+    const mockExec = (cmd, args, opts) => {
+      calls.push({ cmd, args, opts });
+    };
+
+    // Traversal must reject before invoking any OS opener.
+    assert.throws(
+      () => openWorkspaceArtifactExternally(ws.root, "../outside.md", { platform: "win32", execFileSync: mockExec }),
+      /workspace root/
+    );
+    assert.equal(calls.length, 0);
+
+    // win32 -> cmd.exe /c start "" <fullPath>
+    const winRes = openWorkspaceArtifactExternally(
+      ws.root,
+      "_bmad-output\\planning-artifacts\\prd-demo\\prd-demo.md",
+      { platform: "win32", execFileSync: mockExec }
+    );
+    assert.deepEqual(winRes, {
+      opened: true,
+      relPath: "_bmad-output/planning-artifacts/prd-demo/prd-demo.md",
+      fullPath: expectedFull,
+      openMethod: "cmd /c start"
+    });
+
+    // darwin -> open <fullPath>
+    const macRes = openWorkspaceArtifactExternally(
+      ws.root,
+      "./_bmad-output/planning-artifacts/prd-demo/prd-demo.md",
+      { platform: "darwin", execFileSync: mockExec }
+    );
+    assert.deepEqual(macRes, {
+      opened: true,
+      relPath: "_bmad-output/planning-artifacts/prd-demo/prd-demo.md",
+      fullPath: expectedFull,
+      openMethod: "open"
+    });
+
+    // linux -> xdg-open <fullPath>
+    const linuxRes = openWorkspaceArtifactExternally(
+      ws.root,
+      "_bmad-output/planning-artifacts/prd-demo/prd-demo.md",
+      { platform: "linux", execFileSync: mockExec }
+    );
+    assert.deepEqual(linuxRes, {
+      opened: true,
+      relPath: "_bmad-output/planning-artifacts/prd-demo/prd-demo.md",
+      fullPath: expectedFull,
+      openMethod: "xdg-open"
+    });
+
+    assert.deepEqual(calls, [
+      {
+        cmd: "cmd.exe",
+        args: ["/c", "start", "", expectedFull],
+        opts: { timeout: 3000, windowsHide: true, stdio: "ignore" }
+      },
+      {
+        cmd: "open",
+        args: [expectedFull],
+        opts: { timeout: 3000, stdio: "ignore" }
+      },
+      {
+        cmd: "xdg-open",
+        args: [expectedFull],
+        opts: { timeout: 3000, stdio: "ignore" }
+      }
+    ]);
+
+    // Graceful failure when the OS launcher fails.
+    const failRes = openWorkspaceArtifactExternally(
+      ws.root,
+      "_bmad-output/planning-artifacts/prd-demo/prd-demo.md",
+      {
+        platform: "linux",
+        execFileSync: () => {
+          throw new Error("spawn xdg-open ENOENT");
+        }
+      }
+    );
+    assert.deepEqual(failRes, {
+      opened: false,
+      relPath: "_bmad-output/planning-artifacts/prd-demo/prd-demo.md",
+      fullPath: expectedFull,
+      openMethod: "xdg-open",
+      error: "spawn xdg-open ENOENT"
+    });
   });
 });
