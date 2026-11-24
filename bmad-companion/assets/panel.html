@@ -747,6 +747,11 @@
         border-color: var(--border-subtle);
       }
 
+      .queue-item-card.is-failed {
+        border-color: var(--danger);
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), var(--bg-secondary));
+      }
+
       .queue-cb {
         width: 14px;
         height: 14px;
@@ -893,6 +898,9 @@
               <button class="btn" id="btnPauseQueue" title="Pause active queue execution">
                 ⏸ Pause
               </button>
+              <button class="btn btn-primary" id="btnRetryFailedQueue" style="display: none;" title="Reset all failed tasks back to Queued so you can re-run them">
+                ↻ Retry Failed
+              </button>
               <button class="btn" id="btnClearDoneQueue" title="Remove completed tasks from the queue">
                 🧹 Clear Done
               </button>
@@ -906,6 +914,7 @@
 
           <div class="section-header" style="margin: 10px 2px 6px;">
             <div class="section-title" id="queueListHeaderTitle">📋 Queued & Completed Tasks (0)</div>
+            <span class="pill pill-danger" id="queueHeaderFailedBadge" style="display: none;">⚠️ 0 Failed</span>
           </div>
           <div id="queueItemsList"></div>
         </section>
@@ -1461,7 +1470,7 @@
           return items.find(
             (it) =>
               (overrideKey && it.overrideKey === overrideKey) ||
-              (promptText && it.prompt === promptText)
+              (promptText && (it.prompt === promptText || it.effectivePrompt === promptText))
           );
         }
 
@@ -1507,9 +1516,11 @@
               const statusLabel =
                 q.status === "running"
                   ? `<span class="pill pill-success"><span class="pulse-dot"></span>ACTIVE QUEUE</span>`
-                  : q.status === "completed"
-                    ? `<span class="pill pill-success">✓ QUEUE COMPLETE</span>`
-                    : `<span class="pill pill-accent">⏳ QUEUED (${counts.queued})</span>`;
+                  : q.status === "completed" && counts.failed > 0
+                    ? `<span class="pill pill-danger">⚠️ QUEUE FINISHED (${counts.failed} FAILED)</span>`
+                    : q.status === "completed"
+                      ? `<span class="pill pill-success">✓ QUEUE COMPLETE</span>`
+                      : `<span class="pill pill-accent">⏳ QUEUED (${counts.queued})</span>`;
 
               bannerContent.innerHTML = `
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
@@ -1521,18 +1532,23 @@
                           ? `🟢 Running: ${escapeHtml(active.title)} <span class="pill pill-purple">🤖 ${escapeHtml(active.modelShort)} · review=${escapeHtml(active.reviewMode)}</span>`
                           : nextUp
                             ? `Next in Queue: ${escapeHtml(nextUp.title)} <span class="pill pill-purple">🤖 ${escapeHtml(nextUp.modelShort)}</span>`
-                            : `All ${counts.done} queued task(s) finished`
+                            : counts.failed > 0
+                              ? `Queue ended: ${counts.done} done, ${counts.failed} failed`
+                              : `All ${counts.done} queued task(s) finished`
                       }
                     </span>
                   </div>
                   <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
                     <span class="pill pill-accent">${counts.done}/${counts.total} Done · ${counts.queued} In Queue</span>
+                    ${counts.failed > 0 ? `<span class="pill pill-danger">⚠️ ${counts.failed} Failed</span>` : ""}
                     ${
                       active
                         ? `<button class="btn btn-primary" id="bannerBtnCompleteActive" style="padding:2px 7px;font-size:10.3px;" title="Mark the active task Done and continue with the next queued task in the current execution mode">✓ Done & Continue</button>`
                         : counts.queued > 0
                           ? `<button class="btn btn-primary" id="bannerBtnRunWorkflow" style="padding:2px 7px;font-size:10.3px;" title="Continue the queued tasks in the current execution mode">${q.executionMode === "separate-sessions" ? "▶ Continue Queue" : "⚡ Run Workflow"}</button>`
-                          : ""
+                          : counts.failed > 0
+                            ? `<button class="btn btn-primary" id="bannerBtnRetryFailed" style="padding:2px 7px;font-size:10.3px;" title="Reset failed task(s) back to Queued so you can re-run them">↻ Retry Failed</button>`
+                            : ""
                     }
                     <button class="btn" id="bannerBtnOpenQueue" style="padding:2px 7px;font-size:10.3px;">⛓️ View Queue</button>
                   </div>
@@ -1555,6 +1571,12 @@
               });
               document.getElementById("bannerBtnRunWorkflow")?.addEventListener("click", async () => {
                 await launchQueueExecution(q.executionMode || "dynamic-workflow");
+              });
+              document.getElementById("bannerBtnRetryFailed")?.addEventListener("click", async () => {
+                await manageQueue(
+                  { action: "retry-failed" },
+                  `↻ Reset ${counts.failed} failed task(s) to Queued — pick a model or click Run Workflow to retry.`
+                );
               });
             }
           }
@@ -1582,13 +1604,33 @@
 
           const qBadge = document.getElementById("queueStatusBadge");
           if (qBadge) {
-            qBadge.textContent = `${(q.status || "idle").toUpperCase()} · ${counts.done}/${counts.total} Done · ${counts.queued} Queued`;
-            qBadge.className = `pill ${q.status === "running" ? "pill-success" : counts.queued > 0 ? "pill-accent" : "pill-purple"}`;
+            qBadge.textContent = `${(q.status || "idle").toUpperCase()} · ${counts.done}/${counts.total} Done · ${counts.queued} Queued${counts.failed > 0 ? ` · ${counts.failed} Failed` : ""}`;
+            qBadge.className = `pill ${q.status === "running" ? "pill-success" : counts.failed > 0 ? "pill-danger" : counts.queued > 0 ? "pill-accent" : "pill-purple"}`;
           }
 
           const qHeaderTitle = document.getElementById("queueListHeaderTitle");
           if (qHeaderTitle) {
-            qHeaderTitle.textContent = `📋 Task Queue (${counts.running} Active · ${counts.queued} In Queue · ${counts.done} Done)`;
+            qHeaderTitle.textContent = `📋 Task Queue (${counts.running} Active · ${counts.queued} In Queue · ${counts.done} Done${counts.failed > 0 ? ` · ${counts.failed} Failed` : ""})`;
+          }
+
+          const qHeaderFailedBadge = document.getElementById("queueHeaderFailedBadge");
+          if (qHeaderFailedBadge) {
+            if (counts.failed > 0) {
+              qHeaderFailedBadge.style.display = "inline-flex";
+              qHeaderFailedBadge.textContent = `⚠️ ${counts.failed} Failed`;
+            } else {
+              qHeaderFailedBadge.style.display = "none";
+            }
+          }
+
+          const retryFailedBtn = document.getElementById("btnRetryFailedQueue");
+          if (retryFailedBtn) {
+            if (counts.failed > 0) {
+              retryFailedBtn.style.display = "inline-flex";
+              retryFailedBtn.textContent = `↻ Retry Failed (${counts.failed})`;
+            } else {
+              retryFailedBtn.style.display = "none";
+            }
           }
 
           const queueSig = JSON.stringify({
@@ -1653,7 +1695,7 @@
                     : `<span class="pill pill-accent">⏳ IN QUEUE #${idx + 1}</span>`;
 
               return `
-                <div class="queue-item-card ${isAct ? "is-active" : ""} ${isDone ? "is-done" : ""}">
+                <div class="queue-item-card ${isAct ? "is-active" : ""} ${isDone ? "is-done" : ""} ${isFailed ? "is-failed" : ""}">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
                     <div style="display:flex;align-items:center;gap:6px;min-width:0;">
                       <span class="pill pill-purple">#${idx + 1}</span>
@@ -1685,13 +1727,23 @@
                   <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-secondary);background:var(--bg-primary);padding:5px 7px;border-radius:5px;border:1px solid var(--border-subtle);margin-bottom:6px;word-break:break-word;">
                     ${escapeHtml(it.effectivePrompt)}
                   </div>
-                  ${it.resultSummary ? `<div style="font-size:10.7px;color:var(--success);margin-bottom:5px;">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>` : ""}
+                  ${
+                    it.resultSummary
+                      ? isFailed
+                        ? `<div style="font-size:10.7px;color:var(--danger);background:var(--danger-soft, rgba(239, 68, 68, 0.1));border:1px solid rgba(239, 68, 68, 0.3);border-radius:5px;padding:5px 7px;margin-bottom:6px;word-break:break-word;">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
+                        : `<div style="font-size:10.7px;color:var(--success);margin-bottom:5px;">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
+                      : ""
+                  }
 
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap;">
-                    <div style="display:flex;gap:4px;">
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
                       <button class="btn" style="padding:2px 6px;font-size:10px;" data-q-move="up" data-q-id="${escapeHtml(it.id)}" ${idx === 0 ? "disabled" : ""} title="Move task earlier in queue">↑ Up</button>
                       <button class="btn" style="padding:2px 6px;font-size:10px;" data-q-move="down" data-q-id="${escapeHtml(it.id)}" ${idx === q.items.length - 1 ? "disabled" : ""} title="Move task later in queue">↓ Down</button>
-                      <button class="btn" style="padding:2px 7px;font-size:10px;" data-q-activate="${escapeHtml(it.id)}" title="Mark this task as the currently active task">🟢 Set Active</button>
+                      ${
+                        isFailed
+                          ? `<button class="btn btn-primary" style="padding:2px 7px;font-size:10px;" data-q-retry="${escapeHtml(it.id)}" title="Reset this failed task back to Queued so it can run again">↻ Retry / Re-queue</button>`
+                          : `<button class="btn" style="padding:2px 7px;font-size:10px;" data-q-activate="${escapeHtml(it.id)}" title="Mark this task as the currently active task">🟢 Set Active</button>`
+                      }
                       <button class="btn" style="padding:2px 7px;font-size:10px;" data-q-done="${escapeHtml(it.id)}" title="Mark this task as Done and advance queue">✓ Mark Done</button>
                     </div>
                     <div style="display:flex;gap:4px;">
@@ -1739,6 +1791,15 @@
               await manageQueue(
                 { action: "start-task", taskId: btn.getAttribute("data-q-activate") },
                 "🟢 Task set as Active"
+              );
+            });
+          });
+
+          listEl.querySelectorAll("[data-q-retry]").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              await manageQueue(
+                { action: "retry-failed", taskId: btn.getAttribute("data-q-retry") },
+                "↻ Task reset to Queued — pick a model or run the queue to retry."
               );
             });
           });
@@ -1798,7 +1859,15 @@
           }
         }
 
+        let lastRenderedRecListKey = "";
+
         function renderRecommendations(recs, force = false) {
+          const recListKey = recs.map((r) => `${r.skill || ""}::${r.fullCommand || ""}`).join("\n");
+          if (lastRenderedRecListKey && lastRenderedRecListKey !== recListKey) {
+            selectedRecIndices.clear();
+          }
+          lastRenderedRecListKey = recListKey;
+
           const recSig = JSON.stringify({
             recs,
             models: currentState?.availableModels || [],
@@ -1835,6 +1904,15 @@
               const serverModelId = recModel.modelId || "";
               const displayModelId = resolveUserModel(recKey, serverModelId);
               const qItem = isPromptOrStoryInQueue(displayCmd, null);
+              const qBadge = qItem
+                ? qItem.status === "running"
+                  ? `<span class="pill pill-success">🟢 Active</span>`
+                  : qItem.status === "done"
+                    ? `<span class="pill pill-success">✅ Done</span>`
+                    : qItem.status === "failed"
+                      ? `<span class="pill pill-danger">⚠️ Failed</span>`
+                      : `<span class="pill pill-accent">✓ In Queue</span>`
+                : "";
               const isChecked = selectedRecIndices.has(idx);
               return `
                 <div class="rec-card">
@@ -1844,7 +1922,7 @@
                       <span class="rec-title">${escapeHtml(r.title)}</span>
                     </label>
                     <div style="display:flex;gap:4px;flex-shrink:0;">
-                      ${qItem ? `<span class="pill pill-success">${qItem.status === "running" ? "🟢 Active" : "✓ In Queue"}</span>` : ""}
+                      ${qBadge}
                       <span class="pill ${prioClass}">${escapeHtml(r.badge || r.priority)}</span>
                       <span class="pill pill-purple">${escapeHtml(r.phase)}</span>
                     </div>
@@ -1868,7 +1946,7 @@
                   </div>
                   <div class="rec-actions">
                     <button class="btn btn-purple" data-action="queue-rec" data-idx="${idx}" title="Add this task with its selected model to the Multi-Task Execution Queue">
-                      ${qItem ? "↻ Update in Queue" : "➕ Add to Queue"}
+                      ${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Add to Queue"}
                     </button>
                     <button class="btn btn-primary" data-action="launch-new-rec" data-idx="${idx}" title="Open a new conversation directly with this prompt pre-pasted (does not run in the current session)">
                       🚀 Launch in New Session
@@ -2211,7 +2289,7 @@
                               ${escapeHtml(s.title)}
                             </div>
                             <div style="display:flex;gap:4px;flex-shrink:0;">
-                              ${qItem ? `<span class="pill pill-success">${qItem.status === "running" ? "🟢 Active in Queue" : qItem.status === "done" ? "✓ Queue Done" : "⏳ Queued"}</span>` : ""}
+                              ${qItem ? (qItem.status === "failed" ? `<span class="pill pill-danger">⚠️ Queue Failed</span>` : `<span class="pill pill-success">${qItem.status === "running" ? "🟢 Active in Queue" : qItem.status === "done" ? "✓ Queue Done" : "⏳ Queued"}</span>`) : ""}
                               ${s.aiReconciled ? `<span class="pill pill-purple" title="Reconciled by Smart AI + Artifact check">✨ AI</span>` : ""}
                               <span class="pill ${sPill}">${escapeHtml(s.smartStatus)}</span>
                             </div>
@@ -2761,6 +2839,14 @@
 
         document.getElementById("btnPauseQueue")?.addEventListener("click", async () => {
           await manageQueue({ action: "pause-queue" }, "⏸ Queue paused");
+        });
+
+        document.getElementById("btnRetryFailedQueue")?.addEventListener("click", async () => {
+          const failedCount = currentState?.taskQueue?.counts?.failed || 0;
+          await manageQueue(
+            { action: "retry-failed" },
+            `↻ Reset ${failedCount} failed task(s) to Queued — pick a model or click Run Queue to retry.`
+          );
         });
 
         document.getElementById("btnClearDoneQueue")?.addEventListener("click", async () => {

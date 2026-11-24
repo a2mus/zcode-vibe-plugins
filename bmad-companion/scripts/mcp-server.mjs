@@ -5,13 +5,12 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   inspectWorkspaceArtifact,
-  loadPersistedState,
   manageBmadTaskQueue,
-  mergeHostModelCatalogs,
   openWorkspaceArtifactExternally,
   reconcileWorkspaceTrackers,
   savePersistedState,
-  scanBmadWorkspace
+  scanBmadWorkspace,
+  updateAdvisorState
 } from "./bmad-engine.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -519,6 +518,7 @@ const TOOLS = [
             "add",
             "add-epic",
             "update-item",
+            "retry-failed",
             "set-review-mode",
             "set-execution-mode",
             "reorder",
@@ -589,6 +589,11 @@ const TOOLS = [
           type: "string",
           description: "Updated prompt string when action='update-item'."
         },
+        status: {
+          type: "string",
+          enum: ["queued", "running", "done", "failed", "skipped"],
+          description: "Updated task status when action='update-item'."
+        },
         direction: {
           type: "string",
           enum: ["up", "down"],
@@ -644,36 +649,7 @@ async function handleToolCall(name, args = {}) {
   }
 
   if (name === "bmad_update_advisor") {
-    const storyOverrides = {};
-    if (Array.isArray(args.storyStatusUpdates)) {
-      for (const item of args.storyStatusUpdates) {
-        if (item?.overrideKey && item?.status) {
-          storyOverrides[item.overrideKey] = {
-            status: item.status,
-            reason: item.reason || "Verified by ZCode AI Companion",
-            updatedAt: new Date().toISOString()
-          };
-        }
-      }
-    }
-    const override = {
-      headline: args.headline || undefined,
-      turnSummary: args.turnSummary || undefined,
-      recommendations: Array.isArray(args.recommendations) ? args.recommendations : undefined,
-      updatedAt: new Date().toISOString()
-    };
-    let hostModels = null;
-    if (Array.isArray(args.hostModels)) {
-      const currentHostModels = loadPersistedState(workspaceRoot).hostModels || [];
-      hostModels = mergeHostModelCatalogs(currentHostModels, args.hostModels);
-    }
-    savePersistedState(workspaceRoot, {
-      agentAdvisorOverride: override,
-      storyOverrides,
-      ...(hostModels ? { hostModels } : {}),
-      lastTurnAnalyzedAt: new Date().toISOString()
-    });
-    const scan = scanBmadWorkspace(workspaceRoot);
+    const scan = updateAdvisorState(workspaceRoot, args);
     return {
       content: [
         {

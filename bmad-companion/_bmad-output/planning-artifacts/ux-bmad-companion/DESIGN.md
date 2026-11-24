@@ -1,8 +1,8 @@
 ---
 name: BMAD Companion
-description: Visual identity for the zero-dependency ZCode right-side BMAD cockpit (assets/panel.html) — a dense, GitHub-Primer-aligned dark/light token system for the 5-tab MCP App panel.
+description: Visual identity for the zero-dependency ZCode right-side BMAD cockpit (assets/panel.html, v0.5.3) — a dense, GitHub-Primer-aligned dark/light token system for the 5-tab MCP App panel.
 status: final
-updated: 2026-11-19
+updated: 2026-11-24
 sources:
   - ../../../assets/panel.html
   - ../prd-bmad-companion/prd-bmad-companion.md
@@ -53,7 +53,10 @@ colors:
   primary-gradient-end: '#2563eb' # .btn-primary gradient terminus (panel.html:162)
   queue-live-blue: '#3b82f624' # .live-queue-banner gradient start, rgba(59,130,246,0.14)
   queue-live-violet: '#8b5cf624' # .live-queue-banner gradient end, rgba(139,92,246,0.14)
+  queue-active-tint: '#10b9811a' # .queue-item-card.is-active gradient start, rgba(16,185,129,0.1)
+  spotlight-active-tint: '#10b9811f' # #queueActiveSpotlight gradient start, rgba(16,185,129,0.12)
   pulse-emerald: '#10b981' # .pulse-dot glow color (panel.html:714-727)
+  pulse-emerald-glow: '#10b981b3' # .pulse-dot shadow alpha, rgba(16,185,129,0.7)
   diff-add-bg: '#3fb95029' # .diff-add, rgba(63,185,80,0.16)
   diff-del-bg: '#f8514929' # .diff-del, rgba(248,81,73,0.16)
 typography:
@@ -245,12 +248,31 @@ components:
     radius: '{rounded.queue-card}'
     padding: 9px 10px
     active-border: '{colors.success}'
-    active-background: 'linear-gradient(135deg, rgba(16,185,129,0.1), {colors.bg-secondary})'
+    active-background: 'linear-gradient(135deg, {colors.queue-active-tint}, {colors.bg-secondary})'
     done-opacity: '0.78'
     done-border: '{colors.border-subtle}'
+  queue-active-spotlight:
+    background: 'linear-gradient(135deg, {colors.spotlight-active-tint}, {colors.bg-secondary})'
+    border: '{colors.success}'
+    radius: '{rounded.DEFAULT}'
+    padding: '{spacing.card-padding}'
+    prompt-inset-background: '{colors.bg-primary}'
+    prompt-inset-border: '{colors.border-subtle}'
+    prompt-inset-radius: '{rounded.md}'
+  queue-checkbox:
+    size: 14px
+    accent-color: '{colors.accent}'
+    cursor: pointer
+  reconciliation-diff-card:
+    background: '{colors.bg-primary}'
+    border: '{colors.border}'
+    radius: '{rounded.lg}'
+    padding: 8px 10px
+    typography: '{typography.mono-meta}'
+    max-height: 220px
   pulse-dot:
     background: '{colors.success}'
-    glow: '{colors.pulse-emerald}'
+    glow: '{colors.pulse-emerald-glow}'
     size: 8px
     animation: pulseGlow 1.6s infinite
   phase-card:
@@ -308,13 +330,13 @@ components:
 
 # BMAD Companion — Design Spine
 
-> Visual identity contract for `assets/panel.html`, the right-side BMAD cockpit served as `ui://bmad-companion/panel.html`. Tokens mirror the CSS custom properties in `:root` (dark, default) and `body.theme-light` (light). Behavioral contract lives in [EXPERIENCE.md](./EXPERIENCE.md); this spine wins on any visual conflict with mocks or the as-built file.
+> Visual identity contract for `assets/panel.html` (v0.5.3), the right-side BMAD cockpit served as `ui://bmad-companion/panel.html`. Tokens mirror the CSS custom properties in `:root` (dark, default) and `body.theme-light` (light). Behavioral contract lives in [EXPERIENCE.md](./EXPERIENCE.md); this spine wins on any visual conflict with mocks or the as-built file.
 
 ## Brand & Style
 
 BMAD Companion is an ambient command cockpit, not a destination app. It lives in ZCode's right-side dock beside an active agent session and answers one question at a glance: *what is the next BMAD move, and which model should run it?* The aesthetic is **instrument-panel density**: a dark GitHub-like canvas, monospace metadata, pill-shaped status telemetry, and a single blue accent that means "interactive / launchable." Color is information, never decoration — green is verified delivery, amber is review/modified, purple is AI/model intelligence, red is high-priority or failed.
 
-The posture is calm utility. No hero imagery, no marketing whitespace, no gamification. Surfaces are tight cards stacked in one scrolling column; every card carries a verb (Launch, Queue, Reconcile, Diff, Open). The brand mark is a 26px "BM" badge on an accent→purple gradient — the only place the two brand hues meet as a fill. Light mode is a faithful GitHub-light inversion for users whose host theme is light; it is not a separate brand.
+The posture is calm utility. No hero imagery, no marketing whitespace, no gamification. Surfaces are tight cards stacked in one scrolling column; every card carries a verb (Launch, Queue, Reconcile, Diff, Open). The brand mark is a 26px "BM" badge on an accent→purple gradient — the only place the two brand hues meet as a fill, while `#projectTitle` stamps `BMAD Companion v0.5.3` (`panel.html:1412`). Light mode is a faithful GitHub-light inversion for users whose host theme is light; it is not a separate brand.
 
 The system is bespoke vanilla CSS with zero dependencies (RULE-1) and zero external assets (RULE-7). There is no component library to inherit from; this DESIGN.md is the whole visual contract.
 
@@ -330,7 +352,7 @@ The palette is the GitHub Primer dark/light primitive set, adopted wholesale so 
 - **Purple** (`{colors.purple}`) — the AI/model hue: recommended-model pills, tier badges, AI-reconciled evidence, turn-analysis box, untracked artifacts, queue count. It marks machine intelligence, not human action.
 - **Danger red** (`{colors.danger}`) — high-priority recommendations, failed tasks, destructive remove (✕), and the "old status" side of a reconciliation diff.
 - **Soft fills** (`*-soft`) — each semantic hue at 10–15% alpha, used *only* as the background of its own pill/badge or the active-tab wash. A soft fill never carries a different hue's text.
-- **Fixed literals** — `{colors.on-primary}` white on primary/badge fills; `{colors.primary-gradient-end}` `#2563eb` terminates the primary-button gradient in both themes; `{colors.queue-live-blue}`/`{colors.queue-live-violet}` tint the live-queue banner; `{colors.pulse-emerald}` drives the running-task glow; `{colors.diff-add-bg}`/`{colors.diff-del-bg}` are the diff line washes. These are hard-coded in panel.html today and are tokenized here so future edits route through variables.
+- **Fixed literals** — `{colors.on-primary}` white on primary/badge fills; `{colors.primary-gradient-end}` `#2563eb` terminates the primary-button gradient in both themes; `{colors.queue-live-blue}`/`{colors.queue-live-violet}` tint the live-queue banner; `{colors.queue-active-tint}`/`{colors.spotlight-active-tint}` wash active queue cards and the active-task spotlight; `{colors.pulse-emerald}`/`{colors.pulse-emerald-glow}` drive the running-task glow; `{colors.diff-add-bg}`/`{colors.diff-del-bg}` are the diff line washes. These are hard-coded in panel.html today and are tokenized here so future edits route through variables.
 
 ### Measured contrast (WCAG 2.x relative luminance)
 
@@ -376,7 +398,7 @@ Audited 2026-11-19 against the as-built token values with a deterministic Node s
 Two system stacks, no webfonts (RULE-7). `{typography.body}` (12.5px / 1.45) is the default voice — deliberately smaller than a consumer app because the panel is a dense telemetry dock read at arm's length beside code. The ramp is compressed: titles barely rise above body (13px brand, 12.5px section), and hierarchy comes from **weight (700/600) and hue**, not size.
 
 - **Sans roles** — `body` for prose; `brand-title`/`section-title` at 700 for headings; `story-title` at 600; `control` (11.5px/600) for every button and tab; `caption` (11px) for rationale and subtitles; `micro` (10.8px) for model reasons and queue meta; `label-caps` (10.5px/600, uppercase, 0.04em tracking) for the "CONTEXTUAL BMAD SKILL + PROMPT" editor labels.
-- **Mono roles** — `{typography.command}` (11.5px) renders the editable `/bmad-<skill> "<prompt>"` in `{colors.accent}`; `{typography.mono-meta}` (11px) renders model selects, progress numbers, artifact paths, and previews; `{typography.pill}` (10.5px/600) renders every status pill. Monospace is the signal for "machine-readable token" — commands, model ids, paths, counts.
+- **Mono roles** — `{typography.command}` (11.5px) renders the editable `/bmad-<skill> "<prompt>"` in `{colors.accent}`; `{typography.mono-meta}` (11px) renders model selects (including `<optgroup>` provider headers and compact `· <N>k` context / `· $/$$/$$$` cost / `· ⛔ rate-limited` / `★ Recommended` tags, `panel.html:1347-1368`), progress numbers, artifact paths, and previews; `{typography.pill}` (10.5px/600) renders every status pill. Monospace is the signal for "machine-readable token" — commands, model ids, paths, counts.
 
 Rules: never set body prose in mono; never set a command or path in sans; never introduce a size above 13px (no display type — this is an instrument, not a landing page); keep emoji prefixes on action labels (they are the icon system) but always pair them with a text verb.
 
@@ -387,26 +409,26 @@ Single fluid column inside `.app-shell` (`display:flex; flex-direction:column; h
 1. **Top bar** (`.top-bar`, padding `{spacing.top-bar-padding}`) — brand row (badge + titles left, AI Audit / Sync right) over the progress strip.
 2. **Tab strip** (`.tabs-nav`) — `display:grid; grid-template-columns:repeat(4,1fr); gap:{spacing.tab-gap}; padding:4px 8px`.
 3. **Banner zone** — live-queue banner and toast banner, each `display:none` until `.visible`.
-4. **Main scroll** (`.main-scroll`, `flex:1; overflow-y:auto; padding:{spacing.scroll-padding}`) — the active tab's cards.
+4. **Main scroll** (`.main-scroll`, `flex:1; overflow-y:auto; padding:{spacing.scroll-padding}`) — the active tab's view (`tab-advisor`, `tab-queue`, `tab-progress`, `tab-catalog`, or `tab-artifacts`).
 
-The spacing scale is a dense 2px-based micro-ramp (`{spacing.1}`–`{spacing.7}` = 2/4/6/8/10/12/24). Cards use `{spacing.card-padding}` (10px 11px) and stack with 8–10px bottom margins; action clusters use `{spacing.action-gap}` (6px) and `flex-wrap:wrap` so buttons reflow rather than overflow in a narrow dock. There are **no breakpoints** — the panel is always a narrow right-side column; long titles and paths truncate with `text-overflow:ellipsis`, and multi-button rows wrap.
+The spacing scale is a dense 2px-based micro-ramp (`{spacing.1}`–`{spacing.7}` = 2/4/6/8/10/12/24). Cards use `{spacing.card-padding}` (10px 11px) and stack with 8–10px bottom margins; action clusters use `{spacing.action-gap}` (6px) and `flex-wrap:wrap` so buttons reflow rather than overflow in a narrow dock. Two internal form grids exist inside Queue: the top control grid (`1fr 1fr`, `panel.html:857`) and per-item model/review controls (`1.4fr 1fr`, `panel.html:1668`). There are **no breakpoints** — the panel is always a narrow right-side column; long titles and paths truncate with `text-overflow:ellipsis`, and multi-button rows wrap.
 
-**Five-tab contract.** The cockpit has exactly five tabs in this order: **⚡ Next Prompts** (`advisor`, default), **⛓️ Queue** (`queue`, with a live count pill), **📊 Phases & Epics** (`progress`), **🧭 Skills & Agents** (`catalog`), **🗂️ Artifacts** (`artifacts`). Only one tab section is visible at a time (`switchTab`, panel.html:2642-2650).
+**Five-tab contract.** The cockpit has exactly five peer views in this order: **⚡ Next Prompts** (`advisor`, default), **⛓️ Queue** (`queue`, with a live count pill), **📊 Phases & Epics** (`progress`), **🧭 Skills & Agents** (`catalog`), **🗂️ Artifacts** (`artifacts`). Only one tab section is visible at a time (`switchTab`, `panel.html:2660-2668`).
 
-**Layout deviation (as-built, tracked).** `.tabs-nav` declares `repeat(4, 1fr)` but renders **five** buttons (panel.html:222, 792-796), so the fifth tab (Artifacts) wraps onto a second row at every width. The contract is a single row of five equal columns; the grid should become `repeat(5, 1fr)` (or `repeat(auto-fit, minmax(0,1fr))`). Tracked as **LD-1**; until fixed, the wrap is the observed behavior, not the intended design.
+**Layout deviation (as-built, tracked).** `.tabs-nav` declares `repeat(4, 1fr)` but renders **five** buttons (`panel.html:222, 791-797`), so the fifth tab (Artifacts) wraps onto a second row at every width. The contract is a single row of five equal columns; the grid should become `repeat(5, 1fr)` (or `repeat(auto-fit, minmax(0,1fr))`). Tracked as **LD-1**; until fixed, the wrap is the observed behavior, not the intended design.
 
 ## Elevation & Depth
 
-Depth is **tonal layering plus 1px borders**, never shadow. The surface ramp `bg-primary → bg-secondary → bg-tertiary` reads as inset → card → hover; expanded card bodies drop back to `bg-primary` to feel "inside" their `bg-secondary` parent. The only `box-shadow` in the system is the `.pulse-dot` running-task glow (`{colors.pulse-emerald}`, 1.6s loop) — a literal "live" signal, not hierarchy.
+Depth is **tonal layering plus 1px borders**, never shadow. The surface ramp `bg-primary → bg-secondary → bg-tertiary` reads as inset → card → hover; expanded card bodies drop back to `bg-primary` to feel "inside" their `bg-secondary` parent. The only `box-shadow` in the system is the `.pulse-dot` running-task glow (`{colors.pulse-emerald-glow}`, 1.6s loop) — a literal "live" signal, not hierarchy.
 
-Gradients are reserved for four brand/live moments: the brand badge (accent→purple), the primary button (accent→`{colors.primary-gradient-end}`), the progress fill (accent→success, left-to-right = momentum toward done), and the live-queue banner/active-task wash (blue→violet / emerald tint). Everywhere else, fills are flat. Do not add drop shadows, glows, or gradients to ordinary cards.
+Gradients are reserved for four brand/live moments: the brand badge (accent→purple), the primary button (accent→`{colors.primary-gradient-end}`), the progress fill (accent→success, left-to-right = momentum toward done), and the live-queue banner/active-task wash (`{colors.queue-live-blue}`→`{colors.queue-live-violet}` / `{colors.queue-active-tint}` / `{colors.spotlight-active-tint}`). Everywhere else, fills are flat. Do not add drop shadows, glows, or gradients to ordinary cards.
 
 ## Shapes
 
 Corner radii encode component class, not size:
 
-- `{rounded.DEFAULT}` (8px, the `--radius` token) — all primary cards: section, recommendation, phase, epic.
-- `{rounded.lg}` (6px) — controls and inset panels: buttons, inputs, selects' wrappers, progress strip, model bar, command editor, artifact preview, insight item, brand badge.
+- `{rounded.DEFAULT}` (8px, the `--radius` token) — all primary cards: section, recommendation, phase, epic, active-task spotlight.
+- `{rounded.lg}` (6px) — controls and inset panels: buttons, inputs, selects' wrappers, progress strip, model bar, command editor, reconciliation diff card, artifact preview, insight item, brand badge.
 - `{rounded.md}` (5px) — tab buttons, model selects, artifact chips.
 - `{rounded.queue-card}` (7px) — queue item cards (a deliberate half-step between control and card).
 - `{rounded.sm}` (4px) — story evidence tags; `{rounded.diff-line}` (2px) — diff line washes.
@@ -421,13 +443,15 @@ Visual specs below; token values live in the frontmatter `components` map. Behav
 - **Buttons** — three variants. `{components.button-default}`: tertiary fill, 1px border, 6px radius; hover swaps border to accent and fill to accent-soft. `{components.button-primary}`: accent→`#2563eb` gradient, white label, accent border; hover drops opacity to 0.93 (the gradient does not change). `{components.button-purple}`: purple-soft fill, purple border, primary-ink label — the "AI/queue" secondary action. All buttons are 11.5px/600 with a 4px icon gap and an emoji prefix.
 - **Tabs** — `{components.tab-button}` ghost buttons; active state is accent text on accent-soft wash (no underline, no border). The Queue tab carries a `{components.pill-purple}` count.
 - **Pills** — `{components.pill-accent}` / `-success` / `-warning` / `-purple` / `-danger`: semantic text on its own soft fill, 999px radius, 10.5px mono/600, 1.5px×6px padding. Status vocabulary is fixed (see Colors).
-- **Cards** — `{components.section-card}` and `{components.rec-card}` share the 8px/secondary/bordered anatomy; rec-cards add an accent hover border and 9px stack gap. `{components.phase-card}` and `{components.epic-box}` add a clickable summary row (tertiary hover) over an inset `bg-primary` body separated by a subtle top border.
-- **Command editor** — `{components.cmd-editor}` inset panel wrapping a `{components.cmd-textarea}`: accent-colored mono command text, transparent fill, no border, vertical resize, 38px min-height. A `{typography.label-caps}` header names the skill. **Focus gap:** the textarea sets `outline:none` with no replacement focus style (panel.html:419) — tracked as accessibility deviation AD-1 in EXPERIENCE.md.
-- **Model bar / select** — `{components.model-select}` mono select on secondary fill; focus swaps the border to purple (≥3:1). A `{components.pill-purple}` tier badge and a `{typography.micro}` reason line accompany it.
+- **Cards** — `{components.section-card}` and `{components.rec-card}` share the 8px/secondary/bordered anatomy; rec-cards add an accent hover border and 9px stack gap. `{components.phase-card}` and `{components.epic-box}` add a clickable summary row (tertiary hover) over an inset `bg-primary` body separated by a subtle top border. Specialist agent rows in Skills & Agents reuse `.phase-card` as a compact flex row.
+- **Queue checkbox** — `{components.queue-checkbox}` (`.queue-cb`, `panel.html:750-756`): 14px square native checkbox with `accent-color: {colors.accent}` inside recommendation card headers for batch queueing.
+- **Command editor** — `{components.cmd-editor}` inset panel wrapping a `{components.cmd-textarea}`: accent-colored mono command text, transparent fill, no border, vertical resize, 38px min-height. A `{typography.label-caps}` header names the skill on Next Prompts (note: Skills & Agents omits the header row as-built, `panel.html:2368-2370`). **Focus gap:** the textarea sets `outline:none` with no replacement focus style (`panel.html:419`) — tracked as accessibility deviation AD-1 in EXPERIENCE.md.
+- **Model bar / select** — `{components.model-select}` mono select on secondary fill; focus swaps the border to purple (≥3:1). Options are grouped by provider via `<optgroup>` with context-window (`· <N>k`), cost-tier (`· $/$$/$$$`), `· ⛔ rate-limited` (sorted last in each group), and `★ Recommended` suffixes (`panel.html:1347-1368`). A `{components.pill-purple}` tier badge and a `{typography.micro}` reason line accompany it on Next Prompts.
 - **Progress strip** — `{components.progress-strip}` inset panel: a 600-weight headline ("Smart AI Progress (X% vs Y% static tracker)"), mono numbers right, and a `{components.dual-bar}` 7px gradient fill animating width over 0.3s.
 - **Turn box** — `{components.turn-box}` with a 3px purple left rule marking AI turn analysis.
-- **Banners** — `{components.toast-banner}` (success-soft wash, success text, 4s auto-dismiss) and `{components.live-queue-banner}` (blue→violet wash, accent bottom border) with a `{components.pulse-dot}`.
-- **Queue item card** — `{components.queue-item-card}`: 7px radius; `.is-active` swaps border to success over an emerald-tinted gradient; `.is-done` drops opacity to 0.78 and border to subtle. Status pill + position pill + story pill ride the header.
+- **Banners** — `{components.toast-banner}` (success-soft wash, success text, 4s auto-dismiss) and `{components.live-queue-banner}` (blue→violet wash, accent bottom border, embedded 4px progress bar) with a `{components.pulse-dot}`.
+- **Queue active spotlight & item card** — `{components.queue-active-spotlight}` renders above the queue list while a task is running using `{colors.success}` border and `{colors.spotlight-active-tint}` gradient over an inset mono `effectivePrompt` block. `{components.queue-item-card}` uses 7px radius; `.is-active` swaps border to success over `{colors.queue-active-tint}`; `.is-done` drops opacity to 0.78 and border to subtle. Status pill + position pill + story pill ride the header.
+- **Reconciliation diff card** — `{components.reconciliation-diff-card}` (`panel.html:929-935`): inset `bg-primary` container with 220px scroll cap listing per-key `oldStatus` (`{colors.danger}`) → `newStatus` (`{colors.success}`) transitions and reasons.
 - **Artifact chip** — `{components.art-chip}` split chip: main label (diff on click) + a bordered `↗` open segment that fills accent with white glyph on hover.
 - **Artifact preview / diff** — `{components.artifact-preview}` mono pre-wrap inset, 360px max-height scroll. Diff lines: `{components.diff-add}` green wash, `{components.diff-del}` red wash, `{components.diff-hunk}` accent/600, `{components.diff-meta}` purple.
 - **Story evidence** — `{components.story-evidence}` purple-on-purple-soft tag for AI reconciliation proof.
@@ -441,9 +465,10 @@ Visual specs below; token values live in the frontmatter `components` map. Behav
 | Keep dark as `:root` default; light only via `body.theme-light` from the host | Hard-code a theme or add a manual theme toggle that fights the host |
 | Use semantic hues by meaning: green=verified, amber=review/modified, purple=AI/model, red=high-priority/failed, blue=interactive | Recolor pills decoratively or mix a hue's text onto another hue's soft fill |
 | Pair every emoji icon with a text verb; keep status pills text-labeled | Convey status by color alone |
+| Keep button roles consistent across all 5 views: `btn-primary` for launch/execute/reconcile, `btn-purple` for AI/queue/diff-mode, `btn` for secondary utilities | Promote destructive or secondary utility buttons to primary gradient fills |
 | Show focus with the accent/purple border swap (≥3:1) | Remove `outline` without a replacement focus style (the cmd-textarea gap AD-1 is a bug, not a pattern) |
 | Keep essential text ≥4.5:1 in both themes; treat CD-1…CD-4 as tracked debt | Claim full WCAG AA while the muted/pill/gradient gaps remain open |
-| Reserve gradients for badge, primary button, progress fill, live banner | Add shadows, glows, or gradients to ordinary cards |
+| Reserve gradients for badge, primary button, progress fill, live banner, and active queue cards | Add shadows, glows, or gradients to ordinary cards |
 | Truncate long paths/titles with ellipsis; wrap action rows | Let content overflow the narrow dock or add horizontal scroll |
 | Render all dynamic strings through `escapeHtml()`; keep CSP `unsafeEval:false`, zero CDN | Use `eval()`, `window.zcode`, external fonts/scripts, or unescaped interpolation (RULE-7) |
 | Five tabs, one visible section, single scrolling column | Add a sixth tab, a sidebar, or nested scroll regions without a spine update |

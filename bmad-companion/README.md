@@ -32,10 +32,10 @@ node --test tests/
 node scripts/check-version-sync.mjs
 ```
 
-- `node --test tests/` — full suite with Node's built-in test runner (~5s): engine scanner smoke, shared helpers, hook stdout isolation, MCP stdio transport (`initialize` / `tools/list` / `resources/read`), model catalog, task-queue handoff, and the version tri-sync CLI (against the live repo and fixtures).
+- `node --test tests/` — full suite with Node's built-in test runner (~5s): engine scanner smoke, shared helpers, hook stdout isolation, MCP stdio transport (`initialize` / `tools/list` / `resources/read`), read-only MCP tool contract, model catalog, task-queue handoff, and the version tri-sync CLI (against the live repo and fixtures).
 - `node scripts/check-version-sync.mjs` — verifies the version tri-sync across `.zcode-plugin/plugin.json`, `../marketplace.json`, and `serverInfo.version` in `scripts/mcp-server.mjs`. Exits 0 when synced, 1 with details on mismatch.
 
-The repository CI workflow (`../.github/workflows/validate.yml`) validates marketplace↔plugin sync and script syntax only — it does not run the suite or the version gate. Run both locally before pushing.
+The repository CI workflow (`../.github/workflows/validate.yml`) runs `node scripts/validate.mjs` (marketplace↔plugin sync, JSON validity, script syntax, and inline panel-script parseability), then `node --test tests/` and `node scripts/check-version-sync.mjs` for both `bmad-companion` and `../vibe-debrief/`. Still run both locally before pushing.
 
 Deeper packaging check (requires the `zcode` CLI on `PATH`):
 

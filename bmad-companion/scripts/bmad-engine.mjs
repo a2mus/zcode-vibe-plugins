@@ -425,14 +425,23 @@ export function classifyModelCostTier(modelId) {
   return "standard";
 }
 
+function normalizeHostModelEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  if (entry.id) return entry;
+  const pid = String(entry.providerId || "").trim();
+  const mid = String(entry.modelId || "").trim();
+  if (!pid || !mid) return null;
+  return { ...entry, id: `${pid}/${mid}` };
+}
+
 /**
  * Keep a complete model catalog when an advisor update carries only a subset.
  * Incoming lists that are at least as large as the stored one replace it;
  * smaller lists merge by id so a partial ListModels read never hides models.
  */
 export function mergeHostModelCatalogs(existing = [], incoming = []) {
-  const base = (Array.isArray(existing) ? existing : []).filter((m) => m && m.id);
-  const next = (Array.isArray(incoming) ? incoming : []).filter((m) => m && m.id);
+  const base = (Array.isArray(existing) ? existing : []).map(normalizeHostModelEntry).filter(Boolean);
+  const next = (Array.isArray(incoming) ? incoming : []).map(normalizeHostModelEntry).filter(Boolean);
   if (next.length >= base.length) return next;
   const byId = new Map(base.map((m) => [m.id, m]));
   for (const model of next) {
@@ -725,18 +734,49 @@ export function discoverConfiguredModels(persistedHostModels = null) {
     }
   }
 
-  // 4. Overlay the live host catalog. A partial advisor update must not hide
-  //    models that disk discovery already found.
-  const runtimeModels = (Array.isArray(persistedHostModels) ? persistedHostModels : [])
-    .filter((hm) => hm && hm.id && !hm.disabledReason);
+  // 4. Overlay the live host catalog. Live entries override matching disk models
+  //    (including explicit disabledReason exclusions), while a partial advisor
+  //    update still preserves unrelated models that disk discovery already found.
+  const allRuntimeEntries = (Array.isArray(persistedHostModels) ? persistedHostModels : [])
+    .map((hm) => {
+      const normalized = normalizeHostModelEntry(hm);
+      if (!normalized) return null;
+      const pid = normalized.providerId || String(normalized.id).split("/")[0];
+      const mid = normalized.modelId || String(normalized.id).split("/").slice(1).join("/");
+      if (!pid || !mid) return null;
+      return { ...normalized, id: `${pid}/${mid}`, providerId: pid, modelId: mid };
+    })
+    .filter(Boolean);
+
+  const disabledRuntimeIds = new Set(
+    allRuntimeEntries.filter((hm) => hm.disabledReason).map((hm) => hm.id)
+  );
+  let runtimeDisabledCount = 0;
+  if (disabledRuntimeIds.size > 0) {
+    for (let i = discovered.length - 1; i >= 0; i--) {
+      if (disabledRuntimeIds.has(discovered[i].id)) {
+        const removed = discovered.splice(i, 1)[0];
+        seen.delete(removed.id);
+        runtimeDisabledCount += 1;
+        const row = activeProvidersSummary.find((p) => p.providerId === removed.providerId);
+        if (row) row.modelCount = Math.max(0, row.modelCount - 1);
+      }
+    }
+    for (let i = activeProvidersSummary.length - 1; i >= 0; i--) {
+      if (activeProvidersSummary[i].modelCount <= 0) {
+        activeProvidersSummary.splice(i, 1);
+      }
+    }
+  }
+
+  const runtimeModels = allRuntimeEntries.filter((hm) => !hm.disabledReason);
   let runtimeMerged = 0;
   const runtimeAddedCounts = new Map();
 
   for (const hm of runtimeModels) {
-    const pid = hm.providerId || String(hm.id).split("/")[0];
-    const mid = hm.modelId || String(hm.id).split("/").slice(1).join("/");
-    if (!pid || !mid) continue;
-    const fullId = `${pid}/${mid}`;
+    const pid = hm.providerId;
+    const mid = hm.modelId;
+    const fullId = hm.id;
     const baseCaps = resolveModelCapabilities(pid, mid);
     const runtimeCaps = {
       ...baseCaps,
@@ -756,9 +796,11 @@ export function discoverConfiguredModels(persistedHostModels = null) {
       if (hm.providerLabel) {
         existing.providerName = hm.providerLabel;
         existing.label = `${existing.modelId} · ${hm.providerLabel}`;
+        const row = activeProvidersSummary.find((p) => p.providerId === pid);
+        if (row) row.providerName = hm.providerLabel;
       }
       existing.costTier = classifyModelCostTier(mid);
-      if (hm.current) existing.current = true;
+      if (typeof hm.current === "boolean") existing.current = hm.current;
       runtimeMerged += 1;
     } else {
       const beforeLen = discovered.length;
@@ -783,9 +825,7 @@ export function discoverConfiguredModels(persistedHostModels = null) {
     if (row) {
       row.modelCount += count;
     } else {
-      const sample = runtimeModels.find(
-        (hm) => (hm.providerId || String(hm.id).split("/")[0]) === pid
-      );
+      const sample = runtimeModels.find((hm) => hm.providerId === pid);
       activeProvidersSummary.push({
         providerId: pid,
         providerName: sample?.providerLabel || pid,
@@ -803,7 +843,7 @@ export function discoverConfiguredModels(persistedHostModels = null) {
       subscriptionSelections: familySelections,
       hasZaiAuth,
       hasBigmodelAuth,
-      syncedFromRuntime: runtimeMerged > 0
+      syncedFromRuntime: runtimeMerged > 0 || runtimeDisabledCount > 0
     }
   };
 }
@@ -1321,6 +1361,88 @@ export function savePersistedState(workspaceRoot, partial) {
   return merged;
 }
 
+const STORY_OVERRIDE_KEY_RE = /^[^#\s]+#[^#\s]+$/;
+const ALLOWED_STORY_STATUS_INPUTS = new Set([
+  "done",
+  "complete",
+  "completed",
+  "passed",
+  "verified",
+  "closed",
+  "in-review",
+  "review",
+  "testing",
+  "qa",
+  "in-progress",
+  "active",
+  "doing",
+  "started",
+  "wip",
+  "ready-for-dev",
+  "ready",
+  "backlog"
+]);
+
+export function updateAdvisorState(workspaceRoot, args = {}) {
+  const now = new Date().toISOString();
+  const current = loadPersistedState(workspaceRoot);
+
+  const storyOverrides = {};
+  if (Array.isArray(args.storyStatusUpdates)) {
+    for (const item of args.storyStatusUpdates) {
+      const overrideKey = String(item?.overrideKey || "").trim();
+      const rawStatus = String(item?.status || "").toLowerCase().trim();
+      if (!STORY_OVERRIDE_KEY_RE.test(overrideKey) || !ALLOWED_STORY_STATUS_INPUTS.has(rawStatus)) {
+        continue;
+      }
+      if (
+        overrideKey.startsWith("__proto__#") ||
+        overrideKey.startsWith("constructor#") ||
+        overrideKey.startsWith("prototype#")
+      ) {
+        continue;
+      }
+      storyOverrides[overrideKey] = {
+        status: normalizeStatus(rawStatus),
+        reason: item.reason || "Verified by ZCode AI Companion",
+        updatedAt: now
+      };
+    }
+  }
+
+  const hasHeadline = typeof args.headline === "string" && args.headline.trim().length > 0;
+  const hasTurnSummary = typeof args.turnSummary === "string" && args.turnSummary.trim().length > 0;
+  const hasRecommendations = Array.isArray(args.recommendations);
+  let nextAdvisorOverride;
+  if (hasHeadline || hasTurnSummary || hasRecommendations) {
+    const existingOverride =
+      current.agentAdvisorOverride && typeof current.agentAdvisorOverride === "object"
+        ? current.agentAdvisorOverride
+        : {};
+    nextAdvisorOverride = {
+      ...existingOverride,
+      ...(hasHeadline ? { headline: args.headline } : {}),
+      ...(hasTurnSummary ? { turnSummary: args.turnSummary } : {}),
+      ...(hasRecommendations ? { recommendations: args.recommendations } : {}),
+      updatedAt: now
+    };
+  }
+
+  let hostModels = null;
+  if (Array.isArray(args.hostModels)) {
+    hostModels = mergeHostModelCatalogs(current.hostModels || [], args.hostModels);
+  }
+
+  savePersistedState(workspaceRoot, {
+    ...(nextAdvisorOverride ? { agentAdvisorOverride: nextAdvisorOverride } : {}),
+    storyOverrides,
+    ...(hostModels !== null ? { hostModels } : {}),
+    lastTurnAnalyzedAt: now
+  });
+
+  return scanBmadWorkspace(workspaceRoot);
+}
+
 export function scanBmadWorkspace(workspaceRoot) {
   const bmadOutputDir = join(workspaceRoot, "_bmad-output");
   const docsDir = join(workspaceRoot, "docs");
@@ -1647,14 +1769,22 @@ export function scanBmadWorkspace(workspaceRoot) {
         const fm = storyFile ? parseFrontmatter(safeReadText(storyFile.fullPath, 2000)) : {};
         const declaredStatus = normalizeStatus(rawVal);
         const fileStatus = fm.status ? normalizeStatus(fm.status) : null;
-        const smartStatus = fileStatus === "done" ? "done" : declaredStatus;
-        const aiReconciled = smartStatus !== declaredStatus;
+        const overrideKey = `epic-${eNum}#${sNum}`;
+        let smartStatus = fileStatus === "done" ? "done" : declaredStatus;
+        let smartEvidence =
+          smartStatus !== declaredStatus ? `Story file (${storyFile?.name}) indicates '${fm.status}'.` : null;
+        let aiReconciled = smartStatus !== declaredStatus;
+        if (persisted.storyOverrides && persisted.storyOverrides[overrideKey]) {
+          smartStatus = normalizeStatus(persisted.storyOverrides[overrideKey].status);
+          smartEvidence = persisted.storyOverrides[overrideKey].reason || "Updated by BMAD AI Companion";
+          aiReconciled = true;
+        }
         const targetSkill = smartStatus === "done" ? "/bmad-code-review" : "/bmad-build";
 
         const storyObj = {
           id: `${eNum}.${sNum}`,
           key,
-          overrideKey: `epic-${eNum}#${sNum}`,
+          overrideKey,
           epicSlug: `epic-${eNum}`,
           epicTitle: parsedEpicsMd.epicTitles[eNum] || `Epic ${eNum}`,
           title: mdDetail?.title || fm.title || slugPart.replace(/-/g, " "),
@@ -1664,7 +1794,7 @@ export function scanBmadWorkspace(workspaceRoot) {
           declaredStatus,
           smartStatus,
           aiReconciled,
-          smartEvidence: aiReconciled ? `Story file (${storyFile?.name}) indicates '${fm.status}'.` : null,
+          smartEvidence,
           planPath: storyFile ? storyFile.relPath : null,
           recommendedModel: recommendModelForBmadSkill(targetSkill, availableModels)
         };
@@ -2085,6 +2215,7 @@ export function scanBmadWorkspace(workspaceRoot) {
   }));
 
   const taskQueue = buildTaskQueueView(persisted.taskQueue, allStories, availableModels);
+  const activeAdvisorOverride = isAdvisorOverrideStale(persisted) ? null : persisted.agentAdvisorOverride;
 
   return {
     scannedAt: new Date().toISOString(),
@@ -2112,12 +2243,12 @@ export function scanBmadWorkspace(workspaceRoot) {
       turnCount: persisted.turnCount || 0,
       lastUserPrompt: persisted.lastUserPrompt || "",
       lastUserPromptAt: persisted.lastUserPromptAt || null,
-      lastAssistantSummary: summarizeAssistantTurn(persisted.lastAssistantMessage, persisted.lastUserPrompt, persisted.agentAdvisorOverride),
+      lastAssistantSummary: summarizeAssistantTurn(persisted.lastAssistantMessage, persisted.lastUserPrompt, activeAdvisorOverride),
       lastTurnAnalyzedAt: persisted.lastTurnAnalyzedAt || null,
       recentTouchedFiles: persisted.recentTouchedFiles || [],
       lastLaunchedSession: persisted.lastLaunchedSession || null,
       aiSummaryHeadline:
-        persisted.agentAdvisorOverride?.headline ||
+        activeAdvisorOverride?.headline ||
         buildTurnHeadline(persisted.lastUserPrompt, persisted.lastAssistantMessage, projectName, smartOverallPct, totalStories)
     },
     recommendations,
@@ -2129,6 +2260,76 @@ export function scanBmadWorkspace(workspaceRoot) {
     skillsCatalog: skillsWithPrompts,
     agentsCatalog: agentsWithModels
   };
+}
+
+function normalizeComparablePrompt(text) {
+  return String(text || "")
+    .trim()
+    .replace(/^\/bmad-build-auto\b/i, "/bmad-build")
+    .replace(/\s*\[Execution Policy:[^\]]*\]\s*$/i, "")
+    .replace(/\s*\(route:\s*(?:oneshot|full),\s*review:\s*(?:none|quick|thorough)[^)]*\)\s*"$/i, '"')
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function parseIsoMs(value) {
+  if (!value) return Number.NaN;
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? ms : Number.NaN;
+}
+
+function isAdvisorOverrideStale(persisted) {
+  const override = persisted?.agentAdvisorOverride;
+  if (!override || typeof override !== "object") return true;
+  const overrideMs = parseIsoMs(override.updatedAt);
+  if (!Number.isFinite(overrideMs)) return false;
+
+  const wfCompletedMs = parseIsoMs(persisted.lastWorkflowCompletedAt);
+  if (Number.isFinite(wfCompletedMs) && wfCompletedMs > overrideMs) {
+    return true;
+  }
+
+  const q = persisted.taskQueue;
+  if (q && typeof q === "object") {
+    const queueUpdatedMs = parseIsoMs(q.updatedAt);
+    if (q.status === "completed" && Number.isFinite(queueUpdatedMs) && queueUpdatedMs > overrideMs) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isRecommendationCompleted(rec, persisted, allStories = []) {
+  if (!rec || typeof rec !== "object") return false;
+  const recNormPrompt = normalizeComparablePrompt(rec.fullCommand || rec.prompt || "");
+  const recTitleLower = String(rec.title || "").trim().toLowerCase();
+
+  const queueItems = Array.isArray(persisted?.taskQueue?.items) ? persisted.taskQueue.items : [];
+  for (const item of queueItems) {
+    if (item?.status !== "done") continue;
+    const itemNormPrompt = normalizeComparablePrompt(item.prompt || item.effectivePrompt || "");
+    if (recNormPrompt && itemNormPrompt && recNormPrompt === itemNormPrompt) {
+      return true;
+    }
+    const itemTitleLower = String(item.title || "").trim().toLowerCase();
+    if (recTitleLower && itemTitleLower && recTitleLower === itemTitleLower) {
+      return true;
+    }
+  }
+
+  const skill = String(rec.skill || "").trim().toLowerCase();
+  if (skill === "/bmad-build" || skill === "/bmad-build-auto" || skill === "bmad-build" || skill === "bmad-build-auto") {
+    const haystack = `${rec.title || ""} ${rec.fullCommand || ""}`;
+    const storyMatch = /\b(?:story|ticket)\s+(\d+\.\d+)\b/i.exec(haystack);
+    if (storyMatch) {
+      const matched = allStories.find((s) => String(s.id) === storyMatch[1]);
+      if (matched && matched.smartStatus === "done") {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 function summarizeAssistantTurn(lastAssistantMessage, lastUserPrompt, override) {
@@ -2200,21 +2401,47 @@ function buildRecommendations({
   }
 
   // 1. Honor explicit AI Advisor override pushed via MCP tool bmad_update_advisor
-  if (Array.isArray(persisted.agentAdvisorOverride?.recommendations)) {
-    for (const r of persisted.agentAdvisorOverride.recommendations) {
+  //    (skip if superseded by a completed workflow/queue, and filter out already-completed tasks/stories)
+  const activeOverride = isAdvisorOverrideStale(persisted) ? null : persisted.agentAdvisorOverride;
+  if (Array.isArray(activeOverride?.recommendations)) {
+    const contextualCmdRe = /^\/bmad-[a-z0-9-]+\s+".+"$/;
+    const providerModelRe = /^[^/\s]+\/.+$/;
+    for (const r of activeOverride.recommendations) {
       if (r && r.skill && r.fullCommand) {
+        if (isRecommendationCompleted(r, persisted, allStories)) {
+          continue;
+        }
+        const cleanSkill = String(r.skill).trim().startsWith("/")
+          ? String(r.skill).trim()
+          : `/${String(r.skill).trim()}`;
+        let fullCommand = String(r.fullCommand).trim();
+        if (!fullCommand.startsWith("/") && fullCommand.startsWith("bmad-")) {
+          fullCommand = `/${fullCommand}`;
+        }
+        if (!contextualCmdRe.test(fullCommand)) {
+          const fallbackPrompt = String(
+            r.title || r.rationale || `Continue ${cleanSkill} workflow for ${projectName}`
+          )
+            .replace(/"/g, "'")
+            .trim();
+          fullCommand = `${cleanSkill} "${fallbackPrompt}"`;
+        }
+        const validRecommendedModel =
+          typeof r.recommendedModel === "string" && providerModelRe.test(r.recommendedModel.trim())
+            ? r.recommendedModel.trim()
+            : null;
         addRec({
-          skill: r.skill.startsWith("/") ? r.skill : `/${r.skill}`,
-          fullCommand: r.fullCommand,
-          title: r.title || `AI Advisor: ${r.skill}`,
+          skill: cleanSkill,
+          fullCommand,
+          title: r.title || `AI Advisor: ${cleanSkill}`,
           rationale: r.rationale || "Synthesized by ZCode AI from the latest turn and workspace state.",
           phase: r.phase || "4-implementation",
           priority: r.priority || "high",
           badge: "AI Turn Synthesis",
-          recommendedModel: r.recommendedModel
+          recommendedModel: validRecommendedModel
             ? {
-                modelId: r.recommendedModel,
-                reason: r.modelReason || `Selected by AI Advisor for ${r.skill}`
+                modelId: validRecommendedModel,
+                reason: r.modelReason || `Selected by AI Advisor for ${cleanSkill}`
               }
             : undefined
         });
@@ -2877,8 +3104,18 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
   const updaterFullPath = join(workspaceRoot, ".zcode", "bmad-companion", "queue-step-updater.mjs");
 
   const updaterCode = [
-    `import { existsSync, readFileSync, writeFileSync } from "node:fs";`,
+    `import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";`,
     `import { join } from "node:path";`,
+    ``,
+    `function normPrompt(text) {`,
+    `  return String(text || "")`,
+    `    .trim()`,
+    `    .replace(/^\\/bmad-build-auto\\b/i, "/bmad-build")`,
+    `    .replace(/\\s*\\[Execution Policy:[^\\]]*\\]\\s*$/i, "")`,
+    `    .replace(/\\s*\\(route:\\s*(?:oneshot|full),\\s*review:\\s*(?:none|quick|thorough)[^)]*\\)\\s*"$/i, '"')`,
+    `    .replace(/\\s+/g, " ")`,
+    `    .toLowerCase();`,
+    `}`,
     ``,
     `const [, , action, taskId, overrideKey = "", summaryText = ""] = process.argv;`,
     `const stateFile = join(process.cwd(), ".zcode", "bmad-companion", "state.json");`,
@@ -2896,7 +3133,7 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
     `    q.status = "running";`,
     `    if (overrideKey) {`,
     `      state.storyOverrides = state.storyOverrides || {};`,
-    `      state.storyOverrides[overrideKey] = { status: "in-progress", reason: "Active in BMAD Companion Queue (" + target.title + ")" };`,
+    `      state.storyOverrides[overrideKey] = { status: "in-progress", reason: "Active in BMAD Companion Queue (" + target.title + ")", updatedAt: now };`,
     `    }`,
     `  } else if ((action === "done" || action === "fail") && target) {`,
     `    target.status = action === "done" ? "done" : "failed";`,
@@ -2904,7 +3141,18 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
     `    if (summaryText) target.resultSummary = summaryText;`,
     `    if (action === "done" && overrideKey) {`,
     `      state.storyOverrides = state.storyOverrides || {};`,
-    `      state.storyOverrides[overrideKey] = { status: "done", reason: summaryText || ("Completed via BMAD Queue (" + target.title + ")") };`,
+    `      state.storyOverrides[overrideKey] = { status: "done", reason: summaryText || ("Completed via BMAD Queue (" + target.title + ")"), updatedAt: now };`,
+    `    }`,
+    `    if (action === "done" && state.agentAdvisorOverride && Array.isArray(state.agentAdvisorOverride.recommendations)) {`,
+    `      const targetPrompt = normPrompt(target.prompt || target.effectivePrompt || "");`,
+    `      const targetTitle = String(target.title || "").trim().toLowerCase();`,
+    `      state.agentAdvisorOverride.recommendations = state.agentAdvisorOverride.recommendations.filter((r) => {`,
+    `        const rp = normPrompt(r?.fullCommand || r?.prompt || "");`,
+    `        const rt = String(r?.title || "").trim().toLowerCase();`,
+    `        if (targetPrompt && rp && rp === targetPrompt) return false;`,
+    `        if (targetTitle && rt && rt === targetTitle) return false;`,
+    `        return true;`,
+    `      });`,
     `    }`,
     `    q.activeTaskId = null;`,
     `    if (items.some((it) => it.status === "queued")) {`,
@@ -2912,12 +3160,43 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
     `      else if (q.status !== "paused") q.status = "running";`,
     `    } else {`,
     `      q.status = "completed";`,
+    `      state.lastWorkflowCompletedAt = now;`,
+    `      state.agentAdvisorOverride = null;`,
+    `    }`,
+    `  } else if (action === "finish") {`,
+    `    items.forEach((it) => { if (it.status === "running") it.status = "done"; });`,
+    `    q.activeTaskId = null;`,
+    `    if (items.some((it) => it.status === "queued")) {`,
+    `      q.status = "paused";`,
+    `    } else if (items.length > 0) {`,
+    `      q.status = "completed";`,
+    `    } else {`,
+    `      q.status = "idle";`,
+    `    }`,
+    `    state.lastWorkflowCompletedAt = now;`,
+    `    const overrideMs = Date.parse(state.agentAdvisorOverride?.updatedAt || "");`,
+    `    if (state.agentAdvisorOverride && (!Number.isFinite(overrideMs) || overrideMs <= Date.parse(now))) {`,
+    `      state.agentAdvisorOverride = null;`,
+    `    }`,
+    `    if (items.length > 0) {`,
+    `      const doneCount = items.filter((it) => it.status === "done").length;`,
+    `      const failedCount = items.filter((it) => it.status === "failed").length;`,
+    `      state.lastAssistantMessage = "BMAD Companion workflow finished: " + doneCount + " done" + (failedCount > 0 ? ", " + failedCount + " failed" : "") + " out of " + items.length + " queued task(s).";`,
+    `      state.lastTurnAnalyzedAt = now;`,
     `    }`,
     `  }`,
     `  q.updatedAt = now;`,
     `  state.taskQueue = q;`,
     `  state.updatedAt = now;`,
-    `  writeFileSync(stateFile, JSON.stringify(state, null, 2), "utf8");`,
+    `  const json = JSON.stringify(state, null, 2);`,
+    `  const tmpFile = stateFile + ".tmp." + process.pid + "." + Date.now();`,
+    `  try {`,
+    `    writeFileSync(tmpFile, json, "utf8");`,
+    `    renameSync(tmpFile, stateFile);`,
+    `  } catch {`,
+    `    try { unlinkSync(tmpFile); } catch {}`,
+    `    writeFileSync(stateFile, json, "utf8");`,
+    `  }`,
     `}`
   ].join("\n");
 
@@ -3096,6 +3375,8 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
   let defaultReviewMode = options.reviewMode || currentView.defaultReviewMode;
   let activeTaskId = currentView.activeTaskId;
   const storyOverrides = { ...(persisted.storyOverrides || {}) };
+  let advisorOverrideUpdate;
+  let workflowCompletedAt;
 
   const defaultModelId =
     scan.availableModels.find((m) => m.current)?.id ||
@@ -3176,14 +3457,38 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     const targetId = String(options.taskId || "");
     items = items.map((it) => {
       if (it.id !== targetId) return it;
+      const resettingToQueued = options.status === "queued" && (it.status === "failed" || it.status === "done");
       return {
         ...it,
         ...(options.model ? { model: options.model } : {}),
         ...(options.reviewMode ? { reviewMode: options.reviewMode } : {}),
         ...(options.prompt ? { prompt: options.prompt } : {}),
-        ...(options.status ? { status: options.status } : {})
+        ...(options.status ? { status: options.status } : {}),
+        ...(resettingToQueued ? { startedAt: null, completedAt: null, resultSummary: null, sessionId: null } : {})
       };
     });
+    if (options.status === "queued" && (status === "completed" || status === "paused")) {
+      status = "idle";
+    }
+  } else if (action === "retry-failed") {
+    const targetId = options.taskId ? String(options.taskId).trim() : "";
+    let resetCount = 0;
+    items = items.map((it) => {
+      const shouldReset = targetId ? it.id === targetId && it.status !== "running" : it.status === "failed";
+      if (!shouldReset) return it;
+      resetCount++;
+      return {
+        ...it,
+        status: "queued",
+        startedAt: null,
+        completedAt: null,
+        resultSummary: null,
+        sessionId: null
+      };
+    });
+    if (resetCount > 0 && (status === "completed" || status === "paused")) {
+      status = "idle";
+    }
   } else if (action === "set-review-mode") {
     if (["none", "quick", "thorough"].includes(options.reviewMode)) {
       defaultReviewMode = options.reviewMode;
@@ -3263,12 +3568,15 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     const targetId = String(options.taskId || activeTaskId || "");
     const outcomeStatus = options.failed ? "failed" : "done";
     const now = new Date().toISOString();
+    let completedItem = null;
     items = items.map((it) => {
       if (it.id !== targetId) return it;
+      completedItem = it;
       if (it.overrideKey && outcomeStatus === "done") {
         storyOverrides[it.overrideKey] = {
           status: options.storyStatus || "done",
-          reason: options.summary || `Completed via BMAD Companion Task Queue (${it.title})`
+          reason: options.summary || `Completed via BMAD Companion Task Queue (${it.title})`,
+          updatedAt: now
         };
       }
       return {
@@ -3283,9 +3591,38 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     // session is launched via start-task. Keeping it `queued` makes the
     // ledger honest and lets the Stop-hook handoff or the panel resume it.
     activeTaskId = null;
-    if (!hasQueued) status = "completed";
-    else if (outcomeStatus === "failed") status = "paused";
-    else if (status !== "paused") status = "running";
+    if (!hasQueued) {
+      status = "completed";
+      workflowCompletedAt = now;
+      if (persisted.agentAdvisorOverride) {
+        advisorOverrideUpdate = null;
+      }
+    } else {
+      if (outcomeStatus === "failed") status = "paused";
+      else if (status !== "paused") status = "running";
+      if (
+        outcomeStatus === "done" &&
+        completedItem &&
+        persisted.agentAdvisorOverride &&
+        Array.isArray(persisted.agentAdvisorOverride.recommendations)
+      ) {
+        const donePrompt = normalizeComparablePrompt(completedItem.prompt || completedItem.effectivePrompt || "");
+        const doneTitle = String(completedItem.title || "").trim().toLowerCase();
+        const pruned = persisted.agentAdvisorOverride.recommendations.filter((r) => {
+          const rp = normalizeComparablePrompt(r?.fullCommand || r?.prompt || "");
+          const rt = String(r?.title || "").trim().toLowerCase();
+          if (donePrompt && rp && rp === donePrompt) return false;
+          if (doneTitle && rt && rt === doneTitle) return false;
+          return true;
+        });
+        if (pruned.length !== persisted.agentAdvisorOverride.recommendations.length) {
+          advisorOverrideUpdate = {
+            ...persisted.agentAdvisorOverride,
+            recommendations: pruned
+          };
+        }
+      }
+    }
   } else if (action === "pause-queue") {
     status = "paused";
     items = items.map((it) => (it.status === "running" ? { ...it, status: "queued" } : it));
@@ -3310,12 +3647,14 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
   let generatedWorkflow = null;
   if (
     updatedQueueView.items.length > 0 &&
-    ["start-queue", "generate-workflow", "add", "add-epic", "update-item", "set-review-mode", "reorder"].includes(action)
+    ["start-queue", "generate-workflow", "add", "add-epic", "update-item", "retry-failed", "set-review-mode", "reorder"].includes(action)
   ) {
     generatedWorkflow = generateQueueWorkflowFiles(workspaceRoot, updatedQueueView);
   }
 
   savePersistedState(workspaceRoot, {
+    ...(advisorOverrideUpdate !== undefined ? { agentAdvisorOverride: advisorOverrideUpdate } : {}),
+    ...(workflowCompletedAt ? { lastWorkflowCompletedAt: workflowCompletedAt } : {}),
     storyOverrides,
     taskQueue: {
       status: updatedQueueView.status,

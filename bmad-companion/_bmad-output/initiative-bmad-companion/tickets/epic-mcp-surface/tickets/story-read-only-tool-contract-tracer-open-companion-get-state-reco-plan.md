@@ -3,7 +3,7 @@ title: 'Read-only tool contract tracer (open_companion -> get_state -> recommend
 type: feature
 ticket: 1
 created: '2026-11-24'
-status: built
+status: done
 baseline_revision: '23c9b4b40c51fb210da7d008305dbb094d591983'
 route: oneshot
 route_source: pinned

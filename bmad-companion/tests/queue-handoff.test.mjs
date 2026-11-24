@@ -1,12 +1,15 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 
 import {
   buildTaskSessionLaunchInstructions,
   generateQueueWorkflowFiles,
   loadPersistedState,
   manageBmadTaskQueue,
-  savePersistedState
+  savePersistedState,
+  scanBmadWorkspace,
+  updateAdvisorState
 } from "../scripts/bmad-engine.mjs";
 import {
   assertSingleJsonObjectStdout,
@@ -181,5 +184,255 @@ describe("bmad-companion queue handoff chain", () => {
 
     const state = readJsonFile(ws.statePath);
     assert.equal(state.taskQueue.items.find((it) => it.id === second.id).status, "queued");
+  });
+
+  it("queue-step-updater finish clears stale advisor override and refreshes Next Prompts", () => {
+    const ws = workspaces.seed();
+    const added = addTwoTasks(ws, "dynamic-workflow");
+    const [first, second] = added.taskQueue.items;
+
+    savePersistedState(ws.root, {
+      agentAdvisorOverride: {
+        headline: "Outdated pre-workflow headline",
+        turnSummary: "Outdated pre-workflow summary",
+        recommendations: [
+          {
+            skill: "/bmad-build",
+            fullCommand: '/bmad-build "Implement ticket 2.1 atomic tracer"',
+            title: "Story 2.1: Atomic tracer",
+            rationale: "Old pre-workflow recommendation",
+            recommendedModel: "new-provider/model-a",
+            phase: "4-implementation",
+            priority: "high"
+          },
+          {
+            skill: "/bmad-build",
+            fullCommand: '/bmad-build "Implement ticket 2.2 race suite"',
+            title: "Story 2.2: Race suite",
+            rationale: "Second pre-workflow recommendation",
+            recommendedModel: "new-provider/model-b",
+            phase: "4-implementation",
+            priority: "medium"
+          }
+        ],
+        updatedAt: "2026-11-23T10:00:00.000Z"
+      }
+    });
+
+    const wf = generateQueueWorkflowFiles(ws.root, added.taskQueue);
+
+    // Mid-workflow: completing task 1 prunes task 1's recommendation while keeping task 2
+    execFileSync(process.execPath, [wf.updaterRelPath, "start", first.id, ""], { cwd: ws.root });
+    execFileSync(process.execPath, [wf.updaterRelPath, "done", first.id, "", "Task 1 verified"], { cwd: ws.root });
+    const midState = loadPersistedState(ws.root);
+    assert.equal(midState.agentAdvisorOverride.recommendations.length, 1);
+    assert.equal(midState.agentAdvisorOverride.recommendations[0].title, "Story 2.2: Race suite");
+
+    // Simulate task 2 still running when finish runs (e.g. partial or final finish step)
+    execFileSync(process.execPath, [wf.updaterRelPath, "start", second.id, ""], { cwd: ws.root });
+    execFileSync(process.execPath, [wf.updaterRelPath, "finish"], { cwd: ws.root });
+
+    const finalState = loadPersistedState(ws.root);
+    assert.equal(finalState.taskQueue.status, "completed");
+    assert.equal(finalState.taskQueue.activeTaskId, null);
+    assert.equal(finalState.agentAdvisorOverride, null, "finish must clear stale pre-workflow advisor override");
+    assert.ok(finalState.lastWorkflowCompletedAt, "finish must stamp lastWorkflowCompletedAt");
+
+    const scan = scanBmadWorkspace(ws.root);
+    assert.notEqual(scan.turnAnalysis.aiSummaryHeadline, "Outdated pre-workflow headline");
+    assert.ok(
+      !scan.recommendations.some((r) => r.title === "Story 2.1: Atomic tracer"),
+      "Next Prompts must not keep outdated pre-workflow recommendations"
+    );
+  });
+
+  it("ignores stale pre-workflow advisor overrides on scan and accepts fresh advisor updates afterward", () => {
+    const ws = workspaces.seed();
+    ws.write(
+      "_bmad-output/initiative-demo/initiative-demo.md",
+      "---\ntitle: Demo\nstatus: in-progress\n---\n"
+    );
+    ws.write(
+      "_bmad-output/initiative-demo/tickets.toml",
+      '[[epic]]\nid = 2\nslug = "epic-two"\ntitle = "Epic Two"\n'
+    );
+    ws.write(
+      "_bmad-output/initiative-demo/epic-two/epic-two.md",
+      "---\ntitle: Epic Two\nstatus: in-progress\n---\n"
+    );
+    ws.write(
+      "_bmad-output/initiative-demo/epic-two/tickets.toml",
+      [
+        "[[entry]]",
+        "id = 1",
+        'title = "Done Story"',
+        'status = "done"',
+        "",
+        "[[entry]]",
+        "id = 2",
+        'title = "Next Open Story"',
+        'status = "backlog"'
+      ].join("\n")
+    );
+
+    // Pre-workflow override persisted before a completed queue
+    savePersistedState(ws.root, {
+      agentAdvisorOverride: {
+        headline: "Yesterday headline",
+        turnSummary: "Yesterday summary",
+        recommendations: [
+          {
+            skill: "/bmad-build",
+            fullCommand: '/bmad-build "Implement Story 2.1 Done Story"',
+            title: "Start Epic 2 Story 2.1",
+            rationale: "Stale recommendation for already-done story",
+            recommendedModel: "new-provider/model-a"
+          }
+        ],
+        updatedAt: "2026-11-23T22:00:00.000Z"
+      },
+      taskQueue: {
+        status: "completed",
+        executionMode: "dynamic-workflow",
+        defaultReviewMode: "none",
+        activeTaskId: null,
+        workflowPath: ".zcode/workflows/bmad-task-queue.dwf.ts",
+        updatedAt: "2026-11-24T12:00:00.000Z",
+        items: []
+      }
+    });
+
+    const staleScan = scanBmadWorkspace(ws.root);
+    assert.notEqual(staleScan.turnAnalysis.aiSummaryHeadline, "Yesterday headline");
+    assert.ok(
+      !staleScan.recommendations.some((r) => r.title === "Start Epic 2 Story 2.1"),
+      "completed workflow timestamp must invalidate older advisor recommendations"
+    );
+    assert.ok(
+      staleScan.recommendations.some((r) => r.fullCommand.includes("2.2")),
+      "fresh workspace scan should recommend the next open story (2.2)"
+    );
+
+    // Pushing a fresh advisor update AFTER the workflow completed must be honored,
+    // while still filtering any recommendation for an already-done story (2.1).
+    const freshScan = updateAdvisorState(ws.root, {
+      headline: "Post-workflow fresh headline",
+      turnSummary: "Post-workflow fresh summary",
+      recommendations: [
+        {
+          skill: "/bmad-build",
+          fullCommand: '/bmad-build "Complete Story 2.1 Done Story"',
+          title: "Stale Story 2.1",
+          recommendedModel: "new-provider/model-a"
+        },
+        {
+          skill: "/bmad-build",
+          fullCommand: '/bmad-build "Complete Story 2.2 Next Open Story"',
+          title: "Fresh Story 2.2",
+          recommendedModel: "new-provider/model-b"
+        }
+      ]
+    });
+
+    assert.equal(freshScan.turnAnalysis.aiSummaryHeadline, "Post-workflow fresh headline");
+    assert.equal(freshScan.turnAnalysis.lastAssistantSummary, "Post-workflow fresh summary");
+    assert.ok(!freshScan.recommendations.some((r) => r.title === "Stale Story 2.1"));
+    assert.equal(freshScan.recommendations[0].title, "Fresh Story 2.2");
+  });
+
+  it("manageBmadTaskQueue complete-task prunes finished recommendations and clears stale override on queue completion", () => {
+    const ws = workspaces.seed();
+    const added = addTwoTasks(ws, "separate-sessions");
+    const [first, second] = added.taskQueue.items;
+
+    savePersistedState(ws.root, {
+      agentAdvisorOverride: {
+        headline: "Pre-queue headline",
+        turnSummary: "Pre-queue summary",
+        recommendations: [
+          {
+            skill: "/bmad-build",
+            fullCommand: '/bmad-build "Implement ticket 2.1 atomic tracer"',
+            title: "Story 2.1: Atomic tracer",
+            recommendedModel: "new-provider/model-a"
+          },
+          {
+            skill: "/bmad-build",
+            fullCommand: '/bmad-build "Implement ticket 2.2 race suite"',
+            title: "Story 2.2: Race suite",
+            recommendedModel: "new-provider/model-b"
+          }
+        ],
+        updatedAt: "2026-11-23T10:00:00.000Z"
+      }
+    });
+
+    manageBmadTaskQueue(ws.root, { action: "start-task", taskId: first.id });
+    const afterFirst = manageBmadTaskQueue(ws.root, {
+      action: "complete-task",
+      taskId: first.id,
+      summary: "Done 2.1"
+    });
+    assert.ok(
+      !afterFirst.scan.recommendations.some((r) => r.title === "Story 2.1: Atomic tracer"),
+      "completing task 1 must immediately drop its recommendation"
+    );
+    assert.ok(
+      afterFirst.scan.recommendations.some((r) => r.title === "Story 2.2: Race suite"),
+      "remaining queued recommendation stays visible until completed"
+    );
+
+    manageBmadTaskQueue(ws.root, { action: "start-task", taskId: second.id });
+    const afterSecond = manageBmadTaskQueue(ws.root, {
+      action: "complete-task",
+      taskId: second.id,
+      summary: "Done 2.2"
+    });
+    assert.equal(afterSecond.taskQueue.status, "completed");
+    assert.equal(loadPersistedState(ws.root).agentAdvisorOverride, null);
+    assert.notEqual(afterSecond.scan.turnAnalysis.aiSummaryHeadline, "Pre-queue headline");
+  });
+
+  it("retry-failed resets one or all failed tasks to queued, clears failure metadata, and regenerates the workflow", () => {
+    const ws = workspaces.seed();
+    const added = addTwoTasks(ws, "dynamic-workflow");
+    const [first, second] = added.taskQueue.items;
+
+    manageBmadTaskQueue(ws.root, { action: "start-task", taskId: first.id, sessionId: "sess_fail_1" });
+    manageBmadTaskQueue(ws.root, {
+      action: "complete-task",
+      taskId: first.id,
+      failed: true,
+      summary: "Version drift caused validation exit 1"
+    });
+    manageBmadTaskQueue(ws.root, { action: "start-task", taskId: second.id, sessionId: "sess_fail_2" });
+    const bothFailed = manageBmadTaskQueue(ws.root, {
+      action: "complete-task",
+      taskId: second.id,
+      failed: true,
+      summary: "Timeout during test run"
+    });
+    assert.equal(bothFailed.taskQueue.counts.failed, 2);
+    assert.equal(bothFailed.taskQueue.counts.queued, 0);
+
+    // Single-task retry leaves the other failed task intact
+    const retriedOne = manageBmadTaskQueue(ws.root, { action: "retry-failed", taskId: first.id });
+    assert.equal(retriedOne.taskQueue.counts.failed, 1);
+    assert.equal(retriedOne.taskQueue.counts.queued, 1);
+    assert.equal(retriedOne.taskQueue.status, "idle");
+    const resetFirst = retriedOne.taskQueue.items.find((it) => it.id === first.id);
+    assert.equal(resetFirst.status, "queued");
+    assert.equal(resetFirst.resultSummary, null);
+    assert.equal(resetFirst.completedAt, null);
+    assert.equal(resetFirst.sessionId, null);
+    assert.ok(retriedOne.generatedWorkflow, "retrying a failed task regenerates the queue workflow");
+
+    // Bulk retry resets all remaining failed tasks
+    const retriedAll = manageBmadTaskQueue(ws.root, { action: "retry-failed" });
+    assert.equal(retriedAll.taskQueue.counts.failed, 0);
+    assert.equal(retriedAll.taskQueue.counts.queued, 2);
+    const resetSecond = retriedAll.taskQueue.items.find((it) => it.id === second.id);
+    assert.equal(resetSecond.status, "queued");
+    assert.equal(resetSecond.resultSummary, null);
   });
 });
