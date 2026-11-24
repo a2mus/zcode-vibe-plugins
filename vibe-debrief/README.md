@@ -1,4 +1,4 @@
-# Vibe Debrief (`v0.2.0`) — Comprehension-First Right-Side Panel
+# Vibe Debrief (`v0.3.0`) — Comprehension-First Right-Side Panel
 
 A ZCode right-side panel plugin built for **visual learners** and **multi-project vibe-coders**, fusing Karpathy's 4-rung comprehension framework cleanly into a single distraction-free panel:
 

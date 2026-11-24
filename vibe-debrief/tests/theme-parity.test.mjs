@@ -420,6 +420,7 @@ describe("DESIGN.md CSS custom properties & legacy aliases", () => {
       "--text-primary": "#17202e",
       "--text-secondary": "#4c5a6d",
       "--text-muted": "#768396",
+      "--text-on-warn": "#ffffff",
       "--accent": "#0284c7",
       "--accent-soft": "rgba(2, 132, 199, 0.1)",
       "--accent-border": "rgba(2, 132, 199, 0.34)",
@@ -510,6 +511,16 @@ describe("DESIGN.md CSS custom properties & legacy aliases", () => {
           );
         }
       }
+      const onAccentRatio = contrastRatio(palette["--text-on-accent"], palette["--accent"]);
+      assert.ok(
+        onAccentRatio >= 4.5,
+        `${label} --text-on-accent (${palette["--text-on-accent"]}) on --accent (${palette["--accent"]}) contrast ${onAccentRatio.toFixed(2)} < 4.5`
+      );
+      const onWarnRatio = contrastRatio(palette["--text-on-warn"], palette["--warn"]);
+      assert.ok(
+        onWarnRatio >= 4.5,
+        `${label} --text-on-warn (${palette["--text-on-warn"]}) on --warn (${palette["--warn"]}) contrast ${onWarnRatio.toFixed(2)} < 4.5`
+      );
     }
   });
 });

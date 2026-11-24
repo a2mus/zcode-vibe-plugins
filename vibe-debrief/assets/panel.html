@@ -84,7 +84,7 @@
         --text-secondary: #4c5a6d;
         --text-muted: #768396;
         --text-on-accent: #06121e;
-        --text-on-warn: #140d00;
+        --text-on-warn: #ffffff;
         --accent: #0284c7;
         --accent-soft: rgba(2, 132, 199, 0.1);
         --accent-border: rgba(2, 132, 199, 0.34);
@@ -781,6 +781,30 @@
         color: var(--text-primary);
       }
 
+      /* Field Desk Light Semantic Wash & Accent Text Contrast Parity (>= 13.3:1) */
+      body.theme-light .mode-btn.active-impl,
+      html[data-theme="light"] .mode-btn.active-impl,
+      body.theme-light .ste-toggle-chip.active,
+      html[data-theme="light"] .ste-toggle-chip.active,
+      body.theme-light .tab-btn.active,
+      html[data-theme="light"] .tab-btn.active,
+      body.theme-light .pill-impl,
+      html[data-theme="light"] .pill-impl,
+      body.theme-light .pill-success,
+      html[data-theme="light"] .pill-success,
+      body.theme-light .pill-warning,
+      html[data-theme="light"] .pill-warning,
+      body.theme-light .pill-teal,
+      html[data-theme="light"] .pill-teal,
+      body.theme-light .analogy-title,
+      html[data-theme="light"] .analogy-title,
+      body.theme-light .mini-promote-btn,
+      html[data-theme="light"] .mini-promote-btn,
+      body.theme-light #explainerSceneTitle,
+      html[data-theme="light"] #explainerSceneTitle {
+        color: var(--text-primary);
+      }
+
       /* Inline Proof Claims inside Card 3 */
       .proof-strip {
         margin-top: 8px;
@@ -1138,7 +1162,7 @@
             <div class="tldr-headline" id="tldrHeadline">
               Loading visual debrief…
             </div>
-            <div class="analogy-box">
+            <div class="analogy-box" id="analogyBox">
               <div class="analogy-title">💡 Picture It Like This</div>
               <div id="realWorldAnalogy"></div>
             </div>
@@ -1352,6 +1376,7 @@
         let lastRenderedDebriefId = null;
         let viewingHistoryIdx = null;
         let selectedNodeId = null;
+        let selectedFilePath = null;
 
         function prefersReducedMotion() {
           try {
@@ -1459,7 +1484,7 @@
             textSecondary: "#4c5a6d",
             textMuted: "#768396",
             textOnAccent: "#06121e",
-            textOnWarn: "#140d00",
+            textOnWarn: "#ffffff",
             accent: "#0284c7",
             accentSoft: "rgba(2, 132, 199, 0.1)",
             accentBorder: "rgba(2, 132, 199, 0.34)",
@@ -1691,6 +1716,10 @@
           const nextDebriefKey = debrief.id || debrief.createdAt || debrief.tldrHeadline || null;
           if (nextDebriefKey !== lastRenderedDebriefId) {
             selectedNodeId = null;
+            selectedFilePath = null;
+            playerState.sceneIndex = 0;
+            playerState.tick = 0;
+            stopExplainerPlayback();
             lastRenderedDebriefId = nextDebriefKey;
           }
           updateSnapshotBanner();
@@ -1780,6 +1809,7 @@
 
           if (nodes.length === 0) {
             selectedNodeId = null;
+            selectedFilePath = null;
             svg.setAttribute("viewBox", "0 0 460 80");
             svg.innerHTML = `<text x="230" y="45" text-anchor="middle" fill="${escapeHtml(tokens.textSecondary)}" font-size="12">Diagram pending…</text>`;
             if (filesStripEl) filesStripEl.innerHTML = "";
@@ -1890,13 +1920,16 @@
           svg.innerHTML = svgMarkup;
 
           const activeSelectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
-          if (!activeSelectedNode) {
+          const activeSelectedFile =
+            !activeSelectedNode && selectedFilePath ? files.find((f) => f.path === selectedFilePath) : null;
+          if (!activeSelectedNode && !activeSelectedFile) {
             selectedNodeId = null;
+            selectedFilePath = null;
             if (inspectorBar) {
               inspectorBar.classList.remove("has-selection");
               inspectorBar.innerHTML = defaultInspectorHtml;
             }
-          } else if (inspectorBar) {
+          } else if (activeSelectedNode && inspectorBar) {
             inspectorBar.classList.add("has-selection");
             inspectorBar.innerHTML = `
               <span><strong>${escapeHtml(activeSelectedNode.label)}</strong> · ${escapeHtml(activeSelectedNode.role || "Step")} · Risk: <strong style="color:${
@@ -1904,17 +1937,24 @@
             }">${escapeHtml((activeSelectedNode.risk || "low").toUpperCase())}</strong>${
               activeSelectedNode.file ? ` · <code>${escapeHtml(activeSelectedNode.file)}</code>` : ""
             }</span>`;
+          } else if (activeSelectedFile && inspectorBar) {
+            inspectorBar.classList.add("has-selection");
+            inspectorBar.innerHTML = `<span><strong>${escapeHtml(activeSelectedFile.shortName)}</strong> · ${escapeHtml(activeSelectedFile.role)} · Risk: <strong style="color:${
+              activeSelectedFile.risk === "high" ? "var(--danger)" : activeSelectedFile.risk === "medium" ? "var(--warning)" : "var(--success)"
+            }">${escapeHtml((activeSelectedFile.risk || "low").toUpperCase())}</strong> · <code>${escapeHtml(activeSelectedFile.path)}</code></span>`;
           }
 
           const resetInspector = () => {
             selectedNodeId = null;
+            selectedFilePath = null;
             const bar = document.getElementById("nodeInspectorBar");
             bar.classList.remove("has-selection");
             bar.innerHTML = defaultInspectorHtml;
             renderInteractiveDiagram(debrief);
           };
 
-          const inspectNode = (node, { toggle = false, focusNode = false } = {}) => {
+          const inspectNode = (node, { toggle = false, focusNode = false, focusFileIdx = null } = {}) => {
+            selectedFilePath = null;
             if (toggle && selectedNodeId === node.id) {
               resetInspector();
               if (focusNode) {
@@ -1922,6 +1962,11 @@
                   (el) => el.getAttribute("data-node-id") === node.id
                 );
                 if (target && typeof target.focus === "function") target.focus();
+              } else if (focusFileIdx !== null) {
+                const chip = Array.from(document.getElementById("touchedFilesStrip").querySelectorAll(".file-badge")).find(
+                  (el) => el.getAttribute("data-fidx") === String(focusFileIdx)
+                );
+                if (chip && typeof chip.focus === "function") chip.focus();
               }
               return;
             }
@@ -1940,6 +1985,11 @@
                 (el) => el.getAttribute("data-node-id") === node.id
               );
               if (target && typeof target.focus === "function") target.focus();
+            } else if (focusFileIdx !== null) {
+              const chip = Array.from(document.getElementById("touchedFilesStrip").querySelectorAll(".file-badge")).find(
+                (el) => el.getAttribute("data-fidx") === String(focusFileIdx)
+              );
+              if (chip && typeof chip.focus === "function") chip.focus();
             }
           };
 
@@ -1963,7 +2013,10 @@
           filesStrip.innerHTML = files
             .map((f, idx) => {
               const matchedNode = nodes.find((n) => n.file === f.path || n.label === f.shortName);
-              const activeCls = matchedNode && selectedNodeId === matchedNode.id ? "selected" : "";
+              const isSelectedChip =
+                (matchedNode && selectedNodeId === matchedNode.id) ||
+                (!matchedNode && selectedFilePath && selectedFilePath === f.path);
+              const activeCls = isSelectedChip ? "selected" : "";
               return `
                 <button class="file-badge risk-${escapeHtml(f.risk || "low")} ${activeCls}" aria-pressed="${activeCls ? "true" : "false"}" data-fidx="${idx}" title="${escapeHtml(f.path)}">
                   <span>${escapeHtml(f.icon || "📄")}</span>
@@ -1975,16 +2028,20 @@
 
           filesStrip.querySelectorAll(".file-badge").forEach((btn) => {
             btn.addEventListener("click", () => {
-              const f = files[Number(btn.getAttribute("data-fidx"))];
+              const fidx = btn.getAttribute("data-fidx");
+              const f = files[Number(fidx)];
               if (!f) return;
               const matchedNode = nodes.find((n) => n.file === f.path || n.label === f.shortName);
               if (matchedNode) {
-                inspectNode(matchedNode, { toggle: true });
+                inspectNode(matchedNode, { toggle: true, focusFileIdx: fidx });
               } else {
-                const bar = document.getElementById("nodeInspectorBar");
-                bar.classList.add("has-selection");
-                bar.innerHTML =
-                  `<span><strong>${escapeHtml(f.shortName)}</strong> · ${escapeHtml(f.role)} · Risk: <strong>${escapeHtml((f.risk || "low").toUpperCase())}</strong> · <code>${escapeHtml(f.path)}</code></span>`;
+                selectedNodeId = null;
+                selectedFilePath = selectedFilePath === f.path ? null : f.path;
+                renderInteractiveDiagram(debrief);
+                const targetChip = Array.from(document.getElementById("touchedFilesStrip").querySelectorAll(".file-badge")).find(
+                  (el) => el.getAttribute("data-fidx") === String(fidx)
+                );
+                if (targetChip && typeof targetChip.focus === "function") targetChip.focus();
               }
             });
           });
@@ -2142,8 +2199,12 @@
 
           document.getElementById("tldrHeadline").textContent =
             debrief.tldrHeadline || "Visual summary of the latest response.";
-          document.getElementById("realWorldAnalogy").textContent =
-            debrief.realWorldAnalogy || "";
+          const analogyText = String(debrief.realWorldAnalogy || "").trim();
+          const analogyBox = document.getElementById("analogyBox");
+          if (analogyBox) {
+            analogyBox.style.display = analogyText ? "block" : "none";
+          }
+          document.getElementById("realWorldAnalogy").textContent = analogyText;
 
           // Always-On Interactive SVG Diagram
           renderInteractiveDiagram(debrief);
@@ -2416,6 +2477,13 @@
 
           if (!isComplex || scenes.length === 0) {
             stopExplainerPlayback();
+            const explainerSection = document.getElementById("tab-explainer");
+            if (
+              tabBtn.getAttribute("aria-selected") === "true" ||
+              (explainerSection && explainerSection.style.display === "block")
+            ) {
+              switchTab("storyboard");
+            }
             return;
           }
 
@@ -2433,8 +2501,13 @@
 
           pillsEl.querySelectorAll(".scene-pill").forEach((btn) => {
             btn.addEventListener("click", () => {
-              playerState.sceneIndex = Number(btn.getAttribute("data-sidx"));
+              const targetIdx = Number(btn.getAttribute("data-sidx"));
+              playerState.sceneIndex = targetIdx;
               renderExplainerTab(debrief);
+              const nextPill = Array.from(pillsEl.querySelectorAll(".scene-pill")).find(
+                (el) => el.getAttribute("data-sidx") === String(targetIdx)
+              );
+              if (nextPill && typeof nextPill.focus === "function") nextPill.focus();
               if (playerState.playing) {
                 speakScene(scenes[playerState.sceneIndex]?.narration);
               }
@@ -2543,8 +2616,8 @@
                 </div>
                 <div class="lesson-summary">${escapeHtml(c.summary)}</div>
                 <div class="lesson-meta-box">
-                  <div><b>Why:</b> ${escapeHtml(c.why)}</div>
-                  <div><b>How to apply:</b> ${escapeHtml(c.howToApply)}</div>
+                  <div><b>Why:</b> ${escapeHtml(c.why || "Prevents repeat mistakes.")}</div>
+                  <div><b>How to apply:</b> ${escapeHtml(c.howToApply || "Apply automatically in future sessions.")}</div>
                 </div>
               </div>`
             )
@@ -2592,6 +2665,7 @@
             }
             viewingHistoryIdx = idx;
             selectedNodeId = null;
+            selectedFilePath = null;
             stopExplainerPlayback();
             currentState.currentDebrief = item;
             renderPanelState(currentState, { fromHistory: true });
@@ -2668,17 +2742,24 @@
         // Wire Return to Latest Snapshot Button
         const returnLatestBtn = document.getElementById("btnReturnLatest");
         if (returnLatestBtn && returnLatestBtn.addEventListener) {
-          returnLatestBtn.addEventListener("click", () => {
+          returnLatestBtn.addEventListener("click", async () => {
             if (!currentState) return;
             viewingHistoryIdx = null;
             selectedNodeId = null;
+            selectedFilePath = null;
             stopExplainerPlayback();
             if (latestDebriefSnapshot) {
               currentState.currentDebrief = latestDebriefSnapshot;
               renderPanelState(currentState);
               showToast("↩ Returned to latest turn debrief", "ok");
             } else {
-              refreshState({ silent: false });
+              setButtonBusy(returnLatestBtn, true);
+              try {
+                const synced = await refreshState({ silent: false });
+                if (synced) showToast("↩ Returned to latest turn debrief", "ok");
+              } finally {
+                setButtonBusy(returnLatestBtn, false);
+              }
             }
             const storyboardTab = document.getElementById("tabBtnStoryboard");
             if (storyboardTab && typeof storyboardTab.focus === "function") {

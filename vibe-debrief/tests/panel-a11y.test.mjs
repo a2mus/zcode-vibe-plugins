@@ -1325,4 +1325,90 @@ describe("Story 4.2 & UX Ergonomics — Keyboard SVG nodes, history replay, redu
     assert.equal(stopped, true);
     assert.equal(env.elements.get("customLessonForm").style.display, "none");
   });
+
+  it("enforces Field Desk Light semantic wash contrast, unmatched file-chip toggle, and Explainer hidden-tab fallback", () => {
+    for (const selector of [
+      "body\\.theme-light \\.tab-btn\\.active",
+      "body\\.theme-light \\.pill-impl",
+      "body\\.theme-light \\.pill-success",
+      "body\\.theme-light \\.ste-toggle-chip\\.active",
+      "body\\.theme-light \\.mode-btn\\.active-impl"
+    ]) {
+      assert.match(styleText, new RegExp(`${selector}[\\s\\S]*color:\\s*var\\(--text-primary\\)`));
+    }
+
+    const env = buildKeyboardEnv();
+    env.pushState({
+      projectName: "ux-test",
+      activePersona: "vibe-mentor",
+      personas: [{ id: "vibe-mentor", name: "Vibe Mentor", badge: "🧑‍💻 Vibe Mentor" }],
+      ste100Enabled: true,
+      confirmedLessons: [],
+      history: [],
+      currentDebrief: {
+        id: "turn-complex",
+        responseType: "implementation",
+        tldrHeadline: "Complex turn",
+        realWorldAnalogy: "",
+        complexity: { level: "complex", reason: "Multi-layer" },
+        touchedFiles: [
+          { path: "src/node.mjs", shortName: "node.mjs", role: "Logic", risk: "medium", icon: "📄" },
+          { path: "docs/notes.md", shortName: "notes.md", role: "Docs", risk: "low", icon: "📝" }
+        ],
+        diagram: {
+          title: "Flow",
+          nodes: [{ id: "n1", label: "Node A", role: "Logic", risk: "medium", file: "src/node.mjs" }],
+          edges: []
+        },
+        explainerScenes: [{ title: "Scene 1", narration: "Walkthrough step." }]
+      }
+    });
+
+    // Empty realWorldAnalogy hides analogyBox
+    assert.equal(env.elements.get("analogyBox").style.display, "none");
+
+    // Select SVG node n1, then click unmatched file chip notes.md -> deselects n1, selects chip, and toggles off cleanly
+    const svg = env.elements.get("diagramSvg");
+    const strip = env.elements.get("touchedFilesStrip");
+    const inspector = env.elements.get("nodeInspectorBar");
+    svg.querySelectorAll(".diagram-node-group")[0].dispatchEvent({ type: "click" });
+    assert.equal(svg.querySelectorAll(".diagram-node-group")[0].getAttribute("aria-pressed"), "true");
+
+    strip.querySelectorAll(".file-badge")[1].dispatchEvent({ type: "click" });
+    assert.equal(svg.querySelectorAll(".diagram-node-group")[0].getAttribute("aria-pressed"), "false");
+    assert.equal(strip.querySelectorAll(".file-badge")[1].getAttribute("aria-pressed"), "true");
+    assert.match(inspector.innerHTML, /docs\/notes\.md/);
+
+    strip.querySelectorAll(".file-badge")[1].dispatchEvent({ type: "click" });
+    assert.equal(strip.querySelectorAll(".file-badge")[1].getAttribute("aria-pressed"), "false");
+    assert.equal(inspector.classList.contains("has-selection"), false);
+
+    // Open Explainer tab on complex turn, then push a simple turn -> must auto-switch back to Storyboard
+    env.elements.get("tabBtnExplainer").dispatchEvent({ type: "click" });
+    assert.equal(env.elements.get("tab-explainer").style.display, "block");
+
+    env.pushState({
+      projectName: "ux-test",
+      activePersona: "vibe-mentor",
+      personas: [{ id: "vibe-mentor", name: "Vibe Mentor", badge: "🧑‍💻 Vibe Mentor" }],
+      ste100Enabled: true,
+      confirmedLessons: [],
+      history: [],
+      currentDebrief: {
+        id: "turn-simple",
+        responseType: "implementation",
+        tldrHeadline: "Simple turn",
+        realWorldAnalogy: "A clear sign.",
+        complexity: { level: "simple", reason: "Single step" },
+        touchedFiles: [],
+        diagram: { title: "Simple", nodes: [], edges: [] },
+        explainerScenes: []
+      }
+    });
+
+    assert.equal(env.elements.get("tabBtnExplainer").style.display, "none");
+    assert.equal(env.elements.get("tab-explainer").style.display, "none");
+    assert.equal(env.elements.get("tab-storyboard").style.display, "block");
+    assert.equal(env.elements.get("analogyBox").style.display, "block");
+  });
 });

@@ -223,6 +223,9 @@ function createDefaultState(workspaceRoot) {
     workspaceRoot,
     activePersona: "vibe-mentor",
     ste100Enabled: true,
+    language: "en",
+    preferredModel: "auto-cheapest",
+    themePreference: "auto",
     turnCount: 0,
     lastUserPrompt: "",
     lastAssistantMessage: "",
@@ -699,6 +702,135 @@ export function buildDefaultDiagram(debrief, explicitDiagram = null) {
 }
 
 // ============================================================================
+// Story 5.2 (AD-14): 5-Grammar diagramSpec Normalizer & Lane-Safe Edge Synthesis
+// ============================================================================
+
+export const VALID_DIAGRAM_GRAMMARS = Object.freeze([
+  "sequence",
+  "flow-diff",
+  "subway-map",
+  "before-after",
+  "decision-tree"
+]);
+
+// Deterministic 4-to-5 mapping: legacy v0.2.0/v0.3.0 diagramType -> OQ-5 grammar.
+const LEGACY_GRAMMAR_MAP = Object.freeze({
+  sequence: "sequence",
+  "state-flow": "flow-diff",
+  "cause-effect": "before-after",
+  architecture: "subway-map"
+});
+
+export function resolveDiagramGrammar(diagram, choices = []) {
+  const rawGrammar = String(diagram?.grammar || "");
+  const rawType = String(diagram?.diagramType || "");
+  // Rule 1: two or more choices (or an explicit decision-tree) always win.
+  if ((Array.isArray(choices) && choices.length >= 2) || rawGrammar === "decision-tree" || rawType === "decision-tree") {
+    return "decision-tree";
+  }
+  // Rules 2-5: an explicit OQ-5 grammar is kept; legacy types map deterministically.
+  // Object.hasOwn guards against prototype-chain keys ("constructor", "toString",
+  // "__proto__") so the resolved grammar is always one of the 5 valid strings.
+  if (VALID_DIAGRAM_GRAMMARS.includes(rawGrammar)) return rawGrammar;
+  if (VALID_DIAGRAM_GRAMMARS.includes(rawType)) return rawType;
+  if (Object.hasOwn(LEGACY_GRAMMAR_MAP, rawType)) return LEGACY_GRAMMAR_MAP[rawType];
+  if (Object.hasOwn(LEGACY_GRAMMAR_MAP, rawGrammar)) return LEGACY_GRAMMAR_MAP[rawGrammar];
+  return "subway-map";
+}
+
+// Auto-synthesized edges chain nodes sequentially. In "before-after" grammar the
+// chain stays inside each lane: the last "before" node never bridges into the
+// first "after" node (AD-14 lane-safe edge synthesis).
+export function synthesizeLaneSafeEdges(nodes, grammar = "sequence") {
+  const safeNodes = Array.isArray(nodes) ? nodes : [];
+  if (safeNodes.length < 2) return [];
+
+  const chain = (laneNodes) =>
+    laneNodes.slice(0, -1).map((node, idx) => ({
+      from: node.id,
+      to: laneNodes[idx + 1].id,
+      label: "Flows to",
+      risk: laneNodes[idx + 1].risk || "low",
+      animated: false
+    }));
+
+  if (grammar === "before-after") {
+    const beforeNodes = safeNodes.filter((n) => String(n.lane || "") === "before");
+    const afterNodes = safeNodes.filter((n) => String(n.lane || "") === "after");
+    const otherNodes = safeNodes.filter((n) => !["before", "after"].includes(String(n.lane || "")));
+    return [...chain(beforeNodes), ...chain(afterNodes), ...chain(otherNodes)];
+  }
+
+  return chain(safeNodes);
+}
+
+export function normalizeDiagramSpec(diagram, { choices = [] } = {}) {
+  const source = diagram && typeof diagram === "object" ? diagram : {};
+  const grammar = resolveDiagramGrammar(source, choices);
+  const title = String(source.title || "Component & Data Flow");
+  const techTitle = String(source.techTitle || title);
+
+  const nodes = (Array.isArray(source.nodes) ? source.nodes : []).slice(0, 6).map((n, idx) => ({
+    id: String(n.id || `n${idx + 1}`),
+    label: String(n.label || `Step ${idx + 1}`).slice(0, 32),
+    sublabel: String(n.sublabel || "").slice(0, 40),
+    role: String(n.role || "Component"),
+    file: String(n.file || ""),
+    risk: ["low", "medium", "high"].includes(n.risk) ? n.risk : "low",
+    status: ["done", "active", "pending", "warning"].includes(n.status) ? n.status : "done",
+    ...(n.techLabel ? { techLabel: String(n.techLabel) } : {}),
+    ...(n.lane ? { lane: String(n.lane) } : {}),
+    ...(n.branch ? { branch: String(n.branch) } : {})
+  }));
+
+  const groups = (Array.isArray(source.groups) ? source.groups : []).map((g, idx) => ({
+    id: String(g?.id || `g${idx + 1}`),
+    label: String(g?.label || `Group ${idx + 1}`),
+    lane: String(g?.lane || "")
+  }));
+
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  let edges = (Array.isArray(source.edges) ? source.edges : [])
+    .filter((e) => e && nodeById.has(String(e.from)) && nodeById.has(String(e.to)))
+    .map((e) => ({
+      from: String(e.from),
+      to: String(e.to),
+      label: String(e.label || "Flows to").slice(0, 30),
+      risk: ["low", "medium", "high"].includes(e.risk) ? e.risk : "low",
+      ...(e.techLabel ? { techLabel: String(e.techLabel) } : {}),
+      animated: Boolean(e.animated)
+    }));
+
+  if (grammar === "before-after") {
+    // Lane safety: drop any edge that bridges the before lane and the after lane.
+    edges = edges.filter((e) => {
+      const fromLane = nodeById.get(e.from)?.lane || "";
+      const toLane = nodeById.get(e.to)?.lane || "";
+      const crossesLanes =
+        (fromLane === "before" && toLane === "after") || (fromLane === "after" && toLane === "before");
+      return !crossesLanes;
+    });
+  }
+
+  if (edges.length === 0 && nodes.length > 1) {
+    edges = synthesizeLaneSafeEdges(nodes, grammar);
+  }
+
+  edges = edges.map((e, idx) => ({ ...e, stepNumber: idx + 1 }));
+
+  return {
+    grammar,
+    diagramType: grammar,
+    title,
+    techTitle,
+    viewBoxWidth: 460,
+    groups,
+    nodes,
+    edges
+  };
+}
+
+// ============================================================================
 // Epistemic Safety: Card 3 Proof Claims & Card 4 Uncertainty / Checklist
 // ============================================================================
 
@@ -1166,37 +1298,24 @@ export function ensureDebriefEnriched(debrief, state = {}) {
     .slice(0, STATE_COLLECTION_LIMITS.recentTouchedFiles)
     .map((f) => (typeof f === "string" ? classifyFileRole(f) : f));
 
+  const choices = normalizeChoices(debrief.choices);
+
   const rawDiagram = debrief.diagramSpec || debrief.diagram;
   const diagram = buildDefaultDiagram(debrief, rawDiagram);
+  // Keep explicit spec metadata even when nodes were auto-synthesized
+  // (buildDefaultDiagram ignores metadata on node-less specs).
+  if (rawDiagram && typeof rawDiagram === "object") {
+    if (rawDiagram.grammar) diagram.grammar = rawDiagram.grammar;
+    if (rawDiagram.diagramType) diagram.diagramType = rawDiagram.diagramType;
+    if (rawDiagram.title) diagram.title = rawDiagram.title;
+    if (rawDiagram.techTitle) diagram.techTitle = rawDiagram.techTitle;
+    if (Array.isArray(rawDiagram.groups) && rawDiagram.groups.length > 0) diagram.groups = rawDiagram.groups;
+  }
 
-  const grammar = rawDiagram?.grammar || diagram.grammar || diagram.diagramType || (debrief.responseType === "bug" ? "cause-effect" : "architecture");
-  const diagramType = diagram.diagramType || rawDiagram?.diagramType || grammar;
-  const title = rawDiagram?.title || diagram.title || (debrief.responseType === "bug" ? "Root Cause to Fix Verification" : "Component & Data Flow");
-  const techTitle = rawDiagram?.techTitle || diagram.techTitle || title;
-  const viewBoxWidth = Number(rawDiagram?.viewBoxWidth || diagram.viewBoxWidth) || 460;
-  const groups = Array.isArray(rawDiagram?.groups) ? rawDiagram.groups : Array.isArray(diagram.groups) ? diagram.groups : [];
-  const nodes = (diagram.nodes || []).slice(0, 6);
-  const edges = diagram.edges || [];
-
-  const diagramSpec = {
-    grammar,
-    diagramType,
-    title,
-    techTitle,
-    viewBoxWidth,
-    groups,
-    nodes,
-    edges
-  };
-
-  diagram.grammar = grammar;
-  diagram.diagramType = diagramType;
-  diagram.title = title;
-  diagram.techTitle = techTitle;
-  diagram.viewBoxWidth = viewBoxWidth;
-  diagram.groups = groups;
-  diagram.nodes = nodes;
-  diagram.edges = edges;
+  // AD-14: normalize to the 5-grammar OQ-5 spec. diagramSpec is the sync alias
+  // of debrief.diagram so v0.2.0/v0.3.0 callers read the exact same object.
+  const diagramSpec = normalizeDiagramSpec(diagram, { choices });
+  Object.assign(diagram, diagramSpec);
 
   const hasExplicitScenes = Array.isArray(debrief.explainerScenes) && debrief.explainerScenes.length > 0;
   const complexity =
@@ -1257,7 +1376,6 @@ export function ensureDebriefEnriched(debrief, state = {}) {
   }
 
   const verdict = normalizeVerdict(debrief.verdict, debrief);
-  const choices = normalizeChoices(debrief.choices);
   const waitingOnYou = normalizeWaitingOnYou(debrief.waitingOnYou, {
     choices,
     verdict,
@@ -1650,10 +1768,15 @@ export function generateStandaloneHtmlArtifact(panelState) {
         --purple:#6d28d9; --teal:#0d9488;
         --explainer-stage-bg:#f1ece1; --canvas-grid-line:rgba(2,132,199,0.08);
       }
+      .pill.impl { color:var(--text-primary); background:var(--accent-soft); }
+      .pill.ste { color:var(--text-primary); background:var(--ok-soft); }
+      .script-summary { color:var(--text-primary); }
     }
     * { box-sizing:border-box; }
     :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
     @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition:none !important; animation:none !important; scroll-behavior:auto !important; } }
+    .dnode:hover rect, .dnode:focus-visible rect { stroke-width:2.6; }
+    .script-summary { cursor:pointer; color:var(--accent); font-weight:700; }
     body { margin:0; padding:24px; background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif; line-height:1.55; }
     .wrap { max-width:960px; margin:0 auto; }
     .hero { background:linear-gradient(145deg,var(--card),var(--panel)); border:1px solid var(--border); border-radius:14px; padding:20px; margin-bottom:16px; }
@@ -1752,7 +1875,7 @@ export function generateStandaloneHtmlArtifact(panelState) {
     </div>
     <canvas id="sceneCanvas" width="880" height="230" style="width:100%;background:var(--explainer-stage-bg);border-radius:10px;border:1px solid var(--border);"></canvas>
     <div id="sceneCaption" style="margin-top:8px;font-weight:600;"></div>
-    <details style="margin-top:10px;"><summary style="cursor:pointer;color:var(--accent);font-weight:700;">📄 Plain-Text Narration Script (Verify Claims)</summary><pre>${escapeHtml(scriptText)}</pre></details>
+    <details style="margin-top:10px;"><summary class="script-summary">📄 Plain-Text Narration Script (Verify Claims)</summary><pre>${escapeHtml(scriptText)}</pre></details>
   </div>`
       : ""
   }
@@ -1795,6 +1918,7 @@ export function generateStandaloneHtmlArtifact(panelState) {
     };
   }
   var selectedNodeId = null;
+  var selectedFilePath = null;
   var defaultInspectorText = "Click or press Enter on a diagram node or file chip to inspect its role and risk level.";
   nodes.forEach(function(n, i){
     pos[n.id] = { x: startX + i*(boxW+gap), y: 58, w: boxW, h: 86 };
@@ -1807,20 +1931,32 @@ export function generateStandaloneHtmlArtifact(panelState) {
   }
   function renderChips(){
     chipsEl.innerHTML = "";
-    (DATA.touchedFiles || []).forEach(function(f){
+    (DATA.touchedFiles || []).forEach(function(f, fidx){
       var btn = document.createElement("button");
       var matched = nodes.find(function(x){ return x.file === f.path || x.label === f.shortName; });
-      var isSel = Boolean(matched && selectedNodeId === matched.id);
+      var isSel = Boolean((matched && selectedNodeId === matched.id) || (!matched && selectedFilePath === f.path));
       btn.className = "chip " + (f.risk || "low") + (isSel ? " selected" : "");
+      btn.setAttribute("data-fidx", String(fidx));
       btn.setAttribute("aria-pressed", isSel ? "true" : "false");
       btn.textContent = (f.icon || "📄") + " " + f.shortName + " · " + (f.risk || "low").toUpperCase();
       btn.addEventListener("click", function(){
         if (matched) {
-          inspectNode(matched, { toggle: true });
+          inspectNode(matched, { toggle: true, focusChipIdx: fidx });
         } else {
           selectedNodeId = null;
+          if (selectedFilePath === f.path) {
+            selectedFilePath = null;
+            syncInspector(defaultInspectorText, false);
+          } else {
+            selectedFilePath = f.path;
+            syncInspector(f.path + " — " + f.role + " (" + (f.intent || f.risk) + ")", true);
+          }
           renderDiagram();
-          syncInspector(f.path + " — " + f.role + " (" + (f.intent || f.risk) + ")", true);
+          renderChips();
+          if (chipsEl.querySelectorAll) {
+            var targetChip = Array.prototype.find.call(chipsEl.querySelectorAll(".chip"), function(el){ return el.getAttribute("data-fidx") === String(fidx); });
+            if (targetChip && typeof targetChip.focus === "function") targetChip.focus();
+          }
         }
       });
       chipsEl.appendChild(btn);
@@ -1829,6 +1965,8 @@ export function generateStandaloneHtmlArtifact(panelState) {
   function inspectNode(n, opts){
     var toggle = opts && opts.toggle;
     var focusNode = opts && opts.focusNode;
+    var focusChipIdx = opts && opts.focusChipIdx;
+    selectedFilePath = null;
     if (toggle && selectedNodeId === n.id) {
       selectedNodeId = null;
       syncInspector(defaultInspectorText, false);
@@ -1841,10 +1979,17 @@ export function generateStandaloneHtmlArtifact(panelState) {
     if (focusNode) {
       var target = Array.prototype.find.call(svg.querySelectorAll(".dnode"), function(el){ return el.getAttribute("data-id") === n.id; });
       if (target && typeof target.focus === "function") target.focus();
+    } else if (focusChipIdx !== undefined && focusChipIdx !== null && chipsEl.querySelectorAll) {
+      var chipTarget = Array.prototype.find.call(chipsEl.querySelectorAll(".chip"), function(el){ return el.getAttribute("data-fidx") === String(focusChipIdx); });
+      if (chipTarget && typeof chipTarget.focus === "function") chipTarget.focus();
     }
   }
   function renderDiagram(){
     var T = resolveTokens();
+    if (!nodes.length) {
+      svg.innerHTML = '<text x="440" y="105" text-anchor="middle" fill="'+T.textSecondary+'" font-size="13">Diagram pending…</text>';
+      return;
+    }
     var html = '<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 1 L 10 5 L 0 9 z" fill="'+T.accent+'"/></marker></defs>';
     edges.forEach(function(e){
       var a = pos[e.from], b = pos[e.to];
@@ -2143,8 +2288,16 @@ export function confirmAndSaveLessonToZCodeMemory(workspaceRoot, lessonInput) {
   return confirmedRecord;
 }
 
-export function discoverLightweightGeminiModels() {
-  const zcodeV2Dir = join(getZCodeHomeDir(), ".zcode", "v2");
+// ============================================================================
+// Story 5.3 (AD-5 / AD-13 / AD-17): Model-Agnostic Cheapest Model & Visual Plugin Discovery
+// ============================================================================
+
+export function discoverCheapestEnabledModels(options = {}) {
+  const home =
+    options && typeof options === "object" && options.homeDir
+      ? String(options.homeDir).trim()
+      : getZCodeHomeDir();
+  const zcodeV2Dir = join(home, ".zcode", "v2");
   const providerCfgPath = join(zcodeV2Dir, "provider_config.json");
   const settingPath = join(zcodeV2Dir, "setting.json");
   const credsPath = join(zcodeV2Dir, "credentials.json");
@@ -2163,27 +2316,66 @@ export function discoverLightweightGeminiModels() {
   const discovered = [];
   const seen = new Set();
 
-  const addCandidate = (providerId, modelId, providerName) => {
-    const fullId = `${providerId}/${modelId}`;
-    if (seen.has(fullId)) return;
-    if (!/gemini/i.test(modelId)) return;
-    if (/image/i.test(modelId)) return;
-    seen.add(fullId);
+  const personalModelRules = [
+    ...(personalCfg?.config?.modelConfigRules?.providerModelRules || []),
+    ...(personalCfg?.config?.modelConfigRules?.manualProviderModelRules || []),
+    ...(personalCfg?.modelConfigRules?.providerModelRules || []),
+    ...(personalCfg?.modelConfigRules?.manualProviderModelRules || [])
+  ];
+  const disabledModelKeys = new Set(
+    personalModelRules
+      .filter((m) => m?.enabled === false || m?.config?.enabled === false || m?.config?.visibility === "hidden")
+      .map((m) => `${m.providerId}/${m.modelId || m.id}`)
+  );
+
+  const addCandidate = (providerId, rawModelId, providerName) => {
+    const cleanProviderId = String(providerId || "").trim();
+    const cleanModelId = String(rawModelId || "").trim();
+    if (!cleanProviderId || !cleanModelId) return;
+    const modelId = cleanModelId.startsWith(`${cleanProviderId}/`)
+      ? cleanModelId.slice(cleanProviderId.length + 1)
+      : cleanModelId;
+    if (!modelId) return;
+
+    const fullId = `${cleanProviderId}/${modelId}`;
+    if (seen.has(fullId) || disabledModelKeys.has(fullId)) return;
 
     const low = modelId.toLowerCase();
+    // Skip non-text / media / embedding / moderation models
+    if (/image|imagen|veo|dall-e|audio|tts|whisper|embed|rerank|moderation/i.test(low)) return;
+    // Skip heavy flagship reasoning / frontier models unless explicitly mini/nano/flash/haiku/lite
+    if (
+      /\b(opus|sonnet|gpt-4-turbo|o1-pro|o3-pro|deepseek-reasoner|deepseek-r1)\b/i.test(low) &&
+      !/mini|nano|flash|haiku|lite|distill|[0-9]+b\b/i.test(low)
+    ) {
+      return;
+    }
+
+    const isCheapTier =
+      /argon|flash|hydrogen|haiku|mini|nano|turbo|lite|light|fast|small|air|spark|instant|deepseek-chat|[0-9]+b\b/i.test(
+        low
+      );
+    if (!isCheapTier) return;
+
+    seen.add(fullId);
+
     let score = 0;
     if (/gemini-4-argon$/i.test(low) || /gemini-3\.8-flash$/i.test(low)) score += 10;
-    else if (/argon|flash/i.test(low) && !/lite|xhigh|high/i.test(low)) score += 8;
-    else if (/argon-medium|flash-medium/i.test(low)) score += 7;
-    else if (/argon|flash/i.test(low)) score += 5;
+    else if (/nano/i.test(low) && !/lite|xhigh|high/i.test(low)) score += 9;
+    else if (/argon|flash|haiku|mini/i.test(low) && !/lite|xhigh|high/i.test(low)) score += 8;
+    else if (/argon-medium|flash-medium|haiku-medium|mini-medium/i.test(low)) score += 7;
+    else if (/argon|flash|haiku|nano|mini/i.test(low)) score += 5;
+    else if (/turbo|air|small|fast|light|instant|spark|deepseek-chat|[0-9]+b\b/i.test(low)) score += 4;
     else if (/hydrogen$/i.test(low) || /hydrogen-medium$/i.test(low)) score += 3;
+    else if (/lite/i.test(low)) score += 5;
     if (/xhigh|max|lite/i.test(low)) score -= 3;
+    if (score <= 0) return;
 
     discovered.push({
       id: fullId,
       modelId,
-      providerId,
-      providerName: providerName || providerId,
+      providerId: cleanProviderId,
+      providerName: providerName || cleanProviderId,
       score
     });
   };
@@ -2192,32 +2384,41 @@ export function discoverLightweightGeminiModels() {
   for (const sub of settingCfg?.subscriptions || []) {
     if (sub?.enabled === false) continue;
     const pid = `account:${sub.id}`;
-    const models = subInfo?.[sub.id]?.models || [];
+    const models = subInfo?.[sub.id]?.models || sub?.models || [];
     for (const m of models) {
-      const mid = typeof m === "string" ? m : m?.id;
+      if (m && typeof m === "object" && (m.enabled === false || m.disabled === true)) continue;
+      const mid = typeof m === "string" ? m : m?.id || m?.modelId;
       if (mid) addCandidate(pid, mid, sub.name || sub.id);
     }
   }
 
-  const personalProviderRules = personalCfg?.config?.providerConfigRules?.providerRules || [];
-  const personalModelRules = [
-    ...(personalCfg?.config?.modelConfigRules?.providerModelRules || []),
-    ...(personalCfg?.config?.modelConfigRules?.manualProviderModelRules || [])
-  ];
+  const personalProviderRules =
+    personalCfg?.config?.providerConfigRules?.providerRules ||
+    personalCfg?.providerConfigRules?.providerRules ||
+    personalCfg?.providers ||
+    [];
 
   for (const pr of personalProviderRules) {
-    const pid = pr.providerId;
-    const pConfig = pr.config || {};
+    const pid = pr?.providerId || pr?.id;
+    if (!pid) continue;
+    const pConfig = pr.config || pr;
     if (pr.enabled === false || pConfig.enabled === false || pConfig.visibility === "hidden") continue;
     if (pConfig.access?.type === "api-key" && !String(pConfig.access?.apiKey || "").trim()) continue;
     const mids = [
       ...(pConfig.modelOrder || []),
       ...(pConfig.personalModelIds || []),
       ...(pConfig.builtinModelIds || []),
-      ...personalModelRules.filter((m) => m.providerId === pid).map((m) => m.modelId)
+      ...(Array.isArray(pConfig.models)
+        ? pConfig.models
+            .filter((m) => !(m && typeof m === "object" && (m.enabled === false || m.disabled === true)))
+            .map((m) => (typeof m === "string" ? m : m?.id || m?.modelId))
+        : []),
+      ...personalModelRules
+        .filter((m) => m.providerId === pid && m?.enabled !== false && m?.config?.enabled !== false)
+        .map((m) => m.modelId || m.id)
     ];
     for (const mid of mids) {
-      if (mid) addCandidate(pid, mid, pr.providerName || pid);
+      if (mid) addCandidate(pid, mid, pr.providerName || pr.name || pid);
     }
   }
 
@@ -2225,11 +2426,258 @@ export function discoverLightweightGeminiModels() {
   return discovered;
 }
 
+// Backward-compatible export alias retained per AD-5 / R17.
+export const discoverLightweightGeminiModels = discoverCheapestEnabledModels;
+
+function resolveVisualPluginTokens(rawToken) {
+  const raw = String(rawToken || "").toLowerCase().trim();
+  if (!raw) return [];
+  const withoutMarketplace = raw.split("@")[0].trim();
+  if (!withoutMarketplace) return [];
+
+  const matches = [];
+  if (/(?:^|[/\\_:.-])excalidraw(?:$|[/\\_:.-])/.test(withoutMarketplace)) {
+    matches.push("excalidraw");
+  }
+  if (/(?:^|[/\\_:.-])visualize(?:$|[/\\_:.-])/.test(withoutMarketplace)) {
+    matches.push("visualize");
+  }
+  if (/(?:^|[/\\_:.-])vectorcraft(?:$|[/\\_:.-])/.test(withoutMarketplace)) {
+    matches.push("vectorcraft");
+  }
+  if (/(?:^|[/\\_:.-])designcraft(?:$|[/\\_:.-])/.test(withoutMarketplace)) {
+    matches.push("designcraft");
+  }
+  // Map the official ZCode "design" plugin bundle (or plugin_design server) to
+  // both "vectorcraft" and "designcraft" without false-matching "designcraft" or "bmad-agent-ux-designer".
+  if (
+    /(?:^|[/\\:])design(?:$|[/\\:])/.test(withoutMarketplace) ||
+    /^(?:mcp__)?plugin[_-]+design(?:[_-]+design)?$/.test(withoutMarketplace)
+  ) {
+    matches.push("vectorcraft", "designcraft");
+  }
+  return matches;
+}
+
+export function discoverInstalledVisualPlugins(workspaceOrOptions = "") {
+  const workspaceRoot =
+    typeof workspaceOrOptions === "string"
+      ? workspaceOrOptions.trim()
+      : String(workspaceOrOptions?.workspaceRoot || "").trim();
+  const home =
+    workspaceOrOptions && typeof workspaceOrOptions === "object" && workspaceOrOptions.homeDir
+      ? String(workspaceOrOptions.homeDir).trim()
+      : getZCodeHomeDir();
+
+  const found = new Set();
+  const disabledPluginNames = new Set();
+
+  const readJsonSafe = (p) => {
+    try {
+      return existsSync(p) ? JSON.parse(readFileSync(p, "utf8")) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const recordToken = (token) => {
+    for (const target of resolveVisualPluginTokens(token)) {
+      found.add(target);
+    }
+  };
+
+  const inspectMcpJsonFile = (mcpPath) => {
+    if (!mcpPath) return;
+    const data = readJsonSafe(mcpPath);
+    if (!data || typeof data !== "object" || Array.isArray(data)) return;
+    const serversObj =
+      (data.mcpServers && typeof data.mcpServers === "object" && data.mcpServers) ||
+      (data.servers && typeof data.servers === "object" && data.servers) ||
+      data;
+    for (const [serverKey, serverCfg] of Object.entries(serversObj)) {
+      if (serverKey === "mcpServers" || serverKey === "servers") continue;
+      if (serverCfg && typeof serverCfg === "object" && (serverCfg.enabled === false || serverCfg.disabled === true)) {
+        continue;
+      }
+      recordToken(serverKey);
+    }
+  };
+
+  const inspectSkillsDir = (skillsDir) => {
+    if (!skillsDir) return;
+    try {
+      if (!existsSync(skillsDir)) return;
+      const entries = readdirSync(skillsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          recordToken(entry.name);
+        } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+          recordToken(entry.name.replace(/\.md$/i, ""));
+        }
+      }
+    } catch {
+      // ignore unreadable skills directory
+    }
+  };
+
+  const readPluginManifest = (dirPath) =>
+    readJsonSafe(join(dirPath, ".zcode-plugin", "plugin.json")) ||
+    readJsonSafe(join(dirPath, "plugin.json"));
+
+  const isManifestDisabled = (manifest) =>
+    Boolean(manifest && typeof manifest === "object" && (manifest.enabled === false || manifest.disabled === true));
+
+  const inspectPluginDirectory = (pluginDir, dirNameHint = "") => {
+    if (!pluginDir) return;
+    const manifest = readPluginManifest(pluginDir);
+    if (isManifestDisabled(manifest)) return;
+
+    let subDirs = [];
+    try {
+      subDirs = readdirSync(pluginDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+    } catch {}
+
+    // If version subdirectories carry manifests and every manifest is disabled, skip this plugin.
+    const subManifests = subDirs.map((d) => readPluginManifest(join(pluginDir, d.name))).filter(Boolean);
+    if (subManifests.length > 0 && subManifests.every(isManifestDisabled)) {
+      return;
+    }
+
+    if (manifest && typeof manifest === "object") {
+      recordToken(manifest.name || manifest.id || dirNameHint);
+    } else if (dirNameHint) {
+      recordToken(dirNameHint);
+    }
+    inspectMcpJsonFile(join(pluginDir, ".mcp.json"));
+    inspectSkillsDir(join(pluginDir, "skills"));
+
+    for (const sub of subDirs) {
+      const subPath = join(pluginDir, sub.name);
+      const subManifest = readPluginManifest(subPath);
+      if (isManifestDisabled(subManifest)) continue;
+      if (subManifest && typeof subManifest === "object") {
+        recordToken(subManifest.name || subManifest.id);
+      }
+      inspectMcpJsonFile(join(subPath, ".mcp.json"));
+      inspectSkillsDir(join(subPath, "skills"));
+    }
+  };
+
+  // 1. Inspect ~/.zcode/cli/plugins/ (installed_plugins.json, direct folders, cache/, marketplaces/)
+  if (home) {
+    const pluginsRoot = join(home, ".zcode", "cli", "plugins");
+    try {
+      if (existsSync(pluginsRoot)) {
+        for (const manifestFile of ["installed_plugins.json", "plugins.json"]) {
+          const parsed = readJsonSafe(join(pluginsRoot, manifestFile));
+          if (!parsed) continue;
+          const list = Array.isArray(parsed)
+            ? parsed
+            : Array.isArray(parsed.plugins)
+            ? parsed.plugins
+            : Array.isArray(parsed.installed)
+            ? parsed.installed
+            : typeof parsed === "object"
+            ? Object.entries(parsed)
+                .filter(([k]) => k !== "version")
+                .map(([k, v]) => (v && typeof v === "object" ? { name: k, ...v } : k))
+            : [];
+          for (const item of list) {
+            if (typeof item === "string") {
+              recordToken(item);
+              continue;
+            }
+            if (!item || typeof item !== "object") continue;
+            const rawName = String(item.name || item.id || item.pluginId || item.source?.path || "")
+              .toLowerCase()
+              .split("@")[0]
+              .trim();
+            if (item.enabled === false || item.disabled === true) {
+              if (rawName) disabledPluginNames.add(rawName);
+              continue;
+            }
+            if (rawName) disabledPluginNames.delete(rawName);
+            recordToken(item.name);
+            recordToken(item.id);
+            recordToken(item.pluginId);
+            recordToken(item.source?.path);
+          }
+        }
+
+        const scanPluginContainer = (containerDir, depth = 0) => {
+          if (depth > 3) return;
+          let entries = [];
+          try {
+            if (!existsSync(containerDir)) return;
+            entries = readdirSync(containerDir, { withFileTypes: true });
+          } catch {
+            return;
+          }
+          for (const entry of entries) {
+            if (!entry.isDirectory()) continue;
+            const lowerName = entry.name.toLowerCase();
+            if (lowerName === "data") continue;
+            const fullPath = join(containerDir, entry.name);
+            if (lowerName === "cache" || lowerName === "marketplaces" || lowerName === "plugins") {
+              scanPluginContainer(fullPath, depth + 1);
+              continue;
+            }
+            if (disabledPluginNames.has(lowerName)) continue;
+
+            const tokens = resolveVisualPluginTokens(entry.name);
+            if (tokens.length > 0) {
+              inspectPluginDirectory(fullPath, entry.name);
+            } else {
+              // Could be a marketplace container (e.g. cache/zcode-plugins-official/)
+              const manifest = readPluginManifest(fullPath);
+              if (manifest && !isManifestDisabled(manifest)) {
+                inspectPluginDirectory(fullPath, "");
+              }
+              scanPluginContainer(fullPath, depth + 1);
+            }
+          }
+        };
+
+        scanPluginContainer(pluginsRoot, 0);
+      }
+    } catch {
+      // ignore plugin discovery filesystem errors
+    }
+
+    inspectMcpJsonFile(join(home, ".mcp.json"));
+    inspectMcpJsonFile(join(home, ".zcode", ".mcp.json"));
+    inspectMcpJsonFile(join(home, ".zcode", "mcp.json"));
+    inspectSkillsDir(join(home, ".zcode", "skills"));
+    inspectSkillsDir(join(home, ".agents", "skills"));
+  }
+
+  // 2. Inspect workspace .mcp.json and project skills (skills/, .zcode/skills/, .agents/skills/)
+  if (workspaceRoot) {
+    inspectMcpJsonFile(join(workspaceRoot, ".mcp.json"));
+    inspectMcpJsonFile(join(workspaceRoot, ".zcode", ".mcp.json"));
+    inspectMcpJsonFile(join(workspaceRoot, ".zcode", "mcp.json"));
+    inspectSkillsDir(join(workspaceRoot, "skills"));
+    inspectSkillsDir(join(workspaceRoot, ".zcode", "skills"));
+    inspectSkillsDir(join(workspaceRoot, ".agents", "skills"));
+  }
+
+  return VALID_TARGET_PLUGINS.filter((plugin) => found.has(plugin));
+}
+
 export function buildFullPanelState(workspaceRoot) {
   const state = loadPersistedState(workspaceRoot);
   const memInfo = listZCodeMemories(workspaceRoot);
-  const geminiModels = discoverLightweightGeminiModels();
-  const recommendedGeminiModel = geminiModels[0]?.id || "new-provider/gemini-3.8-flash";
+  const cheapestModels = discoverCheapestEnabledModels();
+  const availableModels = cheapestModels.slice(0, 8);
+  const geminiModels = cheapestModels.filter((m) => /gemini/i.test(m.modelId || m.id));
+  const recommendedGeminiModel =
+    geminiModels[0]?.id || cheapestModels[0]?.id || "new-provider/gemini-3.8-flash";
+  const preferredModel = String(state.preferredModel || "auto-cheapest").trim() || "auto-cheapest";
+  const recommendedModel =
+    preferredModel !== "auto-cheapest"
+      ? preferredModel
+      : cheapestModels[0]?.id || "active-session";
+  const installedVisualPlugins = discoverInstalledVisualPlugins(workspaceRoot);
   const currentDebrief = ensureDebriefEnriched(
     state.currentDebrief || createWelcomeDebrief(basename(workspaceRoot), state.activePersona),
     state
@@ -2240,10 +2688,18 @@ export function buildFullPanelState(workspaceRoot) {
     workspaceRoot,
     activePersona: state.activePersona || "vibe-mentor",
     ste100Enabled: state.ste100Enabled !== false,
+    language: String(state.language || "en").trim() || "en",
+    preferredModel,
+    themePreference: ["auto", "dark", "light"].includes(state.themePreference)
+      ? state.themePreference
+      : "auto",
     turnCount: state.turnCount || 0,
     personas: PERSONAS,
     recommendedGeminiModel,
-    lightweightGeminiModels: geminiModels.slice(0, 8),
+    lightweightGeminiModels: availableModels,
+    recommendedModel,
+    availableModels,
+    installedVisualPlugins,
     lastUserPrompt: state.lastUserPrompt || "",
     lastAssistantMessage: state.lastAssistantMessage || "",
     currentDebrief,

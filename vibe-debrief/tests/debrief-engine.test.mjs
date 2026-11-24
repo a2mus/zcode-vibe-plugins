@@ -16,20 +16,26 @@ import {
   computeSte100Metrics,
   confirmAndSaveLessonToZCodeMemory,
   detectResponseType,
+  discoverCheapestEnabledModels,
+  discoverInstalledVisualPlugins,
   discoverLightweightGeminiModels,
   ensureDebriefEnriched,
   generateStandaloneHtmlArtifact,
   loadPersistedState,
   normalizeChoices,
   normalizeConcepts,
+  normalizeDiagramSpec,
   normalizeHeuristicConfidence,
   normalizeMicroBlocks,
   normalizeVerdict,
   normalizeWaitingOnYou,
   normalizeXray,
+  resolveDiagramGrammar,
   savePersistedState,
   saveStandaloneHtmlArtifact,
-  synthesizeHeuristicDebrief
+  synthesizeHeuristicDebrief,
+  synthesizeLaneSafeEdges,
+  VALID_DIAGRAM_GRAMMARS
 } from "../scripts/debrief-engine.mjs";
 import {
   ENGINE_PATH,
@@ -1399,6 +1405,53 @@ describe("standalone HTML export theme parity", () => {
     pauseBtn.dispatchEvent({ type: "click" });
     assert.equal(playBtn.getAttribute("aria-pressed"), "false");
     assert.equal(pauseBtn.getAttribute("aria-pressed"), "true");
+
+    // Light-mode semantic wash overrides & dnode hover/focus stroke rules exist
+    assert.match(html, /@media\s*\(prefers-color-scheme:\s*light\)[\s\S]*?\.pill\.impl[\s\S]*?color:\s*var\(--text-primary\)/i);
+    assert.match(html, /\.dnode:hover rect,\s*\.dnode:focus-visible rect\s*\{\s*stroke-width:\s*2\.6;\s*\}/i);
+  });
+
+  it("toggles unmatched file chips cleanly and includes empty-diagram placeholder in standalone HTML", () => {
+    const html = generateStandaloneHtmlArtifact(
+      buildPanelStateFixture({
+        debrief: {
+          tldrHeadline: "Unmatched chip turn",
+          diagram: {
+            title: "Flow",
+            nodes: [{ id: "n1", label: "Engine", role: "Logic", risk: "medium", file: "src/a.mjs" }],
+            edges: []
+          },
+          touchedFiles: [
+            { path: "src/a.mjs", shortName: "a.mjs", role: "Logic", risk: "medium", icon: "📄" },
+            { path: "docs/extra.md", shortName: "extra.md", role: "Docs", risk: "low", icon: "📝" }
+          ],
+          explainerScenes: []
+        }
+      })
+    );
+    assert.match(html, /Diagram pending/);
+
+    const run = renderArtifactScript(html, { theme: "light" });
+    const chipsEl = run.elements.get("fileChips");
+    const inspector = run.elements.get("nodeInspector");
+    assert.equal(chipsEl.appended.length, 2);
+
+    // Click matched chip first -> selects node n1
+    chipsEl.appended[0].dispatchEvent({ type: "click" });
+    assert.equal(chipsEl.appended[0].getAttribute("aria-pressed"), "true");
+    assert.equal(chipsEl.appended[1].getAttribute("aria-pressed"), "false");
+
+    // Click unmatched chip docs/extra.md -> deselects node n1, marks extra.md selected, updates inspector
+    chipsEl.appended[1].dispatchEvent({ type: "click" });
+    assert.equal(chipsEl.appended[0].getAttribute("aria-pressed"), "false");
+    assert.equal(chipsEl.appended[1].getAttribute("aria-pressed"), "true");
+    assert.match(chipsEl.appended[1].className, /\bselected\b/);
+    assert.match(inspector.textContent, /docs\/extra\.md/);
+
+    // Click unmatched chip again -> toggles off cleanly
+    chipsEl.appended[1].dispatchEvent({ type: "click" });
+    assert.equal(chipsEl.appended[1].getAttribute("aria-pressed"), "false");
+    assert.equal(inspector.classList.contains("has-selection"), false);
   });
 });
 
@@ -2196,6 +2249,545 @@ describe("Story 5.1 — OQ-5 schema enrichment & normalizers", () => {
     assert.equal(choiceTurn.waitingOnYou.chips[0].key, "A");
     assert.equal(choiceTurn.waitingOnYou.chips[1].key, "B");
     assert.ok(choiceTurn.microBlocks.includes("choices"));
+  });
+});
+
+// ============================================================================
+// Story 5.2: 5-grammar diagramSpec normalizer & lane-safe edge synthesis (R2 / AD-14)
+// ============================================================================
+
+describe("Story 5.2 — 5-grammar diagramSpec normalizer & lane-safe edges", () => {
+  const laneNodes = [
+    { id: "b1", label: "Old Guard", lane: "before", risk: "high", status: "warning" },
+    { id: "b2", label: "Retry Loop", lane: "before", risk: "medium", status: "done" },
+    { id: "a1", label: "New Guard", lane: "after", risk: "low", status: "done" },
+    { id: "a2", label: "Verified Fix", lane: "after", risk: "low", status: "active" }
+  ];
+
+  it("normalizes all 5 grammars with <= 6 nodes, viewBoxWidth 460, and numbered edges", () => {
+    assert.deepEqual(VALID_DIAGRAM_GRAMMARS, ["sequence", "flow-diff", "subway-map", "before-after", "decision-tree"]);
+
+    for (const grammar of VALID_DIAGRAM_GRAMMARS) {
+      const oversizedNodes = Array.from({ length: 9 }, (_, idx) => ({
+        id: `n${idx + 1}`,
+        label: `Node ${idx + 1}`,
+        techLabel: `sym${idx + 1}()`,
+        ...(grammar === "before-after" ? { lane: idx < 5 ? "before" : "after" } : {}),
+        ...(grammar === "decision-tree" ? { branch: idx % 2 === 0 ? "yes" : "no" } : {})
+      }));
+      const enriched = ensureDebriefEnriched({
+        responseType: "implementation",
+        tldrHeadline: `Grammar ${grammar} normalization.`,
+        diagramSpec: { grammar, title: `Spec ${grammar}`, nodes: oversizedNodes, edges: [] }
+      });
+
+      const spec = enriched.diagramSpec;
+      assert.equal(spec.grammar, grammar, `grammar ${grammar} must be preserved`);
+      assert.equal(spec.diagramType, grammar, `diagramType must mirror the normalized grammar`);
+      assert.equal(spec.viewBoxWidth, 460, "viewBoxWidth must be fixed at 460");
+      assert.equal(spec.nodes.length, 6, "nodes must be capped at <= 6");
+      assert.ok(Array.isArray(spec.groups));
+      assert.ok(spec.edges.length > 0, "omitted edges must be auto-synthesized");
+      assert.deepEqual(
+        spec.edges.map((e) => e.stepNumber),
+        spec.edges.map((_, idx) => idx + 1),
+        "edges must be numbered sequentially 1..N"
+      );
+      for (const edge of spec.edges) {
+        assert.equal(typeof edge.animated, "boolean", "every edge must carry an animated boolean");
+        assert.ok(spec.nodes.some((n) => n.id === edge.from));
+        assert.ok(spec.nodes.some((n) => n.id === edge.to));
+      }
+      // Sync alias: legacy debrief.diagram mirrors every normalized field.
+      assert.equal(enriched.diagram.grammar, spec.grammar);
+      assert.equal(enriched.diagram.diagramType, spec.diagramType);
+      assert.equal(enriched.diagram.viewBoxWidth, spec.viewBoxWidth);
+      assert.equal(enriched.diagram.nodes.length, spec.nodes.length);
+      assert.equal(enriched.diagram.edges.length, spec.edges.length);
+    }
+  });
+
+  it("maps legacy diagramType deterministically to the 5-grammar set (4-to-5)", () => {
+    const cases = [
+      ["sequence", "sequence"],
+      ["state-flow", "flow-diff"],
+      ["cause-effect", "before-after"],
+      ["architecture", "subway-map"],
+      [undefined, "subway-map"]
+    ];
+    for (const [legacyType, expected] of cases) {
+      const spec = normalizeDiagramSpec({
+        ...(legacyType ? { diagramType: legacyType } : {}),
+        nodes: [{ id: "a" }, { id: "b" }],
+        edges: []
+      });
+      assert.equal(spec.grammar, expected, `legacy ${legacyType} must map to ${expected}`);
+      assert.equal(spec.diagramType, expected);
+      assert.equal(resolveDiagramGrammar({ diagramType: legacyType }), expected);
+    }
+
+    // End-to-end: a v0.2.0 legacy diagram without grammar upgrades in enrichment.
+    const enriched = ensureDebriefEnriched({
+      responseType: "bug",
+      tldrHeadline: "Legacy cause-effect upgrade.",
+      diagram: {
+        diagramType: "cause-effect",
+        title: "Legacy Bug Flow",
+        nodes: [{ id: "n1", label: "Cause" }, { id: "n2", label: "Fix" }],
+        edges: [{ from: "n1", to: "n2", stepNumber: 1, label: "Patched", risk: "low" }]
+      }
+    });
+    assert.equal(enriched.diagramSpec.grammar, "before-after");
+    assert.equal(enriched.diagram.grammar, "before-after");
+    assert.equal(enriched.diagramSpec.title, "Legacy Bug Flow");
+  });
+
+  it("forces decision-tree when choices >= 2 or diagramType is decision-tree", () => {
+    const twoChoices = [{ key: "A", title: "Option A" }, { key: "B", title: "Option B" }];
+    const spec = normalizeDiagramSpec(
+      { diagramType: "architecture", nodes: [{ id: "a" }, { id: "b" }], edges: [] },
+      { choices: twoChoices }
+    );
+    assert.equal(spec.grammar, "decision-tree");
+
+    const explicit = normalizeDiagramSpec({ diagramType: "decision-tree", nodes: [{ id: "a" }], edges: [] });
+    assert.equal(explicit.grammar, "decision-tree");
+
+    // One choice must NOT force decision-tree.
+    const single = normalizeDiagramSpec(
+      { diagramType: "architecture", nodes: [{ id: "a" }], edges: [] },
+      { choices: [{ key: "A", title: "Only option" }] }
+    );
+    assert.equal(single.grammar, "subway-map");
+
+    const enriched = ensureDebriefEnriched({
+      responseType: "implementation",
+      tldrHeadline: "Two architectural paths proposed.",
+      choices: twoChoices,
+      diagram: { diagramType: "architecture", nodes: [{ id: "n1", label: "Fork" }], edges: [] }
+    });
+    assert.equal(enriched.diagramSpec.grammar, "decision-tree");
+    assert.equal(enriched.diagram.grammar, "decision-tree");
+  });
+
+  it("synthesizes lane-safe before-after edges without cross-lane bridges", () => {
+    const spec = normalizeDiagramSpec({ grammar: "before-after", nodes: laneNodes, edges: [] });
+    assert.equal(spec.grammar, "before-after");
+    assert.deepEqual(
+      spec.edges.map((e) => [e.from, e.to]),
+      [["b1", "b2"], ["a1", "a2"]],
+      "edges must chain within each lane and never bridge before -> after"
+    );
+    assert.deepEqual(spec.edges.map((e) => e.stepNumber), [1, 2]);
+
+    // Direct helper: 3 before + 3 after nodes yield 2 + 2 intra-lane edges.
+    const sixNodes = [
+      { id: "b1", lane: "before" }, { id: "b2", lane: "before" }, { id: "b3", lane: "before" },
+      { id: "a1", lane: "after" }, { id: "a2", lane: "after" }, { id: "a3", lane: "after" }
+    ];
+    const edges = synthesizeLaneSafeEdges(sixNodes, "before-after");
+    assert.deepEqual(edges.map((e) => [e.from, e.to]), [["b1", "b2"], ["b2", "b3"], ["a1", "a2"], ["a2", "a3"]]);
+    assert.deepEqual(synthesizeLaneSafeEdges([{ id: "solo", lane: "before" }], "before-after"), []);
+
+    // End-to-end through enrichment with a legacy cause-effect spec carrying lanes.
+    const enriched = ensureDebriefEnriched({
+      responseType: "bug",
+      tldrHeadline: "Before and after the guard fix.",
+      diagramSpec: { diagramType: "cause-effect", nodes: laneNodes, edges: [] }
+    });
+    assert.equal(enriched.diagramSpec.grammar, "before-after");
+    for (const edge of enriched.diagramSpec.edges) {
+      const fromLane = enriched.diagramSpec.nodes.find((n) => n.id === edge.from)?.lane;
+      const toLane = enriched.diagramSpec.nodes.find((n) => n.id === edge.to)?.lane;
+      assert.equal(fromLane, toLane, "no synthesized edge may cross lanes");
+    }
+  });
+
+  it("drops explicit cross-lane edges in before-after and renumbers the rest", () => {
+    const spec = normalizeDiagramSpec({
+      grammar: "before-after",
+      nodes: laneNodes,
+      edges: [
+        { from: "b1", to: "b2", stepNumber: 7, label: "Within before", risk: "low" },
+        { from: "b2", to: "a1", stepNumber: 8, label: "Cross-lane bridge", risk: "high" },
+        { from: "a1", to: "a2", stepNumber: 9, label: "Within after", risk: "low" },
+        { from: "a2", to: "b1", stepNumber: 10, label: "Reverse bridge", risk: "low" }
+      ]
+    });
+    assert.deepEqual(spec.edges.map((e) => [e.from, e.to]), [["b1", "b2"], ["a1", "a2"]]);
+    assert.deepEqual(spec.edges.map((e) => e.stepNumber), [1, 2]);
+  });
+
+  it("keeps full sequential chains for non-before-after grammars even with lanes", () => {
+    const spec = normalizeDiagramSpec({ grammar: "subway-map", nodes: laneNodes, edges: [] });
+    assert.deepEqual(
+      spec.edges.map((e) => [e.from, e.to]),
+      [["b1", "b2"], ["b2", "a1"], ["a1", "a2"]],
+      "lane safety only constrains before-after synthesis"
+    );
+    assert.deepEqual(
+      synthesizeLaneSafeEdges(laneNodes, "sequence").map((e) => [e.from, e.to]),
+      [["b1", "b2"], ["b2", "a1"], ["a1", "a2"]]
+    );
+  });
+
+  it("fixes viewBoxWidth at 460 and normalizes groups, techLabel, lane, branch, animated", () => {
+    const spec = normalizeDiagramSpec({
+      grammar: "subway-map",
+      title: "Plain Title",
+      techTitle: "src/engine.mjs::normalizeDiagramSpec",
+      viewBoxWidth: 900,
+      groups: [{ id: "g1", label: "Core", lane: "engine" }, { label: "No Id" }],
+      nodes: [
+        { id: "n1", label: "Entry", techLabel: "normalizeDiagramSpec()", lane: "engine", branch: "main", risk: "bogus", status: "bogus" }
+      ],
+      edges: []
+    });
+    assert.equal(spec.viewBoxWidth, 460, "caller viewBoxWidth must be pinned to 460");
+    assert.deepEqual(spec.groups, [
+      { id: "g1", label: "Core", lane: "engine" },
+      { id: "g2", label: "No Id", lane: "" }
+    ]);
+    assert.equal(spec.nodes[0].techLabel, "normalizeDiagramSpec()");
+    assert.equal(spec.nodes[0].lane, "engine");
+    assert.equal(spec.nodes[0].branch, "main");
+    assert.equal(spec.nodes[0].risk, "low");
+    assert.equal(spec.nodes[0].status, "done");
+    assert.equal(spec.techTitle, "src/engine.mjs::normalizeDiagramSpec");
+
+    const withEdge = normalizeDiagramSpec({
+      grammar: "flow-diff",
+      nodes: [{ id: "a" }, { id: "b" }],
+      edges: [{ from: "a", to: "b", label: "Diff", techLabel: "diff()", animated: true }]
+    });
+    assert.equal(withEdge.edges[0].animated, true);
+    assert.equal(withEdge.edges[0].techLabel, "diff()");
+    assert.equal(withEdge.edges[0].stepNumber, 1);
+  });
+
+  it("resolves prototype-chain diagramType/grammar keys to a valid 5-grammar string (review hardening)", () => {
+    for (const hostile of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) {
+      const spec = normalizeDiagramSpec({
+        diagramType: hostile,
+        nodes: [{ id: "a" }, { id: "b" }],
+        edges: []
+      });
+      assert.equal(typeof spec.grammar, "string", `diagramType "${hostile}" must not leak a prototype member`);
+      assert.ok(VALID_DIAGRAM_GRAMMARS.includes(spec.grammar), `grammar must stay in the 5-grammar set (got ${spec.grammar})`);
+      assert.equal(spec.grammar, "subway-map");
+      assert.equal(spec.diagramType, spec.grammar);
+      assert.equal(resolveDiagramGrammar({ grammar: hostile }), "subway-map");
+      // JSON round-trip (state persistence) must keep both keys.
+      const parsed = JSON.parse(JSON.stringify(spec));
+      assert.equal(parsed.grammar, "subway-map");
+      assert.equal(parsed.diagramType, "subway-map");
+    }
+  });
+
+  it("guarantees an animated boolean on auto-synthesized lane-safe edges (review hardening)", () => {
+    const synthesized = synthesizeLaneSafeEdges([{ id: "a" }, { id: "b" }], "sequence");
+    assert.equal(synthesized.length, 1);
+    assert.equal(synthesized[0].animated, false);
+
+    // Direct normalizer path with omitted edges: synthesized edges keep animated: false.
+    const spec = normalizeDiagramSpec({ grammar: "before-after", nodes: laneNodes, edges: [] });
+    for (const edge of spec.edges) {
+      assert.equal(typeof edge.animated, "boolean");
+      assert.equal(edge.animated, false);
+    }
+
+    // Alternating lanes force the full-drop -> resynthesize path end-to-end.
+    const alternating = [
+      { id: "x1", lane: "before" }, { id: "y1", lane: "after" },
+      { id: "x2", lane: "before" }, { id: "y2", lane: "after" }
+    ];
+    const enriched = ensureDebriefEnriched({
+      responseType: "bug",
+      tldrHeadline: "Alternating lanes resynthesize safely.",
+      diagramSpec: { diagramType: "cause-effect", nodes: alternating, edges: [] }
+    });
+    assert.equal(enriched.diagramSpec.grammar, "before-after");
+    assert.deepEqual(
+      enriched.diagramSpec.edges.map((e) => [e.from, e.to]),
+      [["x1", "x2"], ["y1", "y2"]],
+      "resynthesized edges must stay inside each lane"
+    );
+    for (const edge of enriched.diagramSpec.edges) {
+      assert.equal(typeof edge.animated, "boolean");
+    }
+  });
+});
+
+// ============================================================================
+// Story 5.3: Model-agnostic cheapest model & visual plugin discovery (R3 / R5)
+// ============================================================================
+
+describe("Story 5.3 — Model-agnostic cheapest model & visual plugin discovery", () => {
+  it("retains discoverLightweightGeminiModels as a backward-compatible alias of discoverCheapestEnabledModels", () => {
+    assert.equal(typeof discoverCheapestEnabledModels, "function");
+    assert.equal(discoverLightweightGeminiModels, discoverCheapestEnabledModels);
+  });
+
+  it("ranks fast/cheapest models across enabled multi-provider configs and filters flagship/media/disabled models", async () => {
+    const home = createTempHome({
+      prefix: "vibe-debrief-cheapest-home-",
+      setting: {
+        subscriptions: [
+          { id: "sub-zcode", name: "ZCode Subscription", enabled: true },
+          { id: "sub-off", name: "Disabled Plan", enabled: false }
+        ]
+      },
+      credentials: {
+        subscriptionInfo: {
+          "sub-zcode": {
+            models: [
+              "claude-opus-4",
+              "claude-3-5-haiku",
+              { id: "gpt-4.1-nano" },
+              { id: "gpt-4o-mini", enabled: false },
+              "gemini-image-1"
+            ]
+          },
+          "sub-off": {
+            models: ["gemini-4-argon"]
+          }
+        }
+      },
+      providerConfig: {
+        config: {
+          providerConfigRules: {
+            providerRules: [
+              {
+                providerId: "openai",
+                providerName: "OpenAI",
+                enabled: true,
+                config: {
+                  access: { type: "api-key", apiKey: "sk-openai-live" },
+                  modelOrder: [
+                    "gpt-5",
+                    "o1-pro",
+                    "gpt-4-turbo",
+                    "gpt-4o-mini",
+                    "text-embedding-3-small",
+                    "whisper-1",
+                    "tts-1-hd"
+                  ]
+                }
+              },
+              {
+                providerId: "alibaba",
+                providerName: "Alibaba Bailian",
+                enabled: true,
+                config: {
+                  modelOrder: ["qwen-max", "qwen-turbo", "deepseek-reasoner", "deepseek-chat"]
+                }
+              },
+              {
+                providerId: "zai",
+                providerName: "Z.AI",
+                enabled: true,
+                config: {
+                  modelOrder: ["glm-5", "glm-4-flash", "glm-4-air"]
+                }
+              },
+              {
+                providerId: "disabled-prov",
+                providerName: "Disabled",
+                enabled: false,
+                config: { modelOrder: ["gemini-4-argon"] }
+              }
+            ]
+          },
+          modelConfigRules: {
+            providerModelRules: [
+              {
+                providerId: "zai",
+                modelId: "glm-4-air",
+                enabled: false
+              }
+            ]
+          }
+        }
+      }
+    });
+
+    try {
+      const models = await withZCodeHomeDir(home, () => discoverCheapestEnabledModels());
+
+      assert.deepEqual(
+        models.map((m) => m.id),
+        [
+          "account:sub-zcode/gpt-4.1-nano",
+          "account:sub-zcode/claude-3-5-haiku",
+          "openai/gpt-4o-mini",
+          "zai/glm-4-flash",
+          "alibaba/qwen-turbo",
+          "alibaba/deepseek-chat"
+        ]
+      );
+      assert.equal(models[0].score, 9);
+      assert.equal(models[0].providerName, "ZCode Subscription");
+      assert.ok(models.every((m) => m.score > 0));
+    } finally {
+      home.cleanup();
+    }
+  });
+
+  it("degrades cleanly to active-session and [] when no provider or plugin configs exist", async () => {
+    const { workspace, home, cleanup } = createTempFixture({
+      workspace: { prefix: "vibe-debrief-53-empty-ws-" },
+      home: { prefix: "vibe-debrief-53-empty-home-" }
+    });
+
+    try {
+      const models = await withZCodeHomeDir(home, () => discoverCheapestEnabledModels());
+      const plugins = await withZCodeHomeDir(home, () => discoverInstalledVisualPlugins(workspace.root));
+      const panelState = await withZCodeHomeDir(home, () => buildFullPanelState(workspace.root));
+
+      assert.deepEqual(models, []);
+      assert.deepEqual(plugins, []);
+      assert.deepEqual(panelState.availableModels, []);
+      assert.equal(panelState.recommendedModel, "active-session");
+      assert.equal(panelState.recommendedGeminiModel, "new-provider/gemini-3.8-flash");
+      assert.deepEqual(panelState.lightweightGeminiModels, []);
+      assert.deepEqual(panelState.installedVisualPlugins, []);
+      assert.equal(panelState.language, "en");
+      assert.equal(panelState.preferredModel, "auto-cheapest");
+      assert.equal(panelState.themePreference, "auto");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("populates availableModels, recommendedModel, and preferredModel overrides in buildFullPanelState", async () => {
+    const { workspace, home, cleanup } = createTempFixture({
+      workspace: { prefix: "vibe-debrief-53-panel-ws-" },
+      home: {
+        prefix: "vibe-debrief-53-panel-home-",
+        providerConfig: {
+          config: {
+            providerConfigRules: {
+              providerRules: [
+                {
+                  providerId: "anthropic",
+                  providerName: "Anthropic",
+                  enabled: true,
+                  config: { modelOrder: ["claude-3-5-haiku", "claude-opus-4"] }
+                },
+                {
+                  providerId: "openai",
+                  providerName: "OpenAI",
+                  enabled: true,
+                  config: { modelOrder: ["gpt-4.1-nano"] }
+                }
+              ]
+            }
+          }
+        }
+      }
+    });
+
+    try {
+      const autoState = await withZCodeHomeDir(home, () => buildFullPanelState(workspace.root));
+      assert.equal(autoState.recommendedModel, "openai/gpt-4.1-nano");
+      assert.deepEqual(
+        autoState.availableModels.map((m) => m.id),
+        ["openai/gpt-4.1-nano", "anthropic/claude-3-5-haiku"]
+      );
+
+      // Persist an explicit preferredModel override
+      savePersistedState(workspace.root, {
+        preferredModel: "anthropic/claude-3-5-haiku",
+        language: "fr",
+        themePreference: "light"
+      });
+      const overriddenState = await withZCodeHomeDir(home, () => buildFullPanelState(workspace.root));
+      assert.equal(overriddenState.preferredModel, "anthropic/claude-3-5-haiku");
+      assert.equal(overriddenState.recommendedModel, "anthropic/claude-3-5-haiku");
+      assert.equal(overriddenState.language, "fr");
+      assert.equal(overriddenState.themePreference, "light");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("discovers installed visual plugins from ~/.zcode/cli/plugins/ cache, manifests, and design bundle mapping", async () => {
+    const { workspace, home, cleanup } = createTempFixture({
+      workspace: { prefix: "vibe-debrief-53-plugins-ws-" },
+      home: {
+        prefix: "vibe-debrief-53-plugins-home-",
+        fixtures: {
+          ".zcode/cli/plugins/installed_plugins.json": JSON.stringify({
+            version: 1,
+            plugins: [
+              {
+                id: "excalidraw@zcode-plugins-official",
+                name: "excalidraw",
+                version: "0.3.4"
+              },
+              {
+                id: "design@zcode-plugins-official",
+                name: "design",
+                version: "0.8.0"
+              }
+            ]
+          }),
+          ".zcode/cli/plugins/cache/zcode-plugins-official/visualize/0.1.2/skills/visualize/SKILL.md":
+            "# Visualize Skill\n"
+        }
+      }
+    });
+
+    try {
+      const plugins = await withZCodeHomeDir(home, () => discoverInstalledVisualPlugins(workspace.root));
+      assert.deepEqual(plugins, ["excalidraw", "visualize", "vectorcraft", "designcraft"]);
+
+      const panelState = await withZCodeHomeDir(home, () => buildFullPanelState(workspace.root));
+      assert.deepEqual(panelState.installedVisualPlugins, [
+        "excalidraw",
+        "visualize",
+        "vectorcraft",
+        "designcraft"
+      ]);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("discovers visual plugins from workspace .mcp.json and project skills while ignoring disabled entries and non-visual skills", async () => {
+    const { workspace, home, cleanup } = createTempFixture({
+      workspace: {
+        prefix: "vibe-debrief-53-ws-sources-",
+        files: {
+          ".mcp.json": JSON.stringify({
+            mcpServers: {
+              "vibe-debrief": { command: "node", args: ["scripts/mcp-server.mjs"] },
+              designcraft: { command: "node", args: ["designcraft.mjs"] },
+              excalidraw: { command: "node", args: ["excalidraw.mjs"], disabled: true }
+            }
+          }),
+          "skills/visualize/SKILL.md": "# Visualize\n",
+          ".zcode/skills/bmad-agent-ux-designer/SKILL.md": "# UX Designer (not design bundle)\n"
+        }
+      },
+      home: {
+        prefix: "vibe-debrief-53-home-sources-",
+        fixtures: {
+          ".zcode/cli/plugins/installed_plugins.json": "{ malformed json",
+          ".zcode/cli/plugins/cache/zcode-plugins-official/vectorcraft/0.1.0/.zcode-plugin/plugin.json":
+            JSON.stringify({ name: "vectorcraft", version: "0.1.0" }),
+          ".zcode/cli/plugins/cache/zcode-plugins-official/excalidraw/0.3.4/.zcode-plugin/plugin.json":
+            JSON.stringify({ name: "excalidraw", version: "0.3.4", enabled: false })
+        }
+      }
+    });
+
+    try {
+      const plugins = await withZCodeHomeDir(home, () => discoverInstalledVisualPlugins(workspace.root));
+      assert.deepEqual(plugins, ["visualize", "vectorcraft", "designcraft"]);
+    } finally {
+      cleanup();
+    }
   });
 });
 

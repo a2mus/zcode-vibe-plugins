@@ -2,40 +2,48 @@
 type: ux
 title: vibe-debrief UX Specifications
 status: final
-updated: 2026-11-23
+updated: 2026-11-24
 ---
 
 # Vibe Debrief — UX Specification Hub
 
-Canonical UX contracts for **Vibe Debrief** (`ui://vibe-debrief/panel.html` + offline HTML exports), bridging the shipped `v0.3.0` hardening baseline (`R8`–`R12`: theme parity, ARIA/keyboard/reduced-motion, atomic state) and the **Cockpit HUD vNext (`v0.4.0`, `R13`–`R18`)** architecture.
+Canonical UX contracts for **Vibe Debrief** (`ui://vibe-debrief/panel.html` + offline HTML exports), bridging the shipped `v0.3.0` hardening baseline (`R8`–`R12`: theme parity, ARIA/keyboard/reduced-motion, atomic state, view/flow ergonomics) and the **Cockpit HUD vNext (`v0.4.0`, `R13`–`R18`)** architecture.
 
 ## Spines & Artifacts
 
-- **Visual Identity & Token Contract:** [DESIGN.md](./DESIGN.md) — owns colors, typography, spacing, shapes, elevation, contrast floor, and component visual anatomy.
-- **Experience & Behavioral Contract:** [EXPERIENCE.md](./EXPERIENCE.md) — owns information architecture, view transitions, voice & tone (`STE-80`), component behavior, state patterns, accessibility floor, and named-protagonist journeys.
+- **Visual Identity & Token Contract:** [DESIGN.md](./DESIGN.md) — owns colors, typography, spacing, shapes, elevation, contrast floor, 6-view spatial matrix, and component visual anatomy.
+- **Experience & Behavioral Contract:** [EXPERIENCE.md](./EXPERIENCE.md) — owns information architecture, cross-view transitions, voice & tone (`STE-80`), component behavior, state patterns, accessibility floor, and named-protagonist journeys (`UJ-1`–`UJ-5`).
 - **Chronological Decision Log:** [.memlog.md](./.memlog.md) — append-only record of UX decisions, overrides, and assumptions.
-- **Visual Composition Baseline:** [mockups/cockpit-hud.html](./mockups/cockpit-hud.html) — interactive prototype reference (`hud-header`, `radar-card`, `choice-grid`, `svg-stage`, `stage1-drawer`, `stage2-popout`, `missing-banner`). **Spines (`DESIGN.md` and `EXPERIENCE.md`) win on any conflict with mockups.**
+- **Visual Composition Baseline:** [mockups/cockpit-hud.html](./mockups/cockpit-hud.html) — interactive prototype reference (`hud-header`, 4-row prototype `gear-popover`, `radar-card`, `choice-grid`, `svg-stage`, `concept-pill` + `stage1-drawer`, `stage2-popout`, and `missing-banner`). **Spines (`DESIGN.md` and `EXPERIENCE.md`) win on any conflict with mockups.**
+- **Views, Flows & Ergonomics Audit:** [plan-ux-audit-views-flows-ergonomics.md](../tickets/epic-panel-a11y/tickets/plan-ux-audit-views-flows-ergonomics.md) — verified `v0.3.0` audit of semantic toasts, Field Desk Light button/banner contrast, stale-inspector cleanup, focus restoration, Escape propagation hygiene, and standalone HTML keyboard parity.
 
 ## Application Views Summary
 
-| View / Surface | Trigger | Primary Purpose |
-| --- | --- | --- |
-| `HUD` (Default) | Panel open / `view-switcher` | `snapshot-banner` (when inspecting history), inline `missing-banner` (on fallback), `10s Radar` (`What Just Happened` + 5-state `Waiting On You`) or `minimal-strip`, plus composable `microBlocks` (`unclear`, `choices`, 5-grammar `svg-stage` + `powerup-dock`, `proof-audit`, `concepts` + `<100ms` `stage1-drawer`, `lessons`). |
-| `Visual` (Curator Tour) | `view-switcher` or `[Animate]` | Anytime `600×250` theme-resolved `<canvas>` walkthrough with transport controls, Web Speech voice toggle, `scene-pill` keyboard navigation, copyable plain-text `script-box`, and clean empty-tour prompt on minimal turns. |
-| `Memory & History` | `view-switcher` | Confirmed Lesson Bank (`<= 50`), active `MEMORY.md` directory & live index preview, and 15-turn `history-item` replay list. |
-| `Settings & Export` | `gear-btn` (`gear-popover`) | 6-row popover: `Surface Theme` (`Auto` / `Dark HUD` / `Field Desk Light`), `Language`, `Persona`, `Clarity Guard` (`STE-80`), `Model` (`Auto-Cheapest` or user override), and `Export HTML`. |
-| `Stage 2 Pop-Out` | `Deep Dive & Pop Out ↗` / `powerup-dock` | Routes Diagram Spec via `ui/message` to `excalidraw` / `visualize` / `vectorcraft` / `designcraft`, or falls back automatically to the 3-column Built-in Standalone HTML Explainer + `missing-banner`. |
-| `Standalone HTML Export` | `Export HTML` / Stage 2 fallback | Zero-dependency offline `.html` artifact with local `X-Ray`, `@media (prefers-color-scheme: light)` parity, interactive SVG, checks, Canvas tour, and Stage 2 fallback cards. |
+| View / Surface | Trigger | Envelope | Primary Purpose & Empty / Fallback State |
+| --- | --- | --- | --- |
+| `HUD` (Default) | Panel open / `view-switcher` | `320–460px` sidebar | `snapshot-banner` (when inspecting history) + inline `missing-banner` (on fallback), `10s Radar` (`What Just Happened` + 5-state `Waiting On You`) or `minimal-strip`, plus composable `microBlocks` (`unclear`, `choices`, 5-grammar `svg-stage` + `powerup-dock`, `proof-audit`, `concepts` + `<100ms` `stage1-drawer`, `lessons`). Cold open seeds `createWelcomeDebrief`; empty nodes clear `#nodeInspectorBar` & `#touchedFilesStrip`. |
+| `Visual` (Curator Tour) | `view-switcher` or `[Animate]` | `320–460px` sidebar | Anytime `600×250` theme-resolved `<canvas>` walkthrough with transport controls (`aria-pressed` synced), Web Speech voice toggle, `scene-pill` keyboard navigation, and copyable plain-text `script-box`. Renders a clean `"Minimal turn — no tour generated"` prompt + `Generate Quick Tour` CTA on minimal turns. |
+| `Memory & History` | `view-switcher` | `320–460px` sidebar | Confirmed Lesson Bank (`<= 50`), active `MEMORY.md` directory & live index preview, and 15-turn `history-item` replay list (`.active-snapshot` highlight). Shows plain-language empty copy when no lessons or prior turns exist; unwritable `~/.zcode` falls back to `<workspaceRoot>/.zcode/memory/`. |
+| `Settings & Export` | `gear-btn` (`gear-popover`) | `235px` floating popover | 6-row popover: `Surface Theme` (`Auto` / `Dark HUD` / `Field Desk Light`), `Language`, `Persona`, `Clarity Guard` (`STE-80`), `Model` (`Auto-Cheapest` or user override), and `Export HTML`. `Escape` or outside click closes and restores focus to `gear-btn`. |
+| `Stage 2 Pop-Out` | `Deep Dive & Pop Out ↗` / `powerup-dock` | Main ZCode stage (`>= 740px`) | Routes Diagram Spec via `ui/message` to `excalidraw` / `visualize` / `vectorcraft` / `designcraft`, or falls back automatically to the 3-column Built-in Standalone HTML Explainer + persistent inline `missing-banner`. |
+| `Standalone HTML Export` | `Export HTML` / Stage 2 fallback | Offline browser (`<= 960px`) | Zero-dependency offline `.html` artifact with local `X-Ray`, `@media (prefers-color-scheme: light)` parity, keyboard-operable SVG (`Enter`/`Space` toggle-off + focus preservation), `aria-pressed` playback buttons, checks, Canvas tour, and Stage 2 fallback cards. |
+
+## Cross-View Transitions & Ergonomic Invariants
+
+- **Same-Turn Preservation vs. Cross-Turn Reset:** Same-turn refreshes preserve `selectedNodeId`, open `stage1-drawer`, `expandedProofIds`, `xrayMode`, and `missingPluginFallback`; when the active debrief changes across turns, `selectedNodeId` resets cleanly and empty diagrams clear stale inspector/file-chip state.
+- **History Snapshot Replay Loop:** Selecting a `history-item` in `Memory & History` switches to `HUD` and pins `snapshot-banner`; `Return to Latest` restores the live snapshot and returns focus to the `HUD` tab button.
+- **Honest Sync & Overlay Hygiene:** `Distill` / `Sync` awaits `refreshState` completion before issuing a `toast-ok` confirmation (or `toast-risk` on failure); `Escape` inside `lesson-form` stops propagation and restores focus to `➕ Add Lesson`; promoting `💡→Rule` clears stale `why` / `howToApply` fields first.
 
 ## Key User Flows (`UJ-1`–`UJ-5`)
 
 1. **`UJ-1` — Maya (10s Bug Isolation & Action):** Scans `radar-card`, flips `X-Ray: Plain ↔ Tech`, inspects high-risk SVG node, triggers `Run webhook retry test` via `ui/message`, promotes warning to `MEMORY.md`, or uses `unclear-box` → `Clarify`.
 2. **`UJ-2` — Leo (Multi-Intent Diagram & Two-Stage Concept Deep Dive):** Opens `<100ms` inline `stage1-drawer` from `concept-pill`, pops out to installed `visualize` or triggers automatic `vibe_debrief_export_html` 3-column HTML fallback + persistent `missing-banner` when `vectorcraft` is absent.
 3. **`UJ-3` — Sam (Zero-Cost Default & Model-Agnostic Clarify):** Relies on `<20ms` deterministic turns at zero token cost; on low-confidence turns, `Clarify` dynamically picks the cheapest enabled provider or active session model without hardcoded model names.
-4. **`UJ-4` — Nora (Cross-Session Guardrails in `MEMORY.md`):** Promotes an `audit-row` (`💡→Rule`) or adds a custom rule in `lesson-form`, persisting `<slug>.md` + `MEMORY.md` and verifying in `Memory & History`.
+4. **`UJ-4` — Nora (Cross-Session Guardrails in `MEMORY.md`):** Promotes an `audit-row` (`💡→Rule`, clearing stale optional drafts) or adds a custom rule in `lesson-form` (with missing-field focus + `Escape` focus return), persisting `<slug>.md` + `MEMORY.md` and verifying in `Memory & History`.
 5. **`UJ-5` — Priya (Curator Tour, Verification Script & Offline Handoff):** Steps through `Visual` tour, cross-checks `script-box`, exports offline HTML for daylight Field Desk Light review, or replays past turns with `snapshot-banner` → `Return to Latest`.
 
 ## Visual System & Parity Contract
 
 - **Dual Themes:** Dark-first **Night-Watch Telemetry** (`#090d13` → `#182130`, sky `#38bdf8`) paired with **Field Desk Light** (`#efeae0` → `#ffffff`, ink sky `#0284c7`, `#f1ece1` canvas stage), synchronized via `host-context-changed` and `@media (prefers-color-scheme: light)`.
-- **Accessibility & Safety Floor (`R10`, `R11`, `C3`):** `>= 4.5:1` text contrast (`text-muted` restricted to non-essential eyebrows/timestamps/strikethroughs), `>= 3:1` focus rings & strokes, full keyboard operability, `prefers-reduced-motion: reduce`, zero external assets, and `unsafeEval: false`.
+- **Field Desk Light Semantic Wash Rule:** Soft-filled semantic banners, toasts, and confirmation buttons (`hud-toast`, `status-banner`, `btn-success`, `missing-banner`, `snapshot-banner`) use `{colors.text-primary}` (`#17202e`, `>= 13.3:1`) for small body copy, and solid amber CTAs use `{colors.text-on-warn-light}` (`#ffffff`, `5.02:1` on `#b45309`).
+- **Accessibility & Safety Floor (`R10`, `R11`, `C3`):** `>= 4.5:1` text contrast (`text-muted` restricted to non-essential eyebrows/timestamps/strikethroughs), `>= 3:1` focus rings & strokes (`2.4px` SVG hover/focus stroke in light mode), full keyboard operability across panel + HTML export, `prefers-reduced-motion: reduce`, zero external assets, and `unsafeEval: false`.
