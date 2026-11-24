@@ -17,8 +17,16 @@ import {
   confirmAndSaveLessonToZCodeMemory,
   detectResponseType,
   discoverLightweightGeminiModels,
+  ensureDebriefEnriched,
   generateStandaloneHtmlArtifact,
   loadPersistedState,
+  normalizeChoices,
+  normalizeConcepts,
+  normalizeHeuristicConfidence,
+  normalizeMicroBlocks,
+  normalizeVerdict,
+  normalizeWaitingOnYou,
+  normalizeXray,
   savePersistedState,
   saveStandaloneHtmlArtifact,
   synthesizeHeuristicDebrief
@@ -940,24 +948,90 @@ function renderArtifactScript(artifactHtml, { theme = "dark", emptyComputedStyle
       canvasOps.push({ op: "fillRect", style: this.fillStyle });
     }
   };
-  const createElement = (id) => ({
-    id,
-    innerHTML: "",
-    textContent: "",
-    className: "",
-    style: {},
-    appendChild() {},
-    querySelectorAll() {
-      return [];
-    },
-    addEventListener() {},
-    getAttribute() {
-      return null;
-    },
-    getContext() {
-      return id === "sceneCanvas" ? recordingCtx : null;
+  let activeEl = null;
+  const makeClassList = () => {
+    const set = new Set();
+    return {
+      add: (...cls) => cls.forEach((c) => set.add(c)),
+      remove: (...cls) => cls.forEach((c) => set.delete(c)),
+      toggle: (c, force) => {
+        if (force === undefined) {
+          if (set.has(c)) {
+            set.delete(c);
+            return false;
+          }
+          set.add(c);
+          return true;
+        }
+        if (force) set.add(c);
+        else set.delete(c);
+        return Boolean(force);
+      },
+      contains: (c) => set.has(c)
+    };
+  };
+  const parseDnodes = (html) => {
+    const list = [];
+    for (const m of String(html || "").matchAll(/<g\s+([^>]*class="[^"]*dnode[^"]*"[^>]*)>/gi)) {
+      const node = createElement("");
+      for (const a of m[1].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
+        node.setAttribute(a[1], a[2].replace(/&quot;/g, '"').replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&"));
+      }
+      list.push(node);
     }
-  });
+    return list;
+  };
+  const createElement = (id) => {
+    const attrs = new Map();
+    const listeners = new Map();
+    let _innerHTML = "";
+    let _children = [];
+    const appended = [];
+    const el = {
+      id,
+      textContent: "",
+      className: "",
+      classList: makeClassList(),
+      style: {},
+      appended,
+      listeners,
+      appendChild(child) {
+        appended.push(child);
+      },
+      setAttribute(name, val) {
+        attrs.set(name, String(val));
+      },
+      getAttribute(name) {
+        return attrs.has(name) ? attrs.get(name) : null;
+      },
+      addEventListener(type, fn) {
+        if (!listeners.has(type)) listeners.set(type, []);
+        listeners.get(type).push(fn);
+      },
+      dispatchEvent(ev) {
+        for (const fn of listeners.get(ev.type) || []) fn.call(el, ev);
+      },
+      focus() {
+        activeEl = el;
+      },
+      querySelectorAll(sel) {
+        if (sel === ".dnode") return _children;
+        return [];
+      },
+      getContext() {
+        return id === "sceneCanvas" ? recordingCtx : null;
+      }
+    };
+    Object.defineProperty(el, "innerHTML", {
+      get: () => _innerHTML,
+      set: (val) => {
+        _innerHTML = String(val ?? "");
+        if (_innerHTML === "") appended.length = 0;
+        _children = parseDnodes(_innerHTML);
+      }
+    });
+    return el;
+  };
   const documentElement = { getAttribute: () => null };
   const document = {
     documentElement,
@@ -966,7 +1040,7 @@ function renderArtifactScript(artifactHtml, { theme = "dark", emptyComputedStyle
       return elements.get(id);
     },
     createElement() {
-      return { className: "", textContent: "", onclick: null };
+      return createElement("");
     }
   };
 
@@ -1001,6 +1075,7 @@ function renderArtifactScript(artifactHtml, { theme = "dark", emptyComputedStyle
   return {
     elements,
     canvasOps,
+    getActiveElement: () => activeEl,
     setTheme(nextTheme) {
       currentTable = nextTheme === "light" ? light : dark;
     },
@@ -1296,9 +1371,34 @@ describe("standalone HTML export theme parity", () => {
     assert.match(html, /@media\s*\(prefers-reduced-motion:\s*reduce\)/i);
     assert.match(html, /id="nodeInspector"[^>]*role="status"[^>]*aria-live="polite"/i);
 
-    const { elements } = renderArtifactScript(html, { theme: "dark" });
-    const svg = elements.get("diagramSvg").innerHTML;
-    assert.match(svg, /class="dnode"[^>]*tabindex="0"[^>]*role="button"[^>]*aria-label="/i);
+    const run = renderArtifactScript(html, { theme: "dark" });
+    const svgEl = run.elements.get("diagramSvg");
+    const inspector = run.elements.get("nodeInspector");
+    assert.match(svgEl.innerHTML, /class="dnode"[^>]*tabindex="0"[^>]*role="button"[^>]*aria-pressed="false"[^>]*aria-label="/i);
+
+    // Keyboard Enter activates node, updates inspector & aria-pressed, and Space toggles off while keeping focus
+    let nodes = svgEl.querySelectorAll(".dnode");
+    nodes[0].dispatchEvent({ type: "keydown", key: "Enter", preventDefault() {} });
+    assert.equal(inspector.classList.contains("has-selection"), true);
+    assert.match(inspector.textContent, /Safe/);
+    nodes = svgEl.querySelectorAll(".dnode");
+    assert.equal(nodes[0].getAttribute("aria-pressed"), "true");
+    assert.equal(run.getActiveElement()?.getAttribute("data-id"), "n1");
+
+    nodes[0].dispatchEvent({ type: "keydown", key: " ", preventDefault() {} });
+    assert.equal(inspector.classList.contains("has-selection"), false);
+    nodes = svgEl.querySelectorAll(".dnode");
+    assert.equal(nodes[0].getAttribute("aria-pressed"), "false");
+
+    // Play/Pause toggle aria-pressed cleanly
+    const playBtn = run.elements.get("btnPlayScene");
+    const pauseBtn = run.elements.get("btnPauseScene");
+    playBtn.dispatchEvent({ type: "click" });
+    assert.equal(playBtn.getAttribute("aria-pressed"), "true");
+    assert.equal(pauseBtn.getAttribute("aria-pressed"), "false");
+    pauseBtn.dispatchEvent({ type: "click" });
+    assert.equal(playBtn.getAttribute("aria-pressed"), "false");
+    assert.equal(pauseBtn.getAttribute("aria-pressed"), "true");
   });
 });
 
@@ -1707,6 +1807,395 @@ describe("discoverLightweightGeminiModels", () => {
     } finally {
       cleanup();
     }
+  });
+});
+
+// ============================================================================
+// Story 5.1: OQ-5 additive schema enrichment & normalizers (R1 / R13)
+// ============================================================================
+
+describe("Story 5.1 — OQ-5 schema enrichment & normalizers", () => {
+  it("upgrades a legacy v0.2.0 snapshot without OQ-5 fields into a valid OQ-5 debrief", () => {
+    const legacySnapshot = {
+      id: "legacy-debrief-1",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      responseType: "bug",
+      persona: "vibe-mentor",
+      tldrHeadline: "Fixed retry guard in webhook handler.",
+      realWorldAnalogy: "Like a fuse protecting circuit boards.",
+      bugReport: {
+        cause: "Webhook handler retried infinitely on HTTP 500.",
+        plan: "Add MAX_RETRIES <= 3 guard.",
+        succeeded: "yes",
+        successSummary: "Guard added and verified.",
+        consequences: "Prevents retry loops."
+      },
+      touchedFiles: ["src/webhook.mjs", "test/webhook.test.mjs"]
+    };
+
+    const enriched = ensureDebriefEnriched(legacySnapshot);
+
+    // Legacy fields intact
+    assert.equal(enriched.id, "legacy-debrief-1");
+    assert.equal(enriched.responseType, "bug");
+    assert.equal(enriched.tldrHeadline, "Fixed retry guard in webhook handler.");
+    assert.equal(enriched.bugReport.succeeded, "yes");
+    assert.equal(enriched.touchedFiles.length, 2);
+
+    // OQ-5 Additive fields populated with deterministic defaults
+    assert.equal(enriched.verdict, "Solved");
+    assert.equal(typeof enriched.waitingOnYou, "object");
+    assert.ok(["choice", "action", "reply", "blocked", "none"].includes(enriched.waitingOnYou.state));
+    assert.equal(typeof enriched.waitingOnYou.label, "string");
+    assert.equal(typeof enriched.waitingOnYou.prompt, "string");
+    assert.equal(typeof enriched.waitingOnYou.allowInlineReply, "boolean");
+    assert.ok(Array.isArray(enriched.waitingOnYou.chips));
+    assert.ok(enriched.waitingOnYou.chips.length <= 4);
+
+    assert.ok(Array.isArray(enriched.choices));
+    assert.equal(enriched.choices.length, 0);
+
+    assert.equal(typeof enriched.xray, "object");
+    assert.equal(typeof enriched.xray.plain.headline, "string");
+    assert.ok(Array.isArray(enriched.xray.plain.summaryBullets));
+    assert.equal(typeof enriched.xray.tech.headline, "string");
+    assert.ok(Array.isArray(enriched.xray.tech.summaryBullets));
+    assert.ok(Array.isArray(enriched.xray.tech.symbols));
+    assert.ok(Array.isArray(enriched.xray.tech.paths));
+    assert.ok(Array.isArray(enriched.xray.tech.commands));
+    assert.ok(Array.isArray(enriched.xray.tech.exitCodes));
+    assert.ok(Array.isArray(enriched.xray.tech.proofLines));
+
+    // diagram and diagramSpec sync-aliased
+    assert.equal(typeof enriched.diagramSpec, "object");
+    assert.equal(enriched.diagramSpec.grammar, enriched.diagram.grammar);
+    assert.equal(enriched.diagramSpec.diagramType, enriched.diagram.diagramType);
+    assert.equal(enriched.diagramSpec.viewBoxWidth, 460);
+    assert.ok(enriched.diagramSpec.nodes.length <= 6);
+    assert.equal(enriched.diagram.nodes.length, enriched.diagramSpec.nodes.length);
+
+    assert.ok(Array.isArray(enriched.microBlocks));
+    assert.ok(enriched.microBlocks.includes("diagram"));
+    assert.ok(enriched.microBlocks.includes("proof-audit"));
+
+    assert.ok(Array.isArray(enriched.concepts));
+    assert.ok(enriched.concepts.length <= 6);
+
+    assert.equal(typeof enriched.minimalMode, "boolean");
+    assert.equal(enriched.minimalMode, false);
+
+    assert.equal(typeof enriched.heuristicConfidence, "number");
+    assert.ok(enriched.heuristicConfidence >= 0 && enriched.heuristicConfidence <= 1);
+
+    assert.equal(typeof enriched.rawQuote, "string");
+    assert.equal(enriched.rawQuote, "");
+  });
+
+  it("upgrades a v0.2.0 state fixture cleanly in buildFullPanelState", () => {
+    const workspace = createTempWorkspace({ prefix: "vibe-debrief-v020-" });
+
+    try {
+      // Write legacy v0.2.0 / v0.3.0 state JSON that completely lacks all OQ-5 fields
+      workspace.write(
+        ".zcode/vibe-debrief-state.json",
+        JSON.stringify({
+          projectName: "v020-project",
+          activePersona: "vibe-mentor",
+          turnCount: 2,
+          currentDebrief: {
+            id: "debrief-v020",
+            responseType: "implementation",
+            tldrHeadline: "Delivered first feature.",
+            realWorldAnalogy: "Like adding a new tool to your kit.",
+            implementationReport: {
+              objective: "Build first feature.",
+              planAndWhy: "Direct modular build.",
+              result: "Feature wired and ready.",
+              consequences: "No regressions."
+            },
+            touchedFiles: ["src/feature.mjs"]
+          },
+          history: [
+            {
+              id: "debrief-v020-hist",
+              responseType: "bug",
+              tldrHeadline: "Fixed startup crash.",
+              bugReport: {
+                cause: "Missing env var.",
+                plan: "Provide default fallback.",
+                succeeded: "yes",
+                successSummary: "Default applied.",
+                consequences: "Starts reliably."
+              }
+            }
+          ]
+        })
+      );
+
+      const panelState = buildFullPanelState(workspace.root);
+
+      assert.equal(panelState.projectName, "v020-project");
+      const current = panelState.currentDebrief;
+      assert.equal(current.id, "debrief-v020");
+      assert.equal(current.verdict, "Built");
+      assert.equal(typeof current.waitingOnYou, "object");
+      assert.ok(Array.isArray(current.waitingOnYou.chips));
+      assert.ok(Array.isArray(current.choices));
+      assert.equal(typeof current.xray, "object");
+      assert.equal(typeof current.diagramSpec, "object");
+      assert.equal(current.diagramSpec.viewBoxWidth, 460);
+      assert.ok(Array.isArray(current.microBlocks));
+      assert.ok(Array.isArray(current.concepts));
+      assert.equal(typeof current.minimalMode, "boolean");
+      assert.equal(typeof current.heuristicConfidence, "number");
+      assert.equal(typeof current.rawQuote, "string");
+
+      // History debriefs also upgraded with OQ-5 fields
+      assert.equal(panelState.history.length, 1);
+      const hist = panelState.history[0];
+      assert.equal(hist.id, "debrief-v020-hist");
+      assert.equal(hist.verdict, "Solved");
+      assert.equal(typeof hist.waitingOnYou, "object");
+      assert.equal(typeof hist.diagramSpec, "object");
+    } finally {
+      workspace.cleanup();
+    }
+  });
+
+  it("enforces bounded collections on OQ-5 fields", () => {
+    const oversizedConcepts = Array.from({ length: 9 }, (_, idx) => ({
+      slug: `concept-${idx + 1}`,
+      label: `Concept ${idx + 1}`,
+      techSymbol: `sym${idx + 1}()`,
+      targetPlugin: "visualize",
+      stage1: { definition: "Def", analogy: "Ana" },
+      stage2: { howItWorks: "Works" },
+      stage2Prompt: "Prompt"
+    }));
+
+    const oversizedChips = Array.from({ length: 8 }, (_, idx) => ({
+      id: `chip-${idx + 1}`,
+      key: `${idx + 1}`,
+      label: `Action ${idx + 1}`,
+      messagePrompt: `Run ${idx + 1}`
+    }));
+
+    const oversizedNodes = Array.from({ length: 10 }, (_, idx) => ({
+      id: `n${idx + 1}`,
+      label: `Node ${idx + 1}`
+    }));
+
+    const enriched = ensureDebriefEnriched({
+      responseType: "implementation",
+      tldrHeadline: "Bounded collections test.",
+      concepts: oversizedConcepts,
+      waitingOnYou: {
+        state: "action",
+        label: "Verify / Run",
+        prompt: "Run checks",
+        chips: oversizedChips
+      },
+      diagramSpec: {
+        grammar: "sequence",
+        title: "Large Sequence",
+        nodes: oversizedNodes,
+        edges: []
+      },
+      rawQuote: "Q".repeat(400)
+    });
+
+    assert.equal(enriched.concepts.length, 6, "concepts must be capped at <= 6");
+    assert.equal(enriched.waitingOnYou.chips.length, 4, "waitingOnYou.chips must be capped at <= 4");
+    assert.equal(enriched.diagramSpec.nodes.length, 6, "diagramSpec.nodes must be capped at <= 6");
+    assert.equal(enriched.diagram.nodes.length, 6, "diagram.nodes must be capped at <= 6");
+    assert.equal(enriched.rawQuote.length, 280, "rawQuote must be capped at <= 280 chars");
+  });
+
+  it("preserves and normalizes caller-supplied OQ-5 fields", () => {
+    const debriefInput = {
+      responseType: "implementation",
+      tldrHeadline: "Configured rate limiter with token bucket algorithm.",
+      verdict: "Planned",
+      minimalMode: true,
+      heuristicConfidence: 0.88,
+      rawQuote: "Rate limiter configured with capacity=100.",
+      xray: {
+        plain: {
+          headline: "Configured rate limiter with token bucket algorithm.",
+          summaryBullets: ["Tokens refill at 10/sec.", "Burst capacity set to 100."]
+        },
+        tech: {
+          headline: "Configured TokenBucket in src/limiter.mjs.",
+          summaryBullets: ["Added refillTimer and atomic decrement."],
+          symbols: ["TokenBucket", "refillTimer"],
+          paths: ["src/limiter.mjs"],
+          commands: ["node --test test/limiter.test.mjs"],
+          exitCodes: [0],
+          proofLines: ["PASS test/limiter.test.mjs"]
+        }
+      },
+      waitingOnYou: {
+        state: "reply",
+        label: "Answer Question",
+        prompt: "Choose token bucket storage adapter.",
+        allowInlineReply: true,
+        chips: [
+          {
+            id: "act-1",
+            key: "1",
+            label: "Use In-Memory",
+            techLabel: "MemoryAdapter",
+            messagePrompt: "Use in-memory adapter."
+          }
+        ]
+      },
+      choices: [
+        {
+          id: "choice-1",
+          key: "A",
+          title: "In-Memory Adapter",
+          plainSubtext: "Fastest option with zero network overhead.",
+          techSubtext: "new MemoryStore()",
+          messagePrompt: "Option A: In-Memory Adapter",
+          picked: true,
+          tradeOffs: [
+            { label: "Speed", score: 95 },
+            { label: "Persistence", score: 20 }
+          ]
+        }
+      ],
+      diagramSpec: {
+        grammar: "flow-diff",
+        title: "Rate Limiter Flow",
+        techTitle: "src/limiter.mjs::TokenBucket FlowDiff",
+        viewBoxWidth: 460,
+        groups: [{ id: "g1", label: "Core", lane: "engine" }],
+        nodes: [
+          {
+            id: "n1",
+            label: "Client Request",
+            techLabel: "req: IncomingMessage",
+            sublabel: "Incoming call",
+            role: "Input",
+            file: "src/limiter.mjs",
+            risk: "low",
+            status: "done",
+            lane: "engine",
+            branch: "main"
+          }
+        ],
+        edges: [
+          {
+            from: "n1",
+            to: "n1",
+            stepNumber: 1,
+            label: "Check token",
+            techLabel: "tryConsume()",
+            risk: "low",
+            animated: true
+          }
+        ]
+      },
+      microBlocks: ["unclear", "choices", "diagram", "proof-audit", "concepts", "lessons"],
+      concepts: [
+        {
+          slug: "token-bucket",
+          label: "Token Bucket",
+          techSymbol: "TokenBucket.tryConsume()",
+          targetPlugin: "vectorcraft",
+          stage1: {
+            definition: "Rate limiting algorithm that accumulates tokens over time.",
+            analogy: "Like a bucket collecting drops of water under a tap.",
+            microVisualSpec: {
+              type: "loop-3node",
+              nodes: ["Refill", "Bucket", "Consume"]
+            }
+          },
+          stage2: {
+            howItWorks: "Replenishes tokens periodically up to max burst limit.",
+            keyTradeOff: "Low memory overhead vs. state persistence across restarts.",
+            inYourCodebase: "Implemented in src/limiter.mjs."
+          },
+          stage2Prompt: "Diagram the token refill loop and consumption check."
+        }
+      ],
+      proofClaims: [
+        {
+          claim: "Token bucket test passes",
+          evidence: "test/limiter.test.mjs",
+          detail: "assert.equal(limiter.tryConsume(1), true)",
+          status: "verified"
+        }
+      ]
+    };
+
+    const enriched = ensureDebriefEnriched(debriefInput);
+
+    assert.equal(enriched.verdict, "Planned");
+    assert.equal(enriched.minimalMode, true);
+    assert.equal(enriched.heuristicConfidence, 0.88);
+    assert.equal(enriched.rawQuote, "Rate limiter configured with capacity=100.");
+
+    assert.equal(enriched.xray.plain.headline, debriefInput.xray.plain.headline);
+    assert.deepEqual(enriched.xray.plain.summaryBullets, debriefInput.xray.plain.summaryBullets);
+    assert.deepEqual(enriched.xray.tech.symbols, ["TokenBucket", "refillTimer"]);
+    assert.deepEqual(enriched.xray.tech.paths, ["src/limiter.mjs"]);
+    assert.deepEqual(enriched.xray.tech.commands, ["node --test test/limiter.test.mjs"]);
+    assert.deepEqual(enriched.xray.tech.exitCodes, [0]);
+
+    assert.equal(enriched.waitingOnYou.state, "reply");
+    assert.equal(enriched.waitingOnYou.allowInlineReply, true);
+    assert.equal(enriched.waitingOnYou.chips[0].techLabel, "MemoryAdapter");
+
+    assert.equal(enriched.choices.length, 1);
+    assert.equal(enriched.choices[0].tradeOffs[0].score, 95);
+
+    assert.equal(enriched.diagramSpec.grammar, "flow-diff");
+    assert.equal(enriched.diagramSpec.techTitle, "src/limiter.mjs::TokenBucket FlowDiff");
+    assert.equal(enriched.diagramSpec.nodes[0].techLabel, "req: IncomingMessage");
+    assert.equal(enriched.diagramSpec.nodes[0].lane, "engine");
+    assert.equal(enriched.diagramSpec.edges[0].techLabel, "tryConsume()");
+    assert.equal(enriched.diagramSpec.edges[0].animated, true);
+
+    assert.deepEqual(enriched.microBlocks, ["unclear", "choices", "diagram", "proof-audit", "concepts", "lessons"]);
+
+    assert.equal(enriched.concepts.length, 1);
+    assert.equal(enriched.concepts[0].targetPlugin, "vectorcraft");
+    assert.equal(enriched.concepts[0].stage1.microVisualSpec.type, "loop-3node");
+
+    assert.equal(enriched.proofClaims[0].detail, "assert.equal(limiter.tryConsume(1), true)");
+  });
+
+  it("derives deterministic defaults for bug failures and choice waiting states", () => {
+    // Failing bug turn
+    const failedBug = ensureDebriefEnriched({
+      responseType: "bug",
+      tldrHeadline: "Crash in auth module.",
+      bugReport: {
+        cause: "Token was null.",
+        plan: "Add null check.",
+        succeeded: "no"
+      }
+    });
+    assert.equal(failedBug.verdict, "Blocked");
+    assert.equal(failedBug.waitingOnYou.state, "blocked");
+    assert.equal(failedBug.heuristicConfidence, 0.45);
+    assert.ok(failedBug.microBlocks.includes("unclear"));
+
+    // Choices without explicit waitingOnYou
+    const choiceTurn = ensureDebriefEnriched({
+      responseType: "implementation",
+      tldrHeadline: "Proposed architectural paths.",
+      choices: [
+        { key: "A", title: "Option A" },
+        { key: "B", title: "Option B" }
+      ]
+    });
+    assert.equal(choiceTurn.waitingOnYou.state, "choice");
+    assert.equal(choiceTurn.waitingOnYou.chips.length, 2);
+    assert.equal(choiceTurn.waitingOnYou.chips[0].key, "A");
+    assert.equal(choiceTurn.waitingOnYou.chips[1].key, "B");
+    assert.ok(choiceTurn.microBlocks.includes("choices"));
   });
 });
 

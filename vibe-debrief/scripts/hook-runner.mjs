@@ -106,7 +106,7 @@ async function main() {
     const lightGemini = discoverLightweightGeminiModels()[0]?.id || "new-provider/gemini-3.8-flash";
 
     const additionalContext = [
-      `[Vibe Debrief v0.2.0 (Karpathy Comprehension Panel) Active — Persona: ${persona.name} (${persona.badge}), STE-80: ${state.ste100Enabled !== false ? "ON" : "OFF"}]`,
+      `[Vibe Debrief v0.3.0 (Karpathy Comprehension Panel) Active — Persona: ${persona.name} (${persona.badge}), STE-80: ${state.ste100Enabled !== false ? "ON" : "OFF"}]`,
       `Reading-Boundary Principle: Reason and code normally during tasks; apply comprehension formatting only when publishing to \`vibe_debrief_publish\`.`,
       `Cost-Aware Smart Action Rule: Preferred lightweight Gemini model for ELI5 smart actions is \`${lightGemini}\`. Never spend expensive flagship models (\`opus\` / \`sonnet\`) on simple Vibe Debrief refresh/summarization tasks when \`CreateSession\` can delegate them to \`${lightGemini}\`.`,
       `- After answering a bug/error or completing an implementation (or whenever asked to simplify / explain), call \`vibe_debrief_publish\` with:`,

@@ -13,6 +13,7 @@ import {
   classifyFileRole,
   computeSte100Metrics,
   confirmAndSaveLessonToZCodeMemory,
+  ensureDebriefEnriched,
   loadPersistedState,
   PERSONAS,
   savePersistedState,
@@ -215,12 +216,127 @@ const TOOLS = [
           type: "string",
           description: "1–2 crisp sentences offering a concrete everyday analogy."
         },
+        verdict: {
+          type: "string",
+          enum: ["Solved", "Built", "Explained", "Blocked", "Planned"],
+          description: "Optional OQ-5 verdict pill (Solved, Built, Explained, Blocked, Planned)."
+        },
+        minimalMode: {
+          type: "boolean",
+          description: "Optional OQ-5 minimal mode flag for short trivial turns."
+        },
+        heuristicConfidence: {
+          type: "number",
+          description: "Optional heuristic confidence score (0.0 to 1.0)."
+        },
+        rawQuote: {
+          type: "string",
+          description: "Optional raw snippet quote (<= 280 chars) for unclear turns."
+        },
+        xray: {
+          type: "object",
+          description: "Optional dual-coded X-Ray raw unescaped plain and tech representations.",
+          properties: {
+            plain: {
+              type: "object",
+              properties: {
+                headline: { type: "string" },
+                summaryBullets: { type: "array", items: { type: "string" } }
+              }
+            },
+            tech: {
+              type: "object",
+              properties: {
+                headline: { type: "string" },
+                summaryBullets: { type: "array", items: { type: "string" } },
+                symbols: { type: "array", items: { type: "string" } },
+                paths: { type: "array", items: { type: "string" } },
+                commands: { type: "array", items: { type: "string" } },
+                exitCodes: { type: "array", items: { type: "number" } },
+                proofLines: { type: "array", items: { type: "string" } }
+              }
+            }
+          }
+        },
+        waitingOnYou: {
+          type: "object",
+          description: "Optional 5-state Waiting On You radar status and action chips.",
+          properties: {
+            state: { type: "string", enum: ["choice", "action", "reply", "blocked", "none"] },
+            label: { type: "string" },
+            prompt: { type: "string" },
+            allowInlineReply: { type: "boolean" },
+            chips: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  key: { type: "string" },
+                  label: { type: "string" },
+                  techLabel: { type: "string" },
+                  messagePrompt: { type: "string" },
+                  primary: { type: "boolean" }
+                },
+                required: ["label"]
+              }
+            }
+          }
+        },
+        choices: {
+          type: "array",
+          description: "Optional architectural choice options with trade-offs.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              key: { type: "string" },
+              title: { type: "string" },
+              plainSubtext: { type: "string" },
+              techSubtext: { type: "string" },
+              messagePrompt: { type: "string" },
+              picked: { type: "boolean" },
+              tradeOffs: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    label: { type: "string" },
+                    score: { type: "number" }
+                  },
+                  required: ["label", "score"]
+                }
+              }
+            },
+            required: ["title"]
+          }
+        },
         diagram: {
           type: "object",
           description: "Required on every response: structured node-and-arrow diagram using real component/file names and numbered edges.",
           properties: {
-            diagramType: { type: "string", enum: ["architecture", "sequence", "state-flow", "cause-effect"] },
+            diagramType: {
+              type: "string",
+              enum: ["architecture", "sequence", "state-flow", "cause-effect", "flow-diff", "subway-map", "before-after", "decision-tree"]
+            },
+            grammar: {
+              type: "string",
+              enum: ["architecture", "sequence", "state-flow", "cause-effect", "flow-diff", "subway-map", "before-after", "decision-tree"]
+            },
             title: { type: "string" },
+            techTitle: { type: "string" },
+            viewBoxWidth: { type: "number" },
+            groups: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  label: { type: "string" },
+                  lane: { type: "string" }
+                }
+              }
+            },
             nodes: {
               type: "array",
               items: {
@@ -229,10 +345,13 @@ const TOOLS = [
                   id: { type: "string" },
                   label: { type: "string" },
                   sublabel: { type: "string" },
+                  techLabel: { type: "string" },
                   role: { type: "string" },
                   file: { type: "string" },
                   risk: { type: "string", enum: ["low", "medium", "high"] },
-                  status: { type: "string", enum: ["done", "active", "pending", "warning"] }
+                  status: { type: "string", enum: ["done", "active", "pending", "warning"] },
+                  lane: { type: "string" },
+                  branch: { type: "string" }
                 },
                 required: ["id", "label"]
               }
@@ -246,7 +365,72 @@ const TOOLS = [
                   to: { type: "string" },
                   stepNumber: { type: "number" },
                   label: { type: "string" },
-                  risk: { type: "string", enum: ["low", "medium", "high"] }
+                  techLabel: { type: "string" },
+                  risk: { type: "string", enum: ["low", "medium", "high"] },
+                  animated: { type: "boolean" }
+                },
+                required: ["from", "to"]
+              }
+            }
+          }
+        },
+        diagramSpec: {
+          type: "object",
+          description: "Optional 5-grammar Diagram Spec alias or direct specification.",
+          properties: {
+            diagramType: {
+              type: "string",
+              enum: ["architecture", "sequence", "state-flow", "cause-effect", "flow-diff", "subway-map", "before-after", "decision-tree"]
+            },
+            grammar: {
+              type: "string",
+              enum: ["architecture", "sequence", "state-flow", "cause-effect", "flow-diff", "subway-map", "before-after", "decision-tree"]
+            },
+            title: { type: "string" },
+            techTitle: { type: "string" },
+            viewBoxWidth: { type: "number" },
+            groups: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  label: { type: "string" },
+                  lane: { type: "string" }
+                }
+              }
+            },
+            nodes: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  label: { type: "string" },
+                  sublabel: { type: "string" },
+                  techLabel: { type: "string" },
+                  role: { type: "string" },
+                  file: { type: "string" },
+                  risk: { type: "string", enum: ["low", "medium", "high"] },
+                  status: { type: "string", enum: ["done", "active", "pending", "warning"] },
+                  lane: { type: "string" },
+                  branch: { type: "string" }
+                },
+                required: ["id", "label"]
+              }
+            },
+            edges: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  from: { type: "string" },
+                  to: { type: "string" },
+                  stepNumber: { type: "number" },
+                  label: { type: "string" },
+                  techLabel: { type: "string" },
+                  risk: { type: "string", enum: ["low", "medium", "high"] },
+                  animated: { type: "boolean" }
                 },
                 required: ["from", "to"]
               }
@@ -297,6 +481,7 @@ const TOOLS = [
             properties: {
               claim: { type: "string" },
               evidence: { type: "string" },
+              detail: { type: "string" },
               status: { type: "string", enum: ["verified", "inferred", "unverified"] }
             },
             required: ["claim", "evidence"]
@@ -328,6 +513,54 @@ const TOOLS = [
               checked: { type: "boolean" }
             },
             required: ["text"]
+          }
+        },
+        microBlocks: {
+          type: "array",
+          description: "Optional ordered list of microBlock IDs below the radar card.",
+          items: {
+            type: "string",
+            enum: ["unclear", "choices", "diagram", "proof-audit", "concepts", "lessons"]
+          }
+        },
+        concepts: {
+          type: "array",
+          description: "Optional concepts (<= 6) for Stage 1 drawer and Stage 2 deep dive.",
+          items: {
+            type: "object",
+            properties: {
+              slug: { type: "string" },
+              label: { type: "string" },
+              techSymbol: { type: "string" },
+              targetPlugin: {
+                type: "string",
+                enum: ["excalidraw", "visualize", "vectorcraft", "designcraft"]
+              },
+              stage1: {
+                type: "object",
+                properties: {
+                  definition: { type: "string" },
+                  analogy: { type: "string" },
+                  microVisualSpec: {
+                    type: "object",
+                    properties: {
+                      type: { type: "string", enum: ["loop-3node", "pipeline-3node", "split-compare"] },
+                      nodes: { type: "array", items: { type: "string" } }
+                    }
+                  }
+                }
+              },
+              stage2: {
+                type: "object",
+                properties: {
+                  howItWorks: { type: "string" },
+                  keyTradeOff: { type: "string" },
+                  inYourCodebase: { type: "string" }
+                }
+              },
+              stage2Prompt: { type: "string" }
+            },
+            required: ["label"]
           }
         },
         complexityOverride: {
@@ -636,41 +869,27 @@ async function handleToolCall(name, args = {}) {
         )
       },
       lessonsLearned: normalizedLessons,
-      touchedFiles
-    };
-
-    // Always build a real node-and-arrow diagram for EVERY response
-    const diagram = buildDefaultDiagram(draftDebrief, args.diagram);
-    const hasExplicitScenes = Array.isArray(args.explainerScenes) && args.explainerScenes.length > 0;
-    const complexity = assessWorkflowComplexity({
       touchedFiles,
-      diagram,
-      assistantMessage: state.lastAssistantMessage || "",
-      userPrompt: state.lastUserPrompt || "",
-      complexityOverride: args.complexityOverride || (hasExplicitScenes ? "complex" : null)
-    });
-
-    const defaults = buildDefaultVerificationData(draftDebrief, touchedFiles, state.lastCommandExitZero ?? null);
-    const proofClaims =
-      Array.isArray(args.proofClaims) && args.proofClaims.length > 0
+      diagram: args.diagram,
+      diagramSpec: args.diagramSpec,
+      complexityOverride: args.complexityOverride,
+      explainerScenes: args.explainerScenes,
+      proofClaims: Array.isArray(args.proofClaims)
         ? args.proofClaims.slice(0, 3).map((p) => ({
             claim: polish(p.claim),
             evidence: String(p.evidence || "Verified"),
-            status: ["verified", "inferred", "unverified"].includes(p.status) ? p.status : "verified"
+            status: ["verified", "inferred", "unverified"].includes(p.status) ? p.status : "verified",
+            ...(p.detail ? { detail: String(p.detail) } : {})
           }))
-        : defaults.proofClaims;
-
-    const uncertaintyAudit =
-      Array.isArray(args.uncertaintyAudit) && args.uncertaintyAudit.length > 0
+        : undefined,
+      uncertaintyAudit: Array.isArray(args.uncertaintyAudit)
         ? args.uncertaintyAudit.slice(0, 3).map((u) => ({
             area: String(u.area || "Assumption"),
             reason: polish(u.reason || ""),
             riskLevel: ["low", "medium", "high"].includes(u.riskLevel) ? u.riskLevel : "medium"
           }))
-        : defaults.uncertaintyAudit;
-
-    const verificationChecklist =
-      Array.isArray(args.verificationChecklist) && args.verificationChecklist.length > 0
+        : undefined,
+      verificationChecklist: Array.isArray(args.verificationChecklist)
         ? args.verificationChecklist.slice(0, 4).map((c, idx) => ({
             id: c.id || `chk-${Date.now()}-${idx}`,
             text: polish(c.text),
@@ -678,34 +897,19 @@ async function handleToolCall(name, args = {}) {
             risk: ["low", "medium", "high"].includes(c.risk) ? c.risk : "low",
             checked: Boolean(c.checked)
           }))
-        : defaults.verificationChecklist;
-
-    // Gate animated explainer scenes strictly to complex workflows
-    let explainerScenes = [];
-    if (complexity.level === "complex") {
-      explainerScenes = hasExplicitScenes
-        ? args.explainerScenes.map((s, idx) => ({
-            id: s.id || `scene-${idx + 1}`,
-            durationSec: Number(s.durationSec || 7),
-            title: String(s.title || `Scene ${idx + 1}`),
-            visualType: s.visualType || "pulse-flow",
-            highlightNodeIds: Array.isArray(s.highlightNodeIds) ? s.highlightNodeIds : [],
-            callout: polish(s.callout || ""),
-            narration: polish(s.narration || "")
-          }))
-        : buildExplainerScenesIfComplex({ ...draftDebrief, diagram, uncertaintyAudit }, complexity, false);
-    }
-
-    const newDebrief = {
-      ...draftDebrief,
-      diagram,
-      complexity,
-      proofClaims,
-      uncertaintyAudit,
-      verificationChecklist,
-      explainerScenes
+        : undefined,
+      verdict: args.verdict,
+      minimalMode: args.minimalMode,
+      heuristicConfidence: args.heuristicConfidence,
+      rawQuote: args.rawQuote,
+      xray: args.xray,
+      waitingOnYou: args.waitingOnYou,
+      choices: args.choices,
+      microBlocks: args.microBlocks,
+      concepts: args.concepts
     };
-    newDebrief.ste100Metrics = computeSte100Metrics(newDebrief);
+
+    const newDebrief = ensureDebriefEnriched(draftDebrief, state);
 
     const prevHistory = Array.isArray(state.history) ? state.history : [];
     savePersistedState(workspaceRoot, {
@@ -877,7 +1081,7 @@ rl.on("line", async (line) => {
         },
         serverInfo: {
           name: "vibe-debrief",
-          version: "0.2.0"
+          version: "0.3.0"
         }
       });
       return;

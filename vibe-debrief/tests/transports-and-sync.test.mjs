@@ -6,13 +6,19 @@ import { describe, it } from "node:test";
 
 import { savePersistedState } from "../scripts/debrief-engine.mjs";
 import {
+  checkVersionSync,
+  collectVersionDeclarations,
+  compareVersionDeclarations
+} from "../scripts/check-version-sync.mjs";
+import {
   PANEL_HTML_PATH,
   REPO_ROOT,
   buildDebriefFixture,
   createTempFixture,
   readJsonFile,
   runHookRunner,
-  runMcpServer
+  runMcpServer,
+  runNodeProcess
 } from "./helpers.mjs";
 
 const PANEL_URI = "ui://vibe-debrief/panel.html";
@@ -442,6 +448,191 @@ describe("MCP stdio JSON-RPC transport", () => {
     }
   });
 
+  it("Story 5.1 — round-trips widened vibe_debrief_publish with all OQ-5 fields over stdio MCP", async () => {
+    const { workspace, home, cleanup } = createTempFixture();
+
+    const oq5PublishArgs = {
+      responseType: "bug",
+      persona: "vibe-mentor",
+      tldrHeadline: "Fixed retry guard in webhook handler across 2 files.",
+      realWorldAnalogy: "Like a circuit breaker tripping before the power grid blows.",
+      verdict: "Solved",
+      minimalMode: false,
+      heuristicConfidence: 0.92,
+      rawQuote: "Retries bounded to MAX_RETRIES <= 3.",
+      xray: {
+        plain: {
+          headline: "Fixed retry guard in webhook handler across 2 files.",
+          summaryBullets: ["Stop duplicate retries when webhook returns HTTP 500."]
+        },
+        tech: {
+          headline: "Patched retryWebhook() guard in src/webhook.mjs and test/webhook.test.mjs.",
+          summaryBullets: ["Added MAX_RETRIES <= 3 guard before scheduling backoff timer."],
+          symbols: ["retryWebhook", "MAX_RETRIES"],
+          paths: ["src/webhook.mjs", "test/webhook.test.mjs"],
+          commands: ["node --test test/webhook.test.mjs"],
+          exitCodes: [0],
+          proofLines: ["PASS test/webhook.test.mjs (2/2 assertions)"]
+        }
+      },
+      waitingOnYou: {
+        state: "action",
+        label: "Verify / Run",
+        prompt: "Run the webhook retry test to confirm exit code 0.",
+        allowInlineReply: false,
+        chips: [
+          {
+            id: "act-1",
+            key: "1",
+            label: "Run webhook retry test",
+            techLabel: "node --test test/webhook.test.mjs",
+            messagePrompt: "Please run `node --test test/webhook.test.mjs` and publish the updated Vibe Debrief.",
+            primary: true
+          }
+        ]
+      },
+      choices: [
+        {
+          id: "choice-A",
+          key: "A",
+          title: "Exponential Backoff with Jitter",
+          plainSubtext: "Spreads retries over time so bursts do not overload the server.",
+          techSubtext: "baseDelayMs * (2 ** attempt) + randomJitter(0..250)",
+          messagePrompt: "Let's proceed with Option A: Exponential Backoff with Jitter.",
+          picked: false,
+          tradeOffs: [
+            { label: "Safety", score: 95 },
+            { label: "Speed", score: 70 }
+          ]
+        }
+      ],
+      diagramSpec: {
+        grammar: "flow-diff",
+        title: "Webhook Retry Guard Flow",
+        techTitle: "src/webhook.mjs::retryWebhook FlowDiff",
+        viewBoxWidth: 460,
+        groups: [{ id: "g-api", label: "API Layer", lane: "api" }],
+        nodes: [
+          {
+            id: "n1",
+            label: "Webhook Handler",
+            techLabel: "src/webhook.mjs::retryWebhook",
+            sublabel: "Retry guard added",
+            role: "API / Transport",
+            file: "src/webhook.mjs",
+            risk: "high",
+            status: "active",
+            lane: "api"
+          }
+        ],
+        edges: []
+      },
+      microBlocks: ["choices", "diagram", "proof-audit", "concepts", "lessons"],
+      concepts: [
+        {
+          slug: "idempotent-retry",
+          label: "Idempotent Retry",
+          techSymbol: "retryWebhook()",
+          targetPlugin: "visualize",
+          stage1: {
+            definition: "An operation that produces the same safe result even if called multiple times.",
+            analogy: "Like pressing an elevator call button: pressing it five times still calls one elevator.",
+            microVisualSpec: { type: "loop-3node", nodes: ["Request", "Dedup Key", "Safe State"] }
+          },
+          stage2: {
+            howItWorks: "Checks idempotency key before executing retry logic and caps attempts at MAX_RETRIES.",
+            keyTradeOff: "Requires tracking request IDs in memory or storage across retry windows.",
+            inYourCodebase: "Enforced in src/webhook.mjs inside retryWebhook()."
+          },
+          stage2Prompt: "Create an interactive simulation of idempotent webhook retry backoff and deduplication."
+        }
+      ],
+      proofClaims: [
+        {
+          claim: "Webhook retry test passes",
+          evidence: "test/webhook.test.mjs",
+          detail: "assert.equal(res.status, 200)",
+          status: "verified"
+        }
+      ],
+      bugReport: {
+        cause: "Infinite retry loop on HTTP 500.",
+        plan: "Cap retries at 3.",
+        succeeded: "yes",
+        successSummary: "Fixed with backoff.",
+        consequences: "Safe retry behavior."
+      }
+    };
+
+    try {
+      const published = await callTool("vibe_debrief_publish", oq5PublishArgs, { workspace, home });
+
+      assert.equal(published.content.length, 1);
+      assert.equal(published.content[0].type, "text");
+      assert.match(published.content[0].text, /# Vibe Debrief \(🐛 Bug \/ Error Fix\)/);
+
+      const debrief = published.structuredContent.currentDebrief;
+
+      // Legacy fields intact
+      assert.equal(debrief.responseType, "bug");
+      assert.equal(debrief.persona, "vibe-mentor");
+      assert.equal(debrief.tldrHeadline, oq5PublishArgs.tldrHeadline);
+      assert.equal(debrief.bugReport.cause, oq5PublishArgs.bugReport.cause);
+      assert.equal(debrief.bugReport.succeeded, "yes");
+      assert.equal(debrief.diagram.title, "Webhook Retry Guard Flow");
+      assert.equal(debrief.diagram.nodes.length, 1);
+      assert.equal(debrief.proofClaims[0].detail, "assert.equal(res.status, 200)");
+
+      // All OQ-5 fields present and populated
+      assert.equal(debrief.verdict, "Solved");
+      assert.equal(debrief.minimalMode, false);
+      assert.equal(debrief.heuristicConfidence, 0.92);
+      assert.equal(debrief.rawQuote, "Retries bounded to MAX_RETRIES <= 3.");
+
+      assert.equal(debrief.xray.plain.headline, oq5PublishArgs.xray.plain.headline);
+      assert.deepEqual(debrief.xray.tech.symbols, ["retryWebhook", "MAX_RETRIES"]);
+      assert.deepEqual(debrief.xray.tech.paths, ["src/webhook.mjs", "test/webhook.test.mjs"]);
+
+      assert.equal(debrief.waitingOnYou.state, "action");
+      assert.equal(debrief.waitingOnYou.chips.length, 1);
+      assert.equal(debrief.waitingOnYou.chips[0].techLabel, "node --test test/webhook.test.mjs");
+
+      assert.equal(debrief.choices.length, 1);
+      assert.equal(debrief.choices[0].title, "Exponential Backoff with Jitter");
+      assert.equal(debrief.choices[0].tradeOffs[0].score, 95);
+
+      assert.equal(debrief.diagramSpec.grammar, "flow-diff");
+      assert.equal(debrief.diagramSpec.nodes[0].techLabel, "src/webhook.mjs::retryWebhook");
+      assert.equal(debrief.diagramSpec.nodes[0].lane, "api");
+
+      assert.deepEqual(debrief.microBlocks, ["choices", "diagram", "proof-audit", "concepts", "lessons"]);
+
+      assert.equal(debrief.concepts.length, 1);
+      assert.equal(debrief.concepts[0].slug, "idempotent-retry");
+      assert.equal(debrief.concepts[0].targetPlugin, "visualize");
+
+      // Verify persisted to state file
+      const persisted = readJsonFile(workspace.statePath);
+      assert.equal(persisted.currentDebrief.id, debrief.id);
+      assert.equal(persisted.currentDebrief.verdict, "Solved");
+      assert.equal(persisted.currentDebrief.waitingOnYou.state, "action");
+      assert.equal(persisted.currentDebrief.concepts[0].slug, "idempotent-retry");
+      assert.equal(persisted.agentPublishedThisTurn, true);
+
+      // Verify reading back state
+      const stateResult = await callTool("vibe_debrief_get_state", { refresh: true }, {
+        workspace,
+        home
+      });
+      assert.equal(stateResult.structuredContent.currentDebrief.id, debrief.id);
+      assert.equal(stateResult.structuredContent.currentDebrief.verdict, "Solved");
+      assert.equal(stateResult.structuredContent.currentDebrief.diagramSpec.grammar, "flow-diff");
+      assert.equal(stateResult.structuredContent.currentDebrief.concepts.length, 1);
+    } finally {
+      cleanup();
+    }
+  });
+
   it("round-trips get_state, set_persona, toggle_check and open", async () => {
     const { workspace, home, cleanup } = createSeededFixture();
 
@@ -589,7 +780,7 @@ describe("hook runner stdout isolation", () => {
         env: mcpEnv(workspace, home)
       });
       const sessionFrame = parseHookFrame(session, "session-start");
-      assert.match(sessionFrame.additionalContext, /Vibe Debrief v0\.2\.0/);
+      assert.match(sessionFrame.additionalContext, /Vibe Debrief v0\.3\.0/);
       assert.match(sessionFrame.additionalContext, /Persona: Vibe Mentor/);
       assert.match(sessionFrame.additionalContext, /STE-80: ON/);
       assert.match(sessionFrame.additionalContext, /Always include `diagram`/);
@@ -877,10 +1068,76 @@ describe("hook runner stdout isolation", () => {
         env: mcpEnv(workspace, home)
       });
       const frame = parseHookFrame(result, "session-start (malformed stdin)");
-      assert.match(frame.additionalContext, /Vibe Debrief v0\.2\.0/);
+      assert.match(frame.additionalContext, /Vibe Debrief v0\.3\.0/);
     } finally {
       cleanup();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4-file version sync gate (Story 4.3 / epic-panel-a11y R3)
+// ---------------------------------------------------------------------------
+
+describe("4-file version sync gate", () => {
+  it("collects a 0.3.0 declaration from every canonical version location", () => {
+    const declarations = collectVersionDeclarations(REPO_ROOT);
+    assert.equal(declarations.length, 4, "the gate must cover all four version locations");
+    for (const entry of declarations) {
+      assert.equal(entry.error, null, `${entry.label} must be readable`);
+      assert.equal(entry.version, "0.3.0", `${entry.label} must declare 0.3.0`);
+    }
+  });
+
+  it("passes the release gate for the real repository at 0.3.0", () => {
+    const result = checkVersionSync({ expectedVersion: "0.3.0" });
+    assert.deepEqual(result.problems, []);
+    assert.equal(result.ok, true);
+    assert.equal(result.version, "0.3.0");
+  });
+
+  it("exits 0 as a CLI gate and reports all four locations synced", async () => {
+    const result = await runNodeProcess({
+      args: [join(REPO_ROOT, "scripts", "check-version-sync.mjs"), "0.3.0"]
+    });
+    assert.equal(result.exitCode, 0, `gate stderr: ${result.stderr}`);
+    assert.equal(result.stderr, "", "a passing gate must keep stderr clean");
+    assert.match(result.stdout, /all 4 version locations synced to 0\.3\.0/);
+  });
+
+  it("detects drift when one location disagrees with the others", () => {
+    const declarations = collectVersionDeclarations(REPO_ROOT).map((entry) =>
+      entry.id === "hook-banner" ? { ...entry, version: "0.2.0" } : entry
+    );
+    const result = compareVersionDeclarations(declarations);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.problems.some((problem) => problem.includes("version drift")),
+      `expected a drift problem, got: ${result.problems.join("; ")}`
+    );
+  });
+
+  it("fails when a location is unreadable or its declaration is missing", () => {
+    const declarations = collectVersionDeclarations(REPO_ROOT).map((entry) =>
+      entry.id === "panel-app-info"
+        ? { ...entry, version: null, error: "version declaration not found" }
+        : entry
+    );
+    const result = compareVersionDeclarations(declarations);
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.problems.some((problem) => problem.includes("assets/panel.html")),
+      `expected a panel problem, got: ${result.problems.join("; ")}`
+    );
+  });
+
+  it("rejects an expected version that does not match the stamped release", () => {
+    const result = checkVersionSync({ expectedVersion: "9.9.9" });
+    assert.equal(result.ok, false);
+    assert.ok(
+      result.problems.some((problem) => problem.includes("expected 9.9.9")),
+      `expected a mismatch problem, got: ${result.problems.join("; ")}`
+    );
   });
 });
 

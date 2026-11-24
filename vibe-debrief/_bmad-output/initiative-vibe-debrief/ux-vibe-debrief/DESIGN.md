@@ -378,6 +378,7 @@ components:
     excalidrawGridDot: '{colors.excalidraw-grid-dot}'
     gridDot: '{colors.grid-dot}'
     telemetryBackground: '{colors.telemetry-pill-bg}'
+    telemetryForeground: '#e7edf6'
     radius: '{rounded.shell}'
     titleTypography: '{typography.stage2-title}'
   stage2-toolbar:
@@ -448,12 +449,28 @@ components:
     background: '{colors.bg-card}'
     border: '{colors.border}'
     hoverBorder: '{colors.accent-border}'
+    activeBackground: '{colors.accent-soft}'
+    activeBorder: '{colors.accent-border}'
     radius: '{rounded.md}'
+    typography: '{typography.control}'
+  snapshot-banner:
+    background: '{colors.warn-soft}'
+    border: '{colors.warn-border}'
+    foreground: '{colors.text-primary}'
+    actionBackground: '{colors.bg-card}'
+    actionBorder: '{colors.border-strong}'
+    radius: '{rounded.sm}'
     typography: '{typography.control}'
   hud-toast:
     background: '{colors.ok-soft}'
     border: '{colors.ok-border}'
     foreground: '{colors.ok}'
+    warnBackground: '{colors.warn-soft}'
+    warnBorder: '{colors.warn-border}'
+    warnForeground: '{colors.warn}'
+    riskBackground: '{colors.risk-soft}'
+    riskBorder: '{colors.risk-border}'
+    riskForeground: '{colors.risk}'
     radius: '{rounded.sm}'
     typography: '{typography.control}'
 ---
@@ -529,6 +546,7 @@ Depth comes from **tonal surface stepping + crisp `1px` borders** rather than he
 - **Flat Tonal Hierarchy:** `bg-app` → `bg-surface` → `bg-panel` → `bg-card` → `bg-elevated` wells, separated by `{colors.border}` and `{colors.border-strong}`.
 - **Subtle Dot-Matrix Texture:** Diagram and Stage 2 viewports use a `1px` radial dot grid (`18px × 18px`, `{colors.grid-dot}`) to visually separate spatial canvases from prose blocks.
 - **Restrained Floating Shadows:** Only the HUD shell frame (`0 18px 48px rgba(0,0,0,0.45)` dark / `0 12px 32px rgba(30,41,59,0.10)` light) and `gear-popover` (`0 12px 32px rgba(0,0,0,0.55)`) carry elevation shadows so floating controls clearly detach from cards beneath them.
+- **Keyboard Focus Elevation (`R11`):** Interactive buttons, tabs, SVG nodes, concept pills, and history cards render a `2px solid` `:focus-visible` outline (`{colors.accent}` dark / `{colors.accent-light}` light, `2px` offset) meeting `>= 3:1` contrast across every surface.
 
 ## Shapes
 
@@ -536,7 +554,7 @@ A crisp **5px–16px** geometric scale (`{rounded.*}`):
 - `{rounded.shell}` (`16px`): Outer HUD panel shell and Stage 2 external frame.
 - `{rounded.lg}` (`14px`): Large Stage 2 viewport / outer workspace cards.
 - `{rounded.md}` (`10px`): `radar-card`, composable `.micro-block`, `gear-popover`, `svg-stage`, `stage1-drawer`, `missing-banner`, `lesson-card`, `history-item`.
-- `{rounded.sm}` (`7px`): `action-chip`, `proof-pill`, `popout-btn`, `stage1-canvas-wrap`, `powerup-dock` buttons, `view-switcher` segments.
+- `{rounded.sm}` (`7px`): `action-chip`, `proof-pill`, `popout-btn`, `stage1-canvas-wrap`, `powerup-dock` buttons, `view-switcher` segments, `snapshot-banner`, `hud-toast`.
 - `{rounded.xs}` (`5px`): `choice-key` badges, inline symbol `.sym` tags, `inline-reply-box` controls.
 - `{rounded.full}` (`999px`): `xray-toggle`, `waiting-badge`, `concept-pill`, `target-tag`, status pills.
 
@@ -558,11 +576,11 @@ Every visual component in the Cockpit HUD contract (paired with behavioral contr
 | `svg-stage`, `node-inspector`, `powerup-dock` | `{components.svg-stage}`, `{components.node-inspector}`, `{components.powerup-dock}` | Inset `1px`-bordered diagram stage (`460px` viewBox) with risk-coded nodes, numbered edges, kinetic `.dash-flow` dashed pulse, click-to-inspect `node-inspector` bar (`role`, `risk`, `file`), and `powerup-dock` pill row (`[SVG]`, `[Excalidraw]`, `[Interactive Gen UI]`, `[VectorCraft]`, `[Animate]`). |
 | `proof-pill`, `audit-row`, `check-row` | `{components.proof-pill}`, `{components.audit-row}`, `{components.check-row}` | Compact inline badges (`ok` emerald, `risk` rose, `info` neutral) toggling monospace `proof-detail` drawer, paired with `audit-row` (`💡→Rule` promote pill) and emerald `check-row` verification checkboxes. |
 | `concept-pill` & `stage1-drawer` | `{components.concept-pill}`, `{components.stage1-drawer}` | Wrapping `999px` technical term pills; active pill opens `{colors.accent-border}` inline drawer with target-plugin `target-tag`, STE-80 explanation, left-accented analogy box, `104px` micro-canvas, and full-width `Deep Dive & Pop Out ↗` CTA. |
-| `stage2-popout`, `stage2-toolbar`, `stage2-deep-card`, `missing-banner` | `{components.stage2-popout}`, `{components.stage2-toolbar}`, `{components.stage2-deep-card}`, `{components.missing-banner}` | Main-stage visual shell with `stage2-toolbar`, `270px+` dot-grid or Excalidraw `#faf8f2` canvas, floating `{colors.telemetry-pill-bg}` telemetry bar, and 3-column `stage2-deep-card` grid (`How It Works`, `Key Trade-off`, `In Your Codebase`). Missing plugins render an amber `missing-banner` + `Install <plugin>` CTA above the built-in HTML fallback. |
+| `stage2-popout`, `stage2-toolbar`, `stage2-deep-card`, `missing-banner` | `{components.stage2-popout}`, `{components.stage2-toolbar}`, `{components.stage2-deep-card}`, `{components.missing-banner}` | Main-stage visual shell with `stage2-toolbar`, `270px+` dot-grid or Excalidraw `#faf8f2` canvas, floating `{colors.telemetry-pill-bg}` telemetry bar (`#e7edf6` ink), and 3-column `stage2-deep-card` grid (`How It Works`, `Key Trade-off`, `In Your Codebase`). Missing plugins render an amber `missing-banner` (`Install <plugin>` CTA + clickable artifact link) both inline inside `HUD` (persisting across `tool-result` pushes) and above the Stage 2 built-in HTML fallback. |
 | `unclear-box` | `{components.unclear-box}` | Amber-bordered fallback card showing honest uncertainty notice, monospace `raw-quote` snippet, and `Clarify (Fast / Cheapest Model)` + `Show Raw Reply` buttons. |
 | `explainer-stage` | `{components.explainer-stage}` | `600×250` theme-resolved blueprint `<canvas>` curator tour (`#070b12` dark / `#f1ece1` light, `30px` grid, `▶`/`⏸`, `⏮`/`⏭`, speed, voice toggle, scene pills, and copyable `script-box`), unlockable anytime via `Visual` or `[Animate]`. |
 | `lesson-card`, `lesson-form`, `memory-code-box` | `{components.lesson-card}`, `{components.lesson-form}`, `{components.memory-code-box}` | Rule cards (emerald wash when confirmed in `MEMORY.md`), inline `➕ Add Lesson` form (`54px` textarea), and scrollable monospace `MEMORY.md` preview. |
-| `history-item` & `hud-toast` | `{components.history-item}`, `{components.hud-toast}` | Clickable turn snapshot rows (verdict/mode pill, timestamp, TL;DR) and transient bottom-docked emerald confirmation toast. |
+| `snapshot-banner`, `history-item` & `hud-toast` | `{components.snapshot-banner}`, `{components.history-item}`, `{components.hud-toast}` | Amber-tinted `snapshot-banner` pinned above `radar-card` during history replay (`Viewing Turn Snapshot · Return to Latest`), clickable `.active-snapshot`-highlighted turn rows, and transient bottom/top-docked `hud-toast` (`ok` confirmation, `warn` validation, `risk` RPC error). |
 
 ## Do's and Don'ts
 

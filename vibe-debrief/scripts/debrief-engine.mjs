@@ -236,7 +236,7 @@ function createDefaultState(workspaceRoot) {
   };
 }
 
-function createWelcomeDebrief(projectName, personaId) {
+export function createWelcomeDebrief(projectName, personaId) {
   const base = {
     id: "welcome-debrief",
     createdAt: new Date().toISOString(),
@@ -317,7 +317,7 @@ function createWelcomeDebrief(projectName, personaId) {
     explainerScenes: []
   };
   base.ste100Metrics = computeSte100Metrics(base);
-  return base;
+  return ensureDebriefEnriched(base, { projectName, activePersona: personaId });
 }
 
 // ============================================================================
@@ -533,7 +533,10 @@ export function buildDefaultDiagram(debrief, explicitDiagram = null) {
       role: String(n.role || "Component"),
       file: String(n.file || ""),
       risk: ["low", "medium", "high"].includes(n.risk) ? n.risk : "low",
-      status: ["done", "active", "pending", "warning"].includes(n.status) ? n.status : "done"
+      status: ["done", "active", "pending", "warning"].includes(n.status) ? n.status : "done",
+      ...(n.techLabel ? { techLabel: String(n.techLabel) } : {}),
+      ...(n.lane ? { lane: String(n.lane) } : {}),
+      ...(n.branch ? { branch: String(n.branch) } : {})
     }));
 
     const nodeIds = new Set(nodes.map((n) => n.id));
@@ -545,7 +548,9 @@ export function buildDefaultDiagram(debrief, explicitDiagram = null) {
             to: String(e.to),
             stepNumber: Number(e.stepNumber || idx + 1),
             label: String(e.label || `Step ${idx + 1}`).slice(0, 30),
-            risk: ["low", "medium", "high"].includes(e.risk) ? e.risk : "low"
+            risk: ["low", "medium", "high"].includes(e.risk) ? e.risk : "low",
+            ...(e.techLabel ? { techLabel: String(e.techLabel) } : {}),
+            ...(e.animated !== undefined ? { animated: Boolean(e.animated) } : {})
           }))
       : [];
 
@@ -559,9 +564,20 @@ export function buildDefaultDiagram(debrief, explicitDiagram = null) {
       }));
     }
 
+    const grammar = explicitDiagram.grammar || explicitDiagram.diagramType || (isBug ? "cause-effect" : "architecture");
+    const diagramType = explicitDiagram.diagramType || explicitDiagram.grammar || (isBug ? "cause-effect" : "architecture");
+    const title = explicitDiagram.title || (isBug ? "Root Cause to Fix Verification" : "Component & Data Flow");
+    const techTitle = explicitDiagram.techTitle || title;
+    const viewBoxWidth = Number(explicitDiagram.viewBoxWidth) || 460;
+    const groups = Array.isArray(explicitDiagram.groups) ? explicitDiagram.groups : [];
+
     return {
-      diagramType: explicitDiagram.diagramType || (isBug ? "cause-effect" : "architecture"),
-      title: explicitDiagram.title || (isBug ? "Root Cause to Fix Verification" : "Component & Data Flow"),
+      grammar,
+      diagramType,
+      title,
+      techTitle,
+      viewBoxWidth,
+      groups,
       nodes,
       edges
     };
@@ -619,9 +635,15 @@ export function buildDefaultDiagram(debrief, explicitDiagram = null) {
       risk: nodes[idx + 1].risk || "low"
     }));
 
+    const grammar = isBug ? "cause-effect" : "architecture";
+    const title = isBug ? "Bug Cause → Patched Files → Outcome" : "Goal → Changed Components → Result";
     return {
-      diagramType: isBug ? "cause-effect" : "architecture",
-      title: isBug ? "Bug Cause → Patched Files → Outcome" : "Goal → Changed Components → Result",
+      grammar,
+      diagramType: grammar,
+      title,
+      techTitle: title,
+      viewBoxWidth: 460,
+      groups: [],
       nodes,
       edges
     };
@@ -662,9 +684,15 @@ export function buildDefaultDiagram(debrief, explicitDiagram = null) {
     risk: nodes[idx + 1].risk || "low"
   }));
 
+  const fallbackGrammar = isBug ? "cause-effect" : "state-flow";
+  const fallbackTitle = isBug ? "Cause-to-Fix Flow Diagram" : "Implementation Flow Diagram";
   return {
-    diagramType: isBug ? "cause-effect" : "state-flow",
-    title: isBug ? "Cause-to-Fix Flow Diagram" : "Implementation Flow Diagram",
+    grammar: fallbackGrammar,
+    diagramType: fallbackGrammar,
+    title: fallbackTitle,
+    techTitle: fallbackTitle,
+    viewBoxWidth: 460,
+    groups: [],
     nodes,
     edges
   };
@@ -866,40 +894,409 @@ export function buildPlainTextScript(scenes = []) {
     .join("\n\n");
 }
 
-function ensureDebriefEnriched(debrief, state = {}) {
-  const touched = Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [];
-  const diagram = buildDefaultDiagram(debrief, debrief.diagram);
+export function slugify(text) {
+  return String(text || "lesson")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "vibe-lesson";
+}
+
+export const VALID_VERDICTS = Object.freeze(["Solved", "Built", "Explained", "Blocked", "Planned"]);
+export const VALID_WAITING_STATES = Object.freeze(["choice", "action", "reply", "blocked", "none"]);
+export const VALID_MICRO_BLOCKS = Object.freeze(["unclear", "choices", "diagram", "proof-audit", "concepts", "lessons"]);
+export const VALID_TARGET_PLUGINS = Object.freeze(["excalidraw", "visualize", "vectorcraft", "designcraft"]);
+export const VALID_MICRO_TYPES = Object.freeze(["loop-3node", "pipeline-3node", "split-compare"]);
+
+export function normalizeVerdict(verdict, debrief = {}) {
+  if (typeof verdict === "string" && VALID_VERDICTS.includes(verdict)) {
+    return verdict;
+  }
+  if (debrief.responseType === "bug") {
+    return debrief.bugReport?.succeeded === "no" ? "Blocked" : "Solved";
+  }
+  return "Built";
+}
+
+export function normalizeChoices(choices) {
+  if (!Array.isArray(choices)) return [];
+  return choices.map((c, idx) => ({
+    id: String(c.id || `choice-${c.key || idx + 1}`),
+    key: String(c.key || String.fromCharCode(65 + idx)),
+    title: String(c.title || `Option ${c.key || idx + 1}`),
+    plainSubtext: String(c.plainSubtext || ""),
+    techSubtext: String(c.techSubtext || ""),
+    messagePrompt: String(c.messagePrompt || `Let's proceed with Option ${c.key || idx + 1}: ${c.title || ""}`.trim()),
+    picked: Boolean(c.picked),
+    tradeOffs: Array.isArray(c.tradeOffs)
+      ? c.tradeOffs.map((t) => ({
+          label: String(t.label || ""),
+          score: Math.min(100, Math.max(0, Number(t.score) || 0))
+        }))
+      : []
+  }));
+}
+
+const DEFAULT_WAITING_LABELS = Object.freeze({
+  choice: "Pick a Choice",
+  action: "Verify / Run",
+  reply: "Answer Question",
+  blocked: "Blocked",
+  none: "All Clear"
+});
+
+export function normalizeWaitingOnYou(waitingOnYou, { choices = [], verdict = "Built", debrief = {}, state = {} } = {}) {
+  let waitingState = VALID_WAITING_STATES.includes(waitingOnYou?.state)
+    ? waitingOnYou.state
+    : choices.length > 0
+    ? "choice"
+    : verdict === "Blocked"
+    ? "blocked"
+    : (debrief.proofClaims || []).some((p) => p.status === "unverified")
+    ? "action"
+    : "none";
+
+  const label = String(waitingOnYou?.label || DEFAULT_WAITING_LABELS[waitingState] || "All Clear");
+  const prompt = String(
+    waitingOnYou?.prompt ||
+      (waitingState === "choice"
+        ? `Choose from ${choices.length} option(s) to proceed.`
+        : waitingState === "blocked"
+        ? debrief.bugReport?.cause || "Investigation required before next action."
+        : waitingState === "action"
+        ? "Verify the latest changes or run suggested checks."
+        : waitingState === "reply"
+        ? "Clarification requested before continuing."
+        : "All changes verified. Ready for next task.")
+  );
+  const allowInlineReply = waitingOnYou?.allowInlineReply !== undefined
+    ? Boolean(waitingOnYou.allowInlineReply)
+    : waitingState === "reply";
+
+  let chips = Array.isArray(waitingOnYou?.chips)
+    ? waitingOnYou.chips.slice(0, 4).map((chip, idx) => ({
+        id: String(chip.id || `act-${idx + 1}`),
+        key: String(chip.key || idx + 1),
+        label: String(chip.label || "Action"),
+        techLabel: String(chip.techLabel || ""),
+        messagePrompt: String(chip.messagePrompt || chip.label || ""),
+        primary: Boolean(chip.primary)
+      }))
+    : [];
+
+  if (chips.length === 0 && waitingState === "choice" && choices.length > 0) {
+    chips = choices.slice(0, 4).map((c, idx) => ({
+      id: `choice-${c.key || c.id}`,
+      key: String(c.key || idx + 1),
+      label: c.title || `Option ${c.key}`,
+      techLabel: c.techSubtext || "",
+      messagePrompt: c.messagePrompt || `Option ${c.key}: ${c.title}`,
+      primary: idx === 0
+    }));
+  }
+
+  return {
+    state: waitingState,
+    label,
+    prompt,
+    allowInlineReply,
+    chips
+  };
+}
+
+export function normalizeXray(xray, debrief = {}, state = {}) {
+  const isBug = debrief.responseType === "bug";
+  const defaultPlainBullets = isBug
+    ? [debrief.bugReport?.cause, debrief.bugReport?.plan, debrief.bugReport?.successSummary].filter(Boolean)
+    : [debrief.implementationReport?.objective, debrief.implementationReport?.planAndWhy, debrief.implementationReport?.result].filter(Boolean);
+  if (defaultPlainBullets.length === 0) {
+    defaultPlainBullets.push(debrief.realWorldAnalogy || debrief.tldrHeadline || "Ready to verify.");
+  }
+
+  const touchedFiles = Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [];
+  const defaultPaths = touchedFiles
+    .map((f) => (typeof f === "string" ? f : f?.path || f?.file || f?.shortName))
+    .filter(Boolean);
+
+  const defaultSymbols = touchedFiles
+    .map((f) => (typeof f === "object" ? f?.shortName : String(f).split(/[/\\]/).pop()))
+    .filter(Boolean);
+
+  const defaultTechBullets = isBug
+    ? [
+        debrief.bugReport?.cause ? `Root cause: ${debrief.bugReport.cause}` : "",
+        debrief.bugReport?.plan ? `Fix: ${debrief.bugReport.plan}` : "",
+        debrief.bugReport?.successSummary ? `Status: ${debrief.bugReport.successSummary}` : ""
+      ].filter(Boolean)
+    : [
+        debrief.implementationReport?.objective ? `Objective: ${debrief.implementationReport.objective}` : "",
+        debrief.implementationReport?.planAndWhy ? `Plan: ${debrief.implementationReport.planAndWhy}` : "",
+        debrief.implementationReport?.result ? `Result: ${debrief.implementationReport.result}` : ""
+      ].filter(Boolean);
+  if (defaultTechBullets.length === 0) {
+    defaultTechBullets.push(debrief.tldrHeadline || "Changes applied.");
+  }
+
+  const proofClaims = Array.isArray(debrief.proofClaims) ? debrief.proofClaims : [];
+  const defaultProofLines = proofClaims.map((p) => `${p.claim} (${p.evidence})`);
+
+  const plainHeadline = String(xray?.plain?.headline || debrief.tldrHeadline || "");
+  const plainSummary = Array.isArray(xray?.plain?.summaryBullets)
+    ? xray.plain.summaryBullets.map(String)
+    : defaultPlainBullets;
+
+  const techHeadline = String(xray?.tech?.headline || debrief.tldrHeadline || "");
+  const techSummary = Array.isArray(xray?.tech?.summaryBullets)
+    ? xray.tech.summaryBullets.map(String)
+    : defaultTechBullets;
+  const symbols = Array.isArray(xray?.tech?.symbols)
+    ? xray.tech.symbols.map(String)
+    : defaultSymbols;
+  const paths = Array.isArray(xray?.tech?.paths)
+    ? xray.tech.paths.map(String)
+    : defaultPaths;
+  const commands = Array.isArray(xray?.tech?.commands)
+    ? xray.tech.commands.map(String)
+    : [];
+  const exitCodes = Array.isArray(xray?.tech?.exitCodes)
+    ? xray.tech.exitCodes.map(Number)
+    : state.lastCommandExitZero !== undefined && state.lastCommandExitZero !== null
+    ? [state.lastCommandExitZero ? 0 : 1]
+    : [];
+  const proofLines = Array.isArray(xray?.tech?.proofLines)
+    ? xray.tech.proofLines.map(String)
+    : defaultProofLines;
+
+  return {
+    plain: {
+      headline: plainHeadline,
+      summaryBullets: plainSummary
+    },
+    tech: {
+      headline: techHeadline,
+      summaryBullets: techSummary,
+      symbols,
+      paths,
+      commands,
+      exitCodes,
+      proofLines
+    }
+  };
+}
+
+export function normalizeConcepts(concepts) {
+  if (!Array.isArray(concepts)) return [];
+  return concepts.slice(0, 6).map((c, idx) => {
+    const slug = String(c.slug || slugify(c.label || `concept-${idx + 1}`));
+    const label = String(c.label || "Concept");
+    const techSymbol = String(c.techSymbol || "");
+    const targetPlugin = VALID_TARGET_PLUGINS.includes(c.targetPlugin) ? c.targetPlugin : "visualize";
+    const microType = VALID_MICRO_TYPES.includes(c.stage1?.microVisualSpec?.type)
+      ? c.stage1.microVisualSpec.type
+      : "pipeline-3node";
+    const microNodes = Array.isArray(c.stage1?.microVisualSpec?.nodes)
+      ? c.stage1.microVisualSpec.nodes.map(String).slice(0, 3)
+      : ["Input", "Process", "Output"];
+
+    return {
+      slug,
+      label,
+      techSymbol,
+      targetPlugin,
+      stage1: {
+        definition: String(c.stage1?.definition || ""),
+        analogy: String(c.stage1?.analogy || ""),
+        microVisualSpec: {
+          type: microType,
+          nodes: microNodes
+        }
+      },
+      stage2: {
+        howItWorks: String(c.stage2?.howItWorks || ""),
+        keyTradeOff: String(c.stage2?.keyTradeOff || ""),
+        inYourCodebase: String(c.stage2?.inYourCodebase || "")
+      },
+      stage2Prompt: String(c.stage2Prompt || "")
+    };
+  });
+}
+
+export function normalizeMicroBlocks(microBlocks, context = {}) {
+  if (Array.isArray(microBlocks) && microBlocks.length > 0) {
+    const filtered = microBlocks.filter((b) => VALID_MICRO_BLOCKS.includes(b));
+    if (filtered.length > 0) return filtered;
+  }
+  const blocks = [];
+  if ((typeof context.heuristicConfidence === "number" && context.heuristicConfidence < 0.55) || Boolean(context.rawQuote)) {
+    blocks.push("unclear");
+  }
+  if (Array.isArray(context.choices) && context.choices.length > 0) {
+    blocks.push("choices");
+  }
+  blocks.push("diagram");
+  blocks.push("proof-audit");
+  if (Array.isArray(context.concepts) && context.concepts.length > 0) {
+    blocks.push("concepts");
+  }
+  if (Array.isArray(context.lessonsLearned) && context.lessonsLearned.length > 0) {
+    blocks.push("lessons");
+  }
+  return blocks;
+}
+
+export function normalizeHeuristicConfidence(confidence, debrief = {}, state = {}) {
+  if (typeof confidence === "number" && !Number.isNaN(confidence)) {
+    return Math.max(0, Math.min(1, confidence));
+  }
+  if (debrief.bugReport?.succeeded === "no" || state.lastCommandExitZero === false) {
+    return 0.45;
+  }
+  if (debrief.bugReport?.succeeded === "partial") {
+    return 0.65;
+  }
+  return 0.9;
+}
+
+export function ensureDebriefEnriched(debrief, state = {}) {
+  if (!debrief) {
+    debrief = createWelcomeDebrief(state?.projectName || "Workspace", state?.activePersona);
+  }
+
+  const touched = (Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [])
+    .slice(0, STATE_COLLECTION_LIMITS.recentTouchedFiles)
+    .map((f) => (typeof f === "string" ? classifyFileRole(f) : f));
+
+  const rawDiagram = debrief.diagramSpec || debrief.diagram;
+  const diagram = buildDefaultDiagram(debrief, rawDiagram);
+
+  const grammar = rawDiagram?.grammar || diagram.grammar || diagram.diagramType || (debrief.responseType === "bug" ? "cause-effect" : "architecture");
+  const diagramType = diagram.diagramType || rawDiagram?.diagramType || grammar;
+  const title = rawDiagram?.title || diagram.title || (debrief.responseType === "bug" ? "Root Cause to Fix Verification" : "Component & Data Flow");
+  const techTitle = rawDiagram?.techTitle || diagram.techTitle || title;
+  const viewBoxWidth = Number(rawDiagram?.viewBoxWidth || diagram.viewBoxWidth) || 460;
+  const groups = Array.isArray(rawDiagram?.groups) ? rawDiagram.groups : Array.isArray(diagram.groups) ? diagram.groups : [];
+  const nodes = (diagram.nodes || []).slice(0, 6);
+  const edges = diagram.edges || [];
+
+  const diagramSpec = {
+    grammar,
+    diagramType,
+    title,
+    techTitle,
+    viewBoxWidth,
+    groups,
+    nodes,
+    edges
+  };
+
+  diagram.grammar = grammar;
+  diagram.diagramType = diagramType;
+  diagram.title = title;
+  diagram.techTitle = techTitle;
+  diagram.viewBoxWidth = viewBoxWidth;
+  diagram.groups = groups;
+  diagram.nodes = nodes;
+  diagram.edges = edges;
+
+  const hasExplicitScenes = Array.isArray(debrief.explainerScenes) && debrief.explainerScenes.length > 0;
   const complexity =
     debrief.complexity ||
     assessWorkflowComplexity({
       touchedFiles: touched,
       diagram,
       assistantMessage: state.lastAssistantMessage || "",
-      userPrompt: state.lastUserPrompt || ""
+      userPrompt: state.lastUserPrompt || "",
+      complexityOverride: debrief.complexityOverride || (hasExplicitScenes ? "complex" : null)
     });
+
   const defaults = buildDefaultVerificationData(debrief, touched, state.lastCommandExitZero ?? null);
-  const proofClaims = Array.isArray(debrief.proofClaims) && debrief.proofClaims.length > 0 ? debrief.proofClaims : defaults.proofClaims;
+  const proofClaims =
+    Array.isArray(debrief.proofClaims) && debrief.proofClaims.length > 0
+      ? debrief.proofClaims.slice(0, 3).map((p) => ({
+          claim: String(p.claim || ""),
+          evidence: String(p.evidence || "Verified"),
+          status: ["verified", "inferred", "unverified"].includes(p.status) ? p.status : "verified",
+          ...(p.detail ? { detail: String(p.detail) } : {})
+        }))
+      : defaults.proofClaims;
+
   const uncertaintyAudit =
     Array.isArray(debrief.uncertaintyAudit) && debrief.uncertaintyAudit.length > 0
-      ? debrief.uncertaintyAudit
+      ? debrief.uncertaintyAudit.slice(0, 3).map((u) => ({
+          area: String(u.area || "Assumption"),
+          reason: String(u.reason || ""),
+          riskLevel: ["low", "medium", "high"].includes(u.riskLevel) ? u.riskLevel : "medium"
+        }))
       : defaults.uncertaintyAudit;
+
   const verificationChecklist =
     Array.isArray(debrief.verificationChecklist) && debrief.verificationChecklist.length > 0
-      ? debrief.verificationChecklist
+      ? debrief.verificationChecklist.slice(0, 4).map((c, idx) => ({
+          id: c.id || `chk-${Date.now()}-${idx}`,
+          text: String(c.text || ""),
+          source: String(c.source || "Manual check"),
+          risk: ["low", "medium", "high"].includes(c.risk) ? c.risk : "low",
+          checked: Boolean(c.checked)
+        }))
       : defaults.verificationChecklist;
-  const explainerScenes =
-    Array.isArray(debrief.explainerScenes) && debrief.explainerScenes.length > 0
-      ? debrief.explainerScenes
-      : buildExplainerScenesIfComplex({ ...debrief, diagram, uncertaintyAudit }, complexity, false);
+
+  let explainerScenes = [];
+  if (complexity.level === "complex") {
+    explainerScenes =
+      hasExplicitScenes
+        ? debrief.explainerScenes.map((s, idx) => ({
+            id: s.id || `scene-${idx + 1}`,
+            durationSec: Number(s.durationSec || 7),
+            title: String(s.title || `Scene ${idx + 1}`),
+            visualType: s.visualType || "pulse-flow",
+            highlightNodeIds: Array.isArray(s.highlightNodeIds) ? s.highlightNodeIds : [],
+            callout: String(s.callout || ""),
+            narration: String(s.narration || "")
+          }))
+        : buildExplainerScenesIfComplex({ ...debrief, diagram, uncertaintyAudit }, complexity, false);
+  }
+
+  const verdict = normalizeVerdict(debrief.verdict, debrief);
+  const choices = normalizeChoices(debrief.choices);
+  const waitingOnYou = normalizeWaitingOnYou(debrief.waitingOnYou, {
+    choices,
+    verdict,
+    debrief,
+    state
+  });
+  const xray = normalizeXray(debrief.xray, { ...debrief, touchedFiles: touched, proofClaims }, state);
+  const concepts = normalizeConcepts(debrief.concepts);
+  const heuristicConfidence = normalizeHeuristicConfidence(debrief.heuristicConfidence, debrief, state);
+  const rawQuote = debrief.rawQuote ? String(debrief.rawQuote).slice(0, 280) : "";
+  const minimalMode = debrief.minimalMode !== undefined ? Boolean(debrief.minimalMode) : false;
+  const lessonsLearned = Array.isArray(debrief.lessonsLearned) ? debrief.lessonsLearned : [];
+  const microBlocks = normalizeMicroBlocks(debrief.microBlocks, {
+    heuristicConfidence,
+    rawQuote,
+    choices,
+    concepts,
+    lessonsLearned
+  });
 
   const enriched = {
     ...debrief,
+    touchedFiles: touched,
     diagram,
+    diagramSpec,
     complexity,
     proofClaims,
     uncertaintyAudit,
     verificationChecklist,
-    explainerScenes
+    explainerScenes,
+    verdict,
+    waitingOnYou,
+    choices,
+    xray,
+    microBlocks,
+    concepts,
+    minimalMode,
+    heuristicConfidence,
+    rawQuote
   };
   enriched.ste100Metrics = computeSte100Metrics(enriched);
   return enriched;
@@ -982,14 +1379,6 @@ function extractSentences(text, maxSentences = 2) {
     .map((s) => s.trim())
     .filter((s) => s.length > 18 && !s.startsWith("http"));
   return parts.slice(0, maxSentences).join(" ");
-}
-
-function slugify(text) {
-  return String(text || "lesson")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48) || "vibe-lesson";
 }
 
 export function synthesizeHeuristicDebrief({
@@ -1287,9 +1676,12 @@ export function generateStandaloneHtmlArtifact(panelState) {
     .chip { font-size:11.5px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); cursor:pointer; color:var(--text); }
     .chip.high { border-color:var(--bad); }
     .chip.medium { border-color:var(--warn); }
+    .chip.selected { border-color:var(--accent); background:var(--accent-soft); }
     .inspector { margin-top:10px; padding:8px 12px; border-radius:8px; background:var(--bg); border:1px solid var(--border); font-size:12.5px; color:var(--muted); }
-    .chk-row { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); }
+    .inspector.has-selection { border-color:var(--accent-border); color:var(--text-primary); }
+    .chk-row { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); cursor:pointer; }
     .chk-row:last-child { border-bottom:none; }
+    .chk-row input:checked + span { text-decoration:line-through; color:var(--text-muted); }
     .btn { border:1px solid var(--border); background:var(--panel); color:var(--text); border-radius:7px; padding:6px 12px; font-weight:700; cursor:pointer; }
     .btn:hover { border-color:var(--accent); }
     pre { background:var(--bg); border:1px solid var(--border); padding:12px; border-radius:8px; white-space:pre-wrap; font-size:12.5px; color:var(--muted); }
@@ -1354,8 +1746,8 @@ export function generateStandaloneHtmlArtifact(panelState) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
       <strong>🎬 Complex-Workflow Animated Explainer</strong>
       <div style="display:flex;gap:6px;">
-        <button class="btn" id="btnPlayScene">▶ Play</button>
-        <button class="btn" id="btnPauseScene">⏸ Pause</button>
+        <button class="btn" id="btnPlayScene" aria-pressed="false" aria-label="Play animated explainer">▶ Play</button>
+        <button class="btn" id="btnPauseScene" aria-pressed="true" aria-label="Pause animated explainer">⏸ Pause</button>
       </div>
     </div>
     <canvas id="sceneCanvas" width="880" height="230" style="width:100%;background:var(--explainer-stage-bg);border-radius:10px;border:1px solid var(--border);"></canvas>
@@ -1402,11 +1794,54 @@ export function generateStandaloneHtmlArtifact(panelState) {
       explainerStageBg: v("--explainer-stage-bg"), canvasGridLine: v("--canvas-grid-line")
     };
   }
+  var selectedNodeId = null;
+  var defaultInspectorText = "Click or press Enter on a diagram node or file chip to inspect its role and risk level.";
   nodes.forEach(function(n, i){
     pos[n.id] = { x: startX + i*(boxW+gap), y: 58, w: boxW, h: 86 };
   });
-  function inspectNode(n){
-    inspector.textContent = (n.label || "") + " — Role: " + (n.role || "Step") + " · Risk: " + (n.risk || "low").toUpperCase() + (n.file ? " · File: " + n.file : "");
+  function syncInspector(text, active){
+    inspector.textContent = text;
+    if (inspector.classList && inspector.classList.toggle) {
+      inspector.classList.toggle("has-selection", Boolean(active));
+    }
+  }
+  function renderChips(){
+    chipsEl.innerHTML = "";
+    (DATA.touchedFiles || []).forEach(function(f){
+      var btn = document.createElement("button");
+      var matched = nodes.find(function(x){ return x.file === f.path || x.label === f.shortName; });
+      var isSel = Boolean(matched && selectedNodeId === matched.id);
+      btn.className = "chip " + (f.risk || "low") + (isSel ? " selected" : "");
+      btn.setAttribute("aria-pressed", isSel ? "true" : "false");
+      btn.textContent = (f.icon || "📄") + " " + f.shortName + " · " + (f.risk || "low").toUpperCase();
+      btn.addEventListener("click", function(){
+        if (matched) {
+          inspectNode(matched, { toggle: true });
+        } else {
+          selectedNodeId = null;
+          renderDiagram();
+          syncInspector(f.path + " — " + f.role + " (" + (f.intent || f.risk) + ")", true);
+        }
+      });
+      chipsEl.appendChild(btn);
+    });
+  }
+  function inspectNode(n, opts){
+    var toggle = opts && opts.toggle;
+    var focusNode = opts && opts.focusNode;
+    if (toggle && selectedNodeId === n.id) {
+      selectedNodeId = null;
+      syncInspector(defaultInspectorText, false);
+    } else {
+      selectedNodeId = n.id;
+      syncInspector((n.label || "") + " — Role: " + (n.role || "Step") + " · Risk: " + (n.risk || "low").toUpperCase() + (n.file ? " · File: " + n.file : ""), true);
+    }
+    renderDiagram();
+    renderChips();
+    if (focusNode) {
+      var target = Array.prototype.find.call(svg.querySelectorAll(".dnode"), function(el){ return el.getAttribute("data-id") === n.id; });
+      if (target && typeof target.focus === "function") target.focus();
+    }
   }
   function renderDiagram(){
     var T = resolveTokens();
@@ -1422,10 +1857,13 @@ export function generateStandaloneHtmlArtifact(panelState) {
     });
     nodes.forEach(function(n){
       var p = pos[n.id];
+      var isSel = selectedNodeId === n.id;
       var stroke = n.risk === "high" ? T.risk : n.risk === "medium" ? T.warn : T.ok;
+      var fill = isSel ? T.accentSoft : T.bgCard;
+      var sw = isSel ? "2.6" : "2";
       var nAria = (n.label || "Node") + " — " + (n.role || "Step") + ", risk " + (n.risk || "low").toUpperCase() + (n.file ? ", file " + n.file : "");
-      html += '<g class="dnode" tabindex="0" role="button" aria-label="'+esc(nAria)+'" data-id="'+esc(n.id)+'" style="cursor:pointer">';
-      html += '<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="10" fill="'+T.bgCard+'" stroke="'+stroke+'" stroke-width="2"/>';
+      html += '<g class="dnode" tabindex="0" role="button" aria-pressed="'+(isSel?"true":"false")+'" aria-label="'+esc(nAria)+'" data-id="'+esc(n.id)+'" style="cursor:pointer">';
+      html += '<rect x="'+p.x+'" y="'+p.y+'" width="'+p.w+'" height="'+p.h+'" rx="10" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+sw+'"/>';
       html += '<text x="'+(p.x+10)+'" y="'+(p.y+26)+'" fill="'+T.textPrimary+'" font-size="12.5" font-weight="700">'+esc((n.label||"").slice(0,22))+'</text>';
       html += '<text x="'+(p.x+10)+'" y="'+(p.y+46)+'" fill="'+T.textSecondary+'" font-size="11">'+esc((n.sublabel||"").slice(0,26))+'</text>';
       html += '<text x="'+(p.x+10)+'" y="'+(p.y+68)+'" fill="'+stroke+'" font-size="10" font-weight="700">'+esc((n.risk||"low").toUpperCase())+' · '+esc(n.role||"")+'</text>';
@@ -1433,25 +1871,19 @@ export function generateStandaloneHtmlArtifact(panelState) {
     });
     svg.innerHTML = html;
     svg.querySelectorAll(".dnode").forEach(function(g){
-      function activate(){
+      function activate(fromKb){
         var id = g.getAttribute("data-id");
         var found = nodes.find(function(x){ return x.id === id; });
-        if(found) inspectNode(found);
+        if(found) inspectNode(found, { toggle: true, focusNode: fromKb });
       }
-      g.addEventListener("click", activate);
+      g.addEventListener("click", function(){ activate(false); });
       g.addEventListener("keydown", function(e){
-        if(e.key === "Enter" || e.key === " "){ e.preventDefault(); activate(); }
+        if(e.key === "Enter" || e.key === " "){ e.preventDefault(); activate(true); }
       });
     });
   }
   renderDiagram();
-  (DATA.touchedFiles || []).forEach(function(f){
-    var btn = document.createElement("button");
-    btn.className = "chip " + (f.risk || "low");
-    btn.textContent = (f.icon || "📄") + " " + f.shortName + " · " + (f.risk || "low").toUpperCase();
-    btn.onclick = function(){ inspector.textContent = f.path + " — " + f.role + " (" + (f.intent || f.risk) + ")"; };
-    chipsEl.appendChild(btn);
-  });
+  renderChips();
   var scenes = DATA.scenes || [];
   var canvas = document.getElementById("sceneCanvas");
   var drawFrame = null;
@@ -1498,13 +1930,28 @@ export function generateStandaloneHtmlArtifact(panelState) {
       if(playing && !reducedMotion()) raf = requestAnimationFrame(tick);
     }
     drawFrame();
-    document.getElementById("btnPlayScene").onclick = function(){
-      if(!playing){
-        playing = true;
-        if(reducedMotion()){ drawFrame(); } else { tick(); }
-      }
-    };
-    document.getElementById("btnPauseScene").onclick = function(){ playing = false; if(raf) cancelAnimationFrame(raf); };
+    var btnPlay = document.getElementById("btnPlayScene");
+    var btnPause = document.getElementById("btnPauseScene");
+    function syncPlaybackButtons(){
+      if (btnPlay) btnPlay.setAttribute("aria-pressed", playing ? "true" : "false");
+      if (btnPause) btnPause.setAttribute("aria-pressed", playing ? "false" : "true");
+    }
+    if (btnPlay) {
+      btnPlay.addEventListener("click", function(){
+        if(!playing){
+          playing = true;
+          syncPlaybackButtons();
+          if(reducedMotion()){ drawFrame(); } else { tick(); }
+        }
+      });
+    }
+    if (btnPause) {
+      btnPause.addEventListener("click", function(){
+        playing = false;
+        syncPlaybackButtons();
+        if(raf) cancelAnimationFrame(raf);
+      });
+    }
   }
   function rerenderVisuals(){
     renderDiagram();

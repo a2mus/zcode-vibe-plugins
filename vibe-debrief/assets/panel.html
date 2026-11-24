@@ -278,6 +278,11 @@
         color: var(--success);
       }
 
+      body.theme-light .btn-success,
+      html[data-theme="light"] .btn-success {
+        color: var(--text-primary);
+      }
+
       .btn-success:hover {
         background: var(--success);
         color: var(--text-on-accent);
@@ -444,6 +449,19 @@
         font-weight: 600;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        word-break: break-word;
+      }
+
+      .toast-banner.toast-warn {
+        background: var(--warn-soft);
+        border-color: var(--warn-border);
+      }
+
+      .toast-banner.toast-risk {
+        background: var(--risk-soft);
+        border-color: var(--risk-border);
       }
 
       .toast-banner.visible {
@@ -545,6 +563,7 @@
         color: var(--text-primary);
         line-height: 1.4;
         margin-bottom: 9px;
+        word-break: break-word;
       }
 
       .analogy-box {
@@ -605,8 +624,10 @@
         cursor: pointer;
       }
 
-      .diagram-node-group:hover rect {
-        filter: brightness(1.15);
+      .diagram-node-group:hover rect,
+      .diagram-node-group:focus-visible rect {
+        filter: brightness(1.1);
+        stroke-width: 2.4;
       }
 
       .files-strip {
@@ -755,6 +776,11 @@
         color: var(--danger);
       }
 
+      body.theme-light .status-banner,
+      html[data-theme="light"] .status-banner {
+        color: var(--text-primary);
+      }
+
       /* Inline Proof Claims inside Card 3 */
       .proof-strip {
         margin-top: 8px;
@@ -884,6 +910,7 @@
         font-weight: 800;
         font-size: 12.5px;
         color: var(--text-primary);
+        word-break: break-word;
       }
 
       .lesson-summary {
@@ -955,6 +982,7 @@
         margin-bottom: 8px;
         cursor: pointer;
         transition: border-color 0.14s;
+        word-break: break-word;
       }
 
       .history-item:hover {
@@ -1321,6 +1349,7 @@
         const pendingRequests = new Map();
         let currentState = null;
         let latestDebriefSnapshot = null;
+        let lastRenderedDebriefId = null;
         let viewingHistoryIdx = null;
         let selectedNodeId = null;
 
@@ -1573,19 +1602,29 @@
         }
 
         let toastTimer = null;
-        function showToast(msg) {
+        function showToast(msg, variant) {
           const banner = document.getElementById("toastBanner");
           const txt = document.getElementById("toastText");
+          const resolvedVariant =
+            variant ||
+            (typeof msg === "string" && msg.trim().startsWith("⚠️") ? "warn" : "ok");
           txt.textContent = msg;
-          banner.classList.add("visible");
+          if (banner.classList) {
+            banner.classList.remove("toast-ok", "toast-warn", "toast-risk");
+            banner.classList.add("toast-" + resolvedVariant);
+            banner.classList.add("visible");
+          }
           clearTimeout(toastTimer);
-          toastTimer = setTimeout(() => banner.classList.remove("visible"), 4500);
+          toastTimer = setTimeout(() => {
+            if (banner.classList) banner.classList.remove("visible");
+          }, 4500);
         }
 
         function setCustomLessonFormVisible(visible) {
           const form = document.getElementById("customLessonForm");
           const toggleBtn = document.getElementById("btnToggleCustomLesson");
           if (!form) return;
+          if (!visible && form.style.display === "none") return;
           form.style.display = visible ? "block" : "none";
           if (toggleBtn) {
             toggleBtn.setAttribute("aria-expanded", visible ? "true" : "false");
@@ -1617,7 +1656,7 @@
           } catch (err) {
             console.warn("Failed to load vibe debrief state:", err);
             if (!silent) {
-              showToast("⚠️ Could not sync latest debrief: " + (err?.message || "RPC error"));
+              showToast("⚠️ Could not sync latest debrief: " + (err?.message || "RPC error"), "risk");
             }
           }
           return false;
@@ -1649,6 +1688,11 @@
           }
           currentState = state;
           const debrief = state.currentDebrief || {};
+          const nextDebriefKey = debrief.id || debrief.createdAt || debrief.tldrHeadline || null;
+          if (nextDebriefKey !== lastRenderedDebriefId) {
+            selectedNodeId = null;
+            lastRenderedDebriefId = nextDebriefKey;
+          }
           updateSnapshotBanner();
           const personas = state.personas || [];
           const activePersonaId = debrief.persona || state.activePersona || "vibe-mentor";
@@ -1704,7 +1748,7 @@
                   showToast("🎭 Switched persona to " + chosen);
                 }
               } catch (err) {
-                showToast("⚠️ Could not switch persona: " + (err?.message || "try again"));
+                showToast("⚠️ Could not switch persona: " + (err?.message || "try again"), "risk");
               } finally {
                 setButtonBusy(btn, false);
               }
@@ -1725,14 +1769,24 @@
           const files = Array.isArray(debrief.touchedFiles) ? debrief.touchedFiles : [];
           const tokens = resolveThemeTokens();
 
+          const defaultInspectorHtml = "<span>Click or press Enter on any diagram node or file chip to inspect its role &amp; risk.</span>";
+          const inspectorBar = document.getElementById("nodeInspectorBar");
+          const filesStripEl = document.getElementById("touchedFilesStrip");
+
           document.getElementById("diagramTitleLabel").textContent =
             "🗺️ " + (diagram.title || "Component & Flow Diagram");
           document.getElementById("touchedFilesCountLabel").textContent =
             files.length === 1 ? "1 file" : `${files.length} files`;
 
           if (nodes.length === 0) {
+            selectedNodeId = null;
             svg.setAttribute("viewBox", "0 0 460 80");
             svg.innerHTML = `<text x="230" y="45" text-anchor="middle" fill="${escapeHtml(tokens.textSecondary)}" font-size="12">Diagram pending…</text>`;
+            if (filesStripEl) filesStripEl.innerHTML = "";
+            if (inspectorBar) {
+              inspectorBar.classList.remove("has-selection");
+              inspectorBar.innerHTML = defaultInspectorHtml;
+            }
             return;
           }
 
@@ -1835,7 +1889,23 @@
 
           svg.innerHTML = svgMarkup;
 
-          const defaultInspectorHtml = "<span>Click or press Enter on any diagram node or file chip to inspect its role &amp; risk.</span>";
+          const activeSelectedNode = selectedNodeId ? nodes.find((n) => n.id === selectedNodeId) : null;
+          if (!activeSelectedNode) {
+            selectedNodeId = null;
+            if (inspectorBar) {
+              inspectorBar.classList.remove("has-selection");
+              inspectorBar.innerHTML = defaultInspectorHtml;
+            }
+          } else if (inspectorBar) {
+            inspectorBar.classList.add("has-selection");
+            inspectorBar.innerHTML = `
+              <span><strong>${escapeHtml(activeSelectedNode.label)}</strong> · ${escapeHtml(activeSelectedNode.role || "Step")} · Risk: <strong style="color:${
+              activeSelectedNode.risk === "high" ? "var(--danger)" : activeSelectedNode.risk === "medium" ? "var(--warning)" : "var(--success)"
+            }">${escapeHtml((activeSelectedNode.risk || "low").toUpperCase())}</strong>${
+              activeSelectedNode.file ? ` · <code>${escapeHtml(activeSelectedNode.file)}</code>` : ""
+            }</span>`;
+          }
+
           const resetInspector = () => {
             selectedNodeId = null;
             const bar = document.getElementById("nodeInspectorBar");
@@ -1987,7 +2057,7 @@
                 if (res && res.structuredContent) renderPanelState(res.structuredContent);
               } catch (err) {
                 box.checked = !desired;
-                showToast("⚠️ Could not save verification check: " + (err?.message || "RPC error"));
+                showToast("⚠️ Could not save verification check: " + (err?.message || "RPC error"), "risk");
               } finally {
                 box.disabled = false;
               }
@@ -1998,9 +2068,11 @@
             btn.addEventListener("click", () => {
               const u = audit[Number(btn.getAttribute("data-aidx"))];
               if (!u) return;
-              setCustomLessonFormVisible(true);
               document.getElementById("customLessonTitle").value = `Double-check ${u.area}`;
               document.getElementById("customLessonSummary").value = u.reason;
+              document.getElementById("customLessonWhy").value = "";
+              document.getElementById("customLessonHow").value = "";
+              setCustomLessonFormVisible(true);
               document.getElementById("customLessonForm").scrollIntoView({
                 behavior: prefersReducedMotion() ? "auto" : "smooth",
                 block: "nearest"
@@ -2171,10 +2243,10 @@
                   });
                   if (res && res.structuredContent) {
                     renderPanelState(res.structuredContent);
-                    showToast("✅ Lesson confirmed & written to ZCode MEMORY.md!");
+                    showToast("✅ Lesson confirmed & written to ZCode MEMORY.md!", "ok");
                   }
                 } catch (err) {
-                  showToast("⚠️ Could not save lesson: " + err.message);
+                  showToast("⚠️ Could not save lesson: " + err.message, "risk");
                 } finally {
                   setButtonBusy(btn, false);
                 }
@@ -2604,9 +2676,13 @@
             if (latestDebriefSnapshot) {
               currentState.currentDebrief = latestDebriefSnapshot;
               renderPanelState(currentState);
-              showToast("↩ Returned to latest turn debrief");
+              showToast("↩ Returned to latest turn debrief", "ok");
             } else {
               refreshState({ silent: false });
+            }
+            const storyboardTab = document.getElementById("tabBtnStoryboard");
+            if (storyboardTab && typeof storyboardTab.focus === "function") {
+              storyboardTab.focus();
             }
           });
         }
@@ -2619,7 +2695,7 @@
             const res = await callServerTool("vibe_debrief_set_persona", { responseType: "bug" });
             if (res && res.structuredContent) renderPanelState(res.structuredContent);
           } catch (err) {
-            showToast("⚠️ Could not switch to Bug Fix view: " + (err?.message || "RPC error"));
+            showToast("⚠️ Could not switch to Bug Fix view: " + (err?.message || "RPC error"), "risk");
           } finally {
             setButtonBusy(btn, false);
           }
@@ -2632,7 +2708,7 @@
             const res = await callServerTool("vibe_debrief_set_persona", { responseType: "implementation" });
             if (res && res.structuredContent) renderPanelState(res.structuredContent);
           } catch (err) {
-            showToast("⚠️ Could not switch to Implementation view: " + (err?.message || "RPC error"));
+            showToast("⚠️ Could not switch to Implementation view: " + (err?.message || "RPC error"), "risk");
           } finally {
             setButtonBusy(btn, false);
           }
@@ -2647,10 +2723,10 @@
             const res = await callServerTool("vibe_debrief_set_persona", { ste100Enabled: next });
             if (res && res.structuredContent) {
               renderPanelState(res.structuredContent);
-              showToast(next ? "✂️ STE-80 Clarity Filter ON" : "✂️ STE-80 Clarity Filter OFF");
+              showToast(next ? "✂️ STE-80 Clarity Filter ON" : "✂️ STE-80 Clarity Filter OFF", "ok");
             }
           } catch (err) {
-            showToast("⚠️ Could not toggle STE-80 filter: " + (err?.message || "RPC error"));
+            showToast("⚠️ Could not toggle STE-80 filter: " + (err?.message || "RPC error"), "risk");
           } finally {
             setButtonBusy(btn, false);
           }
@@ -2659,10 +2735,12 @@
         // Wire Refresh
         document.getElementById("btnRefresh").addEventListener("click", async () => {
           const btn = document.getElementById("btnRefresh");
-          showToast("🔄 Synced latest Vibe Debrief state");
           setButtonBusy(btn, true);
           try {
-            await refreshState({ silent: false });
+            const synced = await refreshState({ silent: false });
+            if (synced) {
+              showToast("🔄 Synced latest Vibe Debrief state", "ok");
+            }
           } finally {
             setButtonBusy(btn, false);
           }
@@ -2676,12 +2754,12 @@
             const res = await callServerTool("vibe_debrief_export_html", {});
             const art = res?.structuredContent?.exportedArtifact;
             if (art?.fileName) {
-              showToast(`🌐 Saved ${art.fileName} to .zcode/vibe-debrief-artifacts/`);
+              showToast(`🌐 Saved ${art.fileName} to .zcode/vibe-debrief-artifacts/`, "ok");
             } else {
-              showToast("🌐 Exported standalone HTML explainer!");
+              showToast("🌐 Exported standalone HTML explainer!", "ok");
             }
           } catch (err) {
-            showToast("⚠️ HTML export failed: " + err.message);
+            showToast("⚠️ HTML export failed: " + err.message, "risk");
           } finally {
             setButtonBusy(btn, false);
           }
@@ -2733,11 +2811,15 @@
 
         document.getElementById("btnCopyScript").addEventListener("click", async () => {
           const txt = document.getElementById("plainTextScriptBox").textContent || "";
+          if (!txt.trim()) {
+            showToast("⚠️ No narration script to copy.", "warn");
+            return;
+          }
           try {
             await navigator.clipboard.writeText(txt);
-            showToast("📋 Narration script copied for verification!");
+            showToast("📋 Narration script copied for verification!", "ok");
           } catch {
-            showToast("⚠️ Clipboard unavailable in this view.");
+            showToast("⚠️ Clipboard unavailable in this view.", "warn");
           }
         });
 
@@ -2778,9 +2860,9 @@
               role: "user",
               content: [{ type: "text", text: prompt }]
             });
-            showToast(`⚡ Requested reading-boundary refresh via ${chosenGemini.split("/").pop()}!`);
+            showToast(`⚡ Requested reading-boundary refresh via ${chosenGemini.split("/").pop()}!`, "ok");
           } catch {
-            showToast("⚠️ Could not send message to chat session.");
+            showToast("⚠️ Could not send message to chat session.", "risk");
           } finally {
             setButtonBusy(btn, false);
           }
@@ -2802,6 +2884,7 @@
           customLessonFormEl.addEventListener("keydown", (e) => {
             if (e.key === "Escape") {
               e.preventDefault();
+              if (typeof e.stopPropagation === "function") e.stopPropagation();
               setCustomLessonFormVisible(false);
             }
           });
@@ -2826,12 +2909,12 @@
           const why = document.getElementById("customLessonWhy").value.trim();
           const howToApply = document.getElementById("customLessonHow").value.trim();
           if (!title) {
-            showToast("⚠️ Please enter a short title for the lesson.");
+            showToast("⚠️ Please enter a short title for the lesson.", "warn");
             if (typeof titleInput.focus === "function") titleInput.focus();
             return;
           }
           if (!summary) {
-            showToast("⚠️ Please enter a summary for the lesson.");
+            showToast("⚠️ Please enter a summary for the lesson.", "warn");
             if (typeof summaryInput.focus === "function") summaryInput.focus();
             return;
           }
@@ -2851,10 +2934,10 @@
               summaryInput.value = "";
               document.getElementById("customLessonWhy").value = "";
               document.getElementById("customLessonHow").value = "";
-              showToast("✅ Lesson saved directly to ZCode MEMORY.md!");
+              showToast("✅ Lesson saved directly to ZCode MEMORY.md!", "ok");
             }
           } catch (err) {
-            showToast("⚠️ Failed to save lesson: " + err.message);
+            showToast("⚠️ Failed to save lesson: " + err.message, "risk");
           } finally {
             setButtonBusy(saveBtn, false);
           }
@@ -2863,7 +2946,7 @@
         async function initMcpApp() {
           try {
             const res = await sendRpcRequest("ui/initialize", {
-              appInfo: { name: "vibe-debrief", version: "0.2.0" },
+              appInfo: { name: "vibe-debrief", version: "0.3.0" },
               appCapabilities: {
                 availableDisplayModes: ["inline", "fullscreen"]
               },

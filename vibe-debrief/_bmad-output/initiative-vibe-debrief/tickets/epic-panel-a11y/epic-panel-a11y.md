@@ -14,6 +14,7 @@ companions:
   - _bmad-output/initiative-vibe-debrief/ux-vibe-debrief/EXPERIENCE.md
 after: [epic-test-suite, epic-atomic-state, epic-theme-parity]
 refined: true
+status: done
 risk: medium
 ---
 

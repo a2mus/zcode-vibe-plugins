@@ -1,4 +1,4 @@
-# AGENTS.md — Vibe Debrief (`v0.2.0`)
+# AGENTS.md — Vibe Debrief (`v0.3.0`)
 
 Repository context and engineering guardrails for AI agents working on **vibe-debrief**, a zero-dependency ZCode right-side panel plugin (`ui://vibe-debrief/panel.html`) implementing Karpathy's 4-rung comprehension framework (80% ASD-STE100 clarity, always-on SVG diagrams, inline proof/uncertainty oversight, standalone HTML export, complex-only 3b1b Canvas explainers, and ZCode `MEMORY.md` persistence).
 
@@ -20,6 +20,7 @@ Repository context and engineering guardrails for AI agents working on **vibe-de
 | `.zcode-plugin/plugin.json` | Plugin metadata (`name`, `version`, `description_i18n`), component paths, and right-side UI surface (`id: "vibe-debrief"`, `resourceUri: "ui://vibe-debrief/panel.html"`). |
 | `.mcp.json` | Registers the `vibe-debrief` stdio MCP server (`node "${CLAUDE_PLUGIN_ROOT}/scripts/mcp-server.mjs"`). |
 | `hooks/hooks.json` | Wires `SessionStart`, `UserPromptSubmit`, `PostToolUse` (`Edit\|Write\|Bash`), and `Stop` hooks to `scripts/hook-runner.mjs`. |
+| `scripts/check-version-sync.mjs` | Zero-dependency CLI gate verifying that all 4 canonical version locations declare identical semver (`.zcode-plugin/plugin.json`, `scripts/mcp-server.mjs`, `assets/panel.html`, `scripts/hook-runner.mjs`). |
 | `scripts/debrief-engine.mjs` | Core domain logic: state persistence, STE-80 polish & metrics, file role/risk classification, complexity gating, SVG diagram synthesis, verification defaults, Rung 4 explainer scenes, standalone HTML export, ZCode Memory sync, and lightweight Gemini model discovery. |
 | `scripts/mcp-server.mjs` | JSON-RPC 2.0 stdio MCP server exposing 8 `vibe_debrief_*` tools and the `ui://vibe-debrief/panel.html` resource. |
 | `scripts/hook-runner.mjs` | CLI hook entrypoint handling `session-start`, `user-prompt`, `post-tool`, and `stop` lifecycle events via `stdin`/`stdout` JSON. |
@@ -34,16 +35,19 @@ Repository context and engineering guardrails for AI agents working on **vibe-de
 There is no bundler or compiler, and `package.json` is intentionally absent. The zero-dependency `node:test` suite uses only `node:` built-ins. Verify every edit to `.mjs` files or MCP/hook wiring with the following commands:
 
 ```bash
-# 1. Run the zero-dependency test suite (engine units, fixtures, MCP/hook transport)
+# 1. Run the zero-dependency test suite (engine units, fixtures, MCP/hook transport, version sync gate)
 node --test tests/
 
 # 2. Verify ES module syntax across all backend scripts (verified: exits 0)
-node --check scripts/debrief-engine.mjs && node --check scripts/mcp-server.mjs && node --check scripts/hook-runner.mjs
+node --check scripts/check-version-sync.mjs && node --check scripts/debrief-engine.mjs && node --check scripts/mcp-server.mjs && node --check scripts/hook-runner.mjs
 
-# 3. Smoke-test MCP server JSON-RPC handshake, tool registration, and UI resource (verified)
+# 3. Verify 4-file version synchronization gate (verified: exits 0)
+node scripts/check-version-sync.mjs
+
+# 4. Smoke-test MCP server JSON-RPC handshake, tool registration, and UI resource (verified)
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n{"jsonrpc":"2.0","id":3,"method":"resources/list","params":{}}\n' | node scripts/mcp-server.mjs
 
-# 4. Smoke-test lifecycle hook runner in session-start mode (verified)
+# 5. Smoke-test lifecycle hook runner in session-start mode (verified)
 echo '{}' | node scripts/hook-runner.mjs session-start
 ```
 

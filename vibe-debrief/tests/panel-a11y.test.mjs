@@ -773,8 +773,8 @@ describe("Story 4.1 — Focus rings & >= 3:1 contrast floor", () => {
     assert.ok(prevented);
   });
 
-  it("updates polite live regions on toast display and node inspector updates", () => {
-    const { elements, sandbox } = createA11yTestEnvironment();
+  it("updates polite live regions on toast display and node inspector updates", async () => {
+    const { elements } = createA11yTestEnvironment();
 
     const toastBanner = elements.get("toastBanner");
     const toastText = elements.get("toastText");
@@ -785,13 +785,14 @@ describe("Story 4.1 — Focus rings & >= 3:1 contrast floor", () => {
     assert.equal(inspector.getAttribute("role"), "status");
     assert.equal(inspector.getAttribute("aria-live"), "polite");
 
-    // Trigger refresh button which calls showToast
+    // Trigger refresh button which awaits refreshState before announcing sync
     const refreshBtn = elements.get("btnRefresh");
     const refreshClick = refreshBtn.listeners.get("click") || [];
     assert.ok(refreshClick.length > 0);
-    refreshClick[0]();
+    await refreshClick[0]();
 
-    assert.ok(toastBanner.classList.contains("visible"), "Toast banner should be visible on state sync");
+    assert.ok(toastBanner.classList.contains("visible"), "Toast banner should be visible after state sync");
+    assert.ok(toastBanner.classList.contains("toast-ok"), "Successful sync should use toast-ok variant");
     assert.match(toastText.textContent, /Synced latest/i, "Toast text should announce sync in live region");
   });
 });
@@ -1207,10 +1208,11 @@ describe("Story 4.2 & UX Ergonomics — Keyboard SVG nodes, history replay, redu
     assert.equal(env.elements.get("tldrHeadline").textContent, "Previous bug turn.");
     assert.equal(env.getActiveElement(), env.elements.get("btnReturnLatest"));
 
-    // Click Return to Latest -> restores liveDebrief and hides snapshot banner
+    // Click Return to Latest -> restores liveDebrief, hides snapshot banner, and restores focus to Storyboard tab
     env.elements.get("btnReturnLatest").dispatchEvent({ type: "click" });
     assert.equal(snapshotBanner.style.display, "none");
     assert.equal(env.elements.get("tldrHeadline").textContent, "Latest live turn.");
+    assert.equal(env.getActiveElement(), env.elements.get("tabBtnStoryboard"));
   });
 
   it("opens Explainer tab on Enter/Space from complexityPill and surfaces RPC errors + missing field focus", async () => {
@@ -1237,19 +1239,90 @@ describe("Story 4.2 & UX Ergonomics — Keyboard SVG nodes, history replay, redu
     compPill.dispatchEvent({ type: "keydown", key: "Enter", preventDefault() {} });
     assert.equal(env.elements.get("tab-explainer").style.display, "block");
 
-    // Empty lesson form validation focuses title input
+    // Empty lesson form validation focuses title input with warn toast variant
     env.elements.get("btnToggleCustomLesson").dispatchEvent({ type: "click" });
     env.elements.get("customLessonTitle").value = "";
     env.elements.get("btnSaveCustomLesson").dispatchEvent({ type: "click" });
     assert.equal(env.getActiveElement(), env.elements.get("customLessonTitle"));
     assert.match(env.elements.get("toastText").textContent, /title/i);
+    assert.ok(env.elements.get("toastBanner").classList.contains("toast-warn"));
 
-    // Failed RPC on mode switch displays error toast instead of failing silently and restores button state
+    // Failed RPC on mode switch displays risk error toast instead of failing silently and restores button state
     const bugBtn = env.elements.get("btnModeBug");
     bugBtn.dispatchEvent({ type: "click" });
     await new Promise((r) => setTimeout(r, 20));
     assert.equal(bugBtn.disabled, false);
     assert.equal(bugBtn.hasAttribute("aria-busy"), false);
     assert.match(env.elements.get("toastText").textContent, /Could not switch/i);
+    assert.ok(env.elements.get("toastBanner").classList.contains("toast-risk"));
+  });
+
+  it("resets stale nodeInspectorBar & file chips across turns and honors Field Desk Light button/banner contrast", () => {
+    assert.match(styleText, /body\.theme-light \.btn-success[\s\S]*color:\s*var\(--text-primary\)/);
+    assert.match(styleText, /body\.theme-light \.status-banner[\s\S]*color:\s*var\(--text-primary\)/);
+    assert.match(styleText, /\.toast-banner\.toast-warn/);
+    assert.match(styleText, /\.toast-banner\.toast-risk/);
+
+    const env = buildKeyboardEnv();
+    env.pushState({
+      projectName: "ux-test",
+      activePersona: "vibe-mentor",
+      personas: [{ id: "vibe-mentor", name: "Vibe Mentor", badge: "🧑‍💻 Vibe Mentor" }],
+      ste100Enabled: true,
+      confirmedLessons: [],
+      history: [],
+      currentDebrief: {
+        id: "turn-1",
+        responseType: "implementation",
+        tldrHeadline: "Turn 1",
+        touchedFiles: [{ path: "src/a.mjs", shortName: "a.mjs", role: "Logic", risk: "medium", icon: "📄" }],
+        diagram: {
+          title: "Flow 1",
+          nodes: [{ id: "n1", label: "Node A", role: "Logic", risk: "medium", file: "src/a.mjs" }],
+          edges: []
+        }
+      }
+    });
+
+    const svg = env.elements.get("diagramSvg");
+    const inspector = env.elements.get("nodeInspectorBar");
+    svg.querySelectorAll(".diagram-node-group")[0].dispatchEvent({ type: "click" });
+    assert.ok(inspector.classList.contains("has-selection"));
+    assert.match(inspector.innerHTML, /Node A/);
+
+    // Turn 2 arrives with empty diagram & empty touched files -> must clear stale inspector and file chips
+    env.pushState({
+      projectName: "ux-test",
+      activePersona: "vibe-mentor",
+      personas: [{ id: "vibe-mentor", name: "Vibe Mentor", badge: "🧑‍💻 Vibe Mentor" }],
+      ste100Enabled: true,
+      confirmedLessons: [],
+      history: [],
+      currentDebrief: {
+        id: "turn-2",
+        responseType: "implementation",
+        tldrHeadline: "Turn 2",
+        touchedFiles: [],
+        diagram: { title: "Flow 2", nodes: [], edges: [] }
+      }
+    });
+
+    assert.equal(inspector.classList.contains("has-selection"), false);
+    assert.equal(inspector.innerHTML.includes("Node A"), false);
+    assert.equal(env.elements.get("touchedFilesStrip").innerHTML, "");
+
+    // Escape inside customLessonForm stops propagation to window listener
+    env.elements.get("btnToggleCustomLesson").dispatchEvent({ type: "click" });
+    let stopped = false;
+    env.elements.get("customLessonForm").dispatchEvent({
+      type: "keydown",
+      key: "Escape",
+      preventDefault() {},
+      stopPropagation() {
+        stopped = true;
+      }
+    });
+    assert.equal(stopped, true);
+    assert.equal(env.elements.get("customLessonForm").style.display, "none");
   });
 });
