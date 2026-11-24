@@ -17,13 +17,13 @@ jobs:
         run: node scripts/validate.mjs
       - name: Test bmad-companion
         working-directory: bmad-companion
-        run: node --test tests/
+        run: node --test "tests/*.test.mjs"
       - name: Check bmad-companion version sync
         working-directory: bmad-companion
         run: node scripts/check-version-sync.mjs
       - name: Test vibe-debrief
         working-directory: vibe-debrief
-        run: node --test tests/
+        run: node --test "tests/*.test.mjs"
       - name: Check vibe-debrief version sync
         working-directory: vibe-debrief
         run: node scripts/check-version-sync.mjs

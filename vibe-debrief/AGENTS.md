@@ -23,8 +23,8 @@ Comprehension-first ZCode right-side panel plugin (`ui://vibe-debrief/panel.html
 ## Running and verifying
 
 - Target Node 20+ ESM (`node:*` built-ins only; CI runs Node 22) — never add `package.json` or external npm dependencies.
-- Run the automated verification gate before declaring any change complete: `node --test tests/ && node scripts/check-version-sync.mjs` (built-in `node:test` runner, ~3–4s total; `tests/transports-and-sync.test.mjs` covers MCP stdio and all 4 hook lifecycle modes, replacing manual pipe smoke-tests).
-- Repo-root CI (`../.github/workflows/validate.yml`) runs `node scripts/validate.mjs` (marketplace↔plugin version sync, JSON validity, `node --check` on scripts, inline panel `<script>` parseability), then `node --test tests/` and `node scripts/check-version-sync.mjs` for both `../bmad-companion/` and this plugin.
+- Run the automated verification gate before declaring any change complete: `node --test "tests/*.test.mjs" && node scripts/check-version-sync.mjs` (built-in `node:test` runner, ~3–4s total; `tests/transports-and-sync.test.mjs` covers MCP stdio and all 4 hook lifecycle modes, replacing manual pipe smoke-tests). Keep the glob quoted: Node 22 treats `--test` arguments as glob patterns, so a bare `tests/` directory argument fails immediately with `MODULE_NOT_FOUND`.
+- Repo-root CI (`../.github/workflows/validate.yml`) runs `node scripts/validate.mjs` (marketplace↔plugin version sync, JSON validity, `node --check` on scripts, inline panel `<script>` parseability), then `node --test "tests/*.test.mjs"` and `node scripts/check-version-sync.mjs` for both `../bmad-companion/` and this plugin.
 
 ## Conventions that differ from defaults
 

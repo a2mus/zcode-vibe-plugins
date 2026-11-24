@@ -25,17 +25,17 @@ A global ZCode workspace companion plugin for the [BMAD-METHOD](https://github.c
 
 ## Validation
 
-Automated verification gate for any change (zero dependencies, Node 18+):
+Automated verification gate for any change (zero dependencies; CI runs Node 22):
 
 ```bash
-node --test tests/
+node --test "tests/*.test.mjs"
 node scripts/check-version-sync.mjs
 ```
 
-- `node --test tests/` — full suite with Node's built-in test runner (~5s): engine scanner smoke, shared helpers, hook stdout isolation, MCP stdio transport (`initialize` / `tools/list` / `resources/read`), read-only MCP tool contract, model catalog, task-queue handoff, and the version tri-sync CLI (against the live repo and fixtures).
+- `node --test "tests/*.test.mjs"` — full suite with Node's built-in test runner (~5s): engine scanner smoke, shared helpers, hook stdout isolation, MCP stdio transport (`initialize` / `tools/list` / `resources/read`), read-only MCP tool contract, model catalog, task-queue handoff, and the version tri-sync CLI (against the live repo and fixtures). Keep the glob quoted: Node 22 treats `--test` arguments as glob patterns, so a bare `tests/` directory argument fails immediately with `MODULE_NOT_FOUND`.
 - `node scripts/check-version-sync.mjs` — verifies the version tri-sync across `.zcode-plugin/plugin.json`, `../marketplace.json`, and `serverInfo.version` in `scripts/mcp-server.mjs`. Exits 0 when synced, 1 with details on mismatch.
 
-The repository CI workflow (`../.github/workflows/validate.yml`) runs `node scripts/validate.mjs` (marketplace↔plugin sync, JSON validity, script syntax, and inline panel-script parseability), then `node --test tests/` and `node scripts/check-version-sync.mjs` for both `bmad-companion` and `../vibe-debrief/`. Still run both locally before pushing.
+The repository CI workflow (`../.github/workflows/validate.yml`) runs `node scripts/validate.mjs` (marketplace↔plugin sync, JSON validity, script syntax, and inline panel-script parseability), then `node --test "tests/*.test.mjs"` and `node scripts/check-version-sync.mjs` for both `bmad-companion` and `../vibe-debrief/`. Still run both locally before pushing.
 
 Deeper packaging check (requires the `zcode` CLI on `PATH`):
 

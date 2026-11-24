@@ -21,8 +21,8 @@ Global ZCode companion plugin for BMAD-METHOD, providing a right-side workspace 
 ## Running and verifying
 
 - Target Node 18+ ESM (`node:*` built-ins only; CI runs Node 22) — do not add `package.json` or external npm dependencies.
-- Run the automated verification gate before declaring any change complete: `node --test tests/ && node scripts/check-version-sync.mjs` (built-in test runner, no framework; ~5s total). The suite re-runs the version CLI against the live repo, so a one-sided version bump fails both.
-- Repo-root CI (`../.github/workflows/validate.yml`) runs `node scripts/validate.mjs` (marketplace↔plugin version sync, JSON validity, script syntax, inline panel-script parseability), then `node --test tests/` and `node scripts/check-version-sync.mjs` for both this plugin and `../vibe-debrief/`, so pushes fail on test or version-sync regressions; still run both locally before pushing.
+- Run the automated verification gate before declaring any change complete: `node --test "tests/*.test.mjs" && node scripts/check-version-sync.mjs` (built-in test runner, no framework; ~5s total). Keep the glob quoted: Node 22 treats `--test` arguments as glob patterns, so a bare `tests/` directory argument fails immediately with `MODULE_NOT_FOUND`. The suite re-runs the version CLI against the live repo, so a one-sided version bump fails both.
+- Repo-root CI (`../.github/workflows/validate.yml`) runs `node scripts/validate.mjs` (marketplace↔plugin version sync, JSON validity, script syntax, inline panel-script parseability), then `node --test "tests/*.test.mjs"` and `node scripts/check-version-sync.mjs` for both this plugin and `../vibe-debrief/`, so pushes fail on test or version-sync regressions; still run both locally before pushing.
 - `zcode plugins validate .` needs the `zcode` CLI on `PATH`; neither CI nor the test suite runs it.
 
 ## Conventions that differ from defaults
