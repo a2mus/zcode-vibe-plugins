@@ -25,7 +25,19 @@ A global ZCode workspace companion plugin for the [BMAD-METHOD](https://github.c
 
 ## Validation
 
-Validate the plugin source with:
+Automated verification gate for any change (zero dependencies, Node 18+):
+
+```bash
+node --test tests/
+node scripts/check-version-sync.mjs
+```
+
+- `node --test tests/` — full suite with Node's built-in test runner (~5s): engine scanner smoke, shared helpers, hook stdout isolation, MCP stdio transport (`initialize` / `tools/list` / `resources/read`), model catalog, task-queue handoff, and the version tri-sync CLI (against the live repo and fixtures).
+- `node scripts/check-version-sync.mjs` — verifies the version tri-sync across `.zcode-plugin/plugin.json`, `../marketplace.json`, and `serverInfo.version` in `scripts/mcp-server.mjs`. Exits 0 when synced, 1 with details on mismatch.
+
+The repository CI workflow (`../.github/workflows/validate.yml`) validates marketplace↔plugin sync and script syntax only — it does not run the suite or the version gate. Run both locally before pushing.
+
+Deeper packaging check (requires the `zcode` CLI on `PATH`):
 
 ```bash
 zcode plugins validate .

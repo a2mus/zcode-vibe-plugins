@@ -1,5 +1,5 @@
 <!-- bmad:context -->
-<!-- Verified 2026-11-17 against fd5cad6. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
+<!-- Verified 2026-11-23 against 234a509. Managed by bmad-project-context; edits inside this block are replaced on refresh. Keep anything you want preserved outside the markers. -->
 
 ## bmad-companion
 
@@ -14,15 +14,16 @@ Global ZCode companion plugin for BMAD-METHOD, providing a right-side workspace 
 ## Where things are
 
 - Shared workspace scanner, model scorer, and tracker reconciler: `scripts/bmad-engine.mjs` (imported by both `scripts/mcp-server.mjs` and `scripts/hook-runner.mjs`)
-- MCP stdio server and 8 tool handlers: `scripts/mcp-server.mjs`; plugin wiring: `.zcode-plugin/plugin.json`, `hooks/hooks.json`, `.mcp.json`
+- MCP stdio server and `bmad_*` tool handlers: `scripts/mcp-server.mjs`; plugin wiring: `.zcode-plugin/plugin.json`, `hooks/hooks.json`, `.mcp.json`
 - Right-side panel UI: `assets/panel.html` (served as `ui://bmad-companion/panel.html`)
 - Plugin skill and slash command: `skills/bmad-companion/SKILL.md`, `commands/bmad-companion.md`
 
 ## Running and verifying
 
-- Target Node 18+ ESM (`node:*` built-ins only, verified on `v26.12.1`) — do not add `package.json` or external npm dependencies.
-- Verify script syntax with `node --check scripts/bmad-engine.mjs && node --check scripts/mcp-server.mjs && node --check scripts/hook-runner.mjs`; there is no automated test suite or linter.
-- `README.md` documents `zcode plugins validate .`, which fails if the `zcode` CLI is not on `PATH`; smoke-test `scripts/mcp-server.mjs` over stdio JSON-RPC (`initialize`, `tools/list`, `resources/read`) when changing MCP handlers.
+- Target Node 18+ ESM (`node:*` built-ins only; CI runs Node 22) — do not add `package.json` or external npm dependencies.
+- Run the automated verification gate before declaring any change complete: `node --test tests/ && node scripts/check-version-sync.mjs` (built-in test runner, no framework; ~5s total). The suite re-runs the version CLI against the live repo, so a one-sided version bump fails both.
+- Repo-root CI (`../.github/workflows/validate.yml` → `node scripts/validate.mjs`) checks marketplace↔plugin version sync, JSON validity, script syntax, and inline panel-script parseability only — it runs neither the test suite nor the version gate, so run both locally before pushing.
+- `zcode plugins validate .` needs the `zcode` CLI on `PATH`; neither CI nor the test suite runs it.
 
 ## Conventions that differ from defaults
 
