@@ -58,3 +58,26 @@ after = [
   { epic = 1, needs = "the hook stdout-isolation harness" },
   { epic = 5, needs = "the taskQueue start-task/complete-task actions the hooks auto-advance, and the engine scorer/discovery lane" }
 ]
+
+[[epic]]
+id = 7
+slug = "epic-focus-hero-engine"
+title = "3-conversation focus hero, plain-language Work copy & legacy drift closure"
+description = "Builds on Epics 3, 5, and 6 to add the rolling 3-conversation ring buffer (recentConversations) via savePersistedState, hook capture in hook-runner.mjs, additive focusSummary/sessionId inputs on bmad_update_advisor, deterministic jargon-free turnAnalysis.currentFocus + plainTitle/plainSummary on recommendations (preserving skillsCatalog/agentsCatalog), and closes legacy drift items OQ-C, OQ-E, and OQ-F. Hands off the frozen currentFocus and plain-copy ScanResult payload to Epic 8."
+covers = ["R24", "R25", "R26"]
+after = [
+  { epic = 3, needs = "the reconciled engine tracker/reconciler lane for OQ-C and OQ-F" },
+  { epic = 5, needs = "the state.json gateway and taskQueue lane in scripts/bmad-engine.mjs" },
+  { epic = 6, needs = "the hook-runner.mjs and recommendation/scorer lane" }
+]
+
+[[epic]]
+id = 8
+slug = "epic-panel-readability-redesign"
+title = "3-tab Work/Queue/Project readability redesign, Palette C & unified overlay"
+description = "Builds on Epic 4's 5s polling-guard/a11y baseline and Epic 7's frozen currentFocus + plain-copy payload to implement DESIGN.md Palette C warm charcoal tokens, the closed larger type ramp (RD-1/RD-2/RD-5/RD-6), the 3-tab Work/Queue/Project structure with plain headings and tab purpose cues (RD-3/RD-4/RD-9), the unified in-iframe overlay controller (AD-17, OQ-6 closed) powering Work Action Window and Focus View (RD-7), counted disclosures (RD-8), and full AD-16 automated + live host-theme verification."
+covers = ["R27", "R28", "R29", "R30"]
+after = [
+  { epic = 4, needs = "the 5s polling-guard and accessibility/contrast baseline in assets/panel.html" },
+  { epic = 7, needs = "the turnAnalysis.currentFocus and recommendation plainTitle/plainSummary ScanResult payload contract" }
+]
