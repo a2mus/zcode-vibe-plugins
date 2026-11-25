@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { execFileSync, spawn } from "node:child_process";
@@ -371,13 +371,29 @@ export const BMAD_AGENTS_CATALOG = [
   { skill: "bmad-tea", name: "Murat", title: "Master Test Architect", icon: "🧪", module: "tea", modelProfile: "deep-reasoning", focus: "Risk-based test strategy, ATDD, regression gates, and traceability" }
 ];
 
-function safeReadText(filePath, maxBytes = 120000) {
+// Bounded-scan envelope (C10 / AD-7): binding numbers shared by discovery,
+// heuristic reads, and git subprocesses so every call site cites one source.
+export const SCAN_LIMITS = Object.freeze({
+  maxDepth: 4,
+  heuristicReadBytes: 30000,
+  gitTimeoutMs: 2500
+});
+
+// Reads at most maxBytes bytes from disk (never loads an oversized file whole).
+export function safeReadText(filePath, maxBytes = SCAN_LIMITS.heuristicReadBytes) {
   try {
-    if (!existsSync(filePath)) return "";
+    if (!filePath || maxBytes <= 0 || !existsSync(filePath)) return "";
     const st = statSync(filePath);
     if (!st.isFile()) return "";
-    const content = readFileSync(filePath, "utf8");
-    return content.length > maxBytes ? content.slice(0, maxBytes) : content;
+    if (st.size <= maxBytes) return readFileSync(filePath, "utf8");
+    const fd = openSync(filePath, "r");
+    try {
+      const buf = Buffer.alloc(maxBytes);
+      const read = readSync(fd, buf, 0, maxBytes, 0);
+      return buf.toString("utf8", 0, read);
+    } finally {
+      closeSync(fd);
+    }
   } catch {
     return "";
   }
@@ -386,7 +402,7 @@ function safeReadText(filePath, maxBytes = 120000) {
 // Bounded JSON config read shared by model discovery and workspace profiling
 // (a missing path or empty file yields {}; malformed JSON still throws to the
 // caller's own error handling, exactly as the former inline copies did).
-function readJsonConfig(filePath, maxBytes = 120000) {
+function readJsonConfig(filePath, maxBytes = SCAN_LIMITS.heuristicReadBytes) {
   if (!filePath || !existsSync(filePath)) return {};
   return JSON.parse(safeReadText(filePath, maxBytes) || "{}");
 }
@@ -1276,8 +1292,8 @@ export function parseTestReportSummary(text) {
 }
 
 // Git subprocess timeout budgets: quick metadata probe vs bounded output capture.
-const GIT_METADATA_TIMEOUT_MS = 3000;
-const GIT_CAPTURE_TIMEOUT_MS = 4000;
+const GIT_METADATA_TIMEOUT_MS = SCAN_LIMITS.gitTimeoutMs;
+const GIT_CAPTURE_TIMEOUT_MS = SCAN_LIMITS.gitTimeoutMs;
 
 // Single git-capture primitive: bounded, stdout-only (stderr ignored), and
 // empty string on any failure/timeout. Shared by runGitInfo and
@@ -1306,10 +1322,19 @@ function runGitInfo(workspaceRoot) {
   info.branch =
     runGitCapture(workspaceRoot, ["rev-parse", "--abbrev-ref", "HEAD"], GIT_METADATA_TIMEOUT_MS).trim() || "main";
 
-  const statusOut = runGitCapture(workspaceRoot, ["status", "--porcelain"], GIT_CAPTURE_TIMEOUT_MS);
+  const statusOut = runGitCapture(
+    workspaceRoot,
+    ["-c", "status.relativePaths=true", "-c", "color.status=false", "status", "--short", "--", "."],
+    GIT_CAPTURE_TIMEOUT_MS
+  );
   for (const line of statusOut.split(/\r?\n/).filter(Boolean)) {
     const code = line.slice(0, 2);
-    const file = line.slice(3).trim();
+    let file = line.slice(3).trim();
+    if ((code.includes("R") || code.includes("C")) && file.includes(" -> ")) {
+      file = file.split(" -> ").pop().trim();
+    }
+    file = file.replace(/^"|"$/g, "").replace(/\\/g, "/");
+    if (!file || file === ".." || file.startsWith("../") || isAbsolute(file)) continue;
     if (code.includes("D") && file.startsWith("_bmad/")) {
       info.deletedBmadConfigFiles++;
     } else if (code === "??") {
@@ -1532,7 +1557,7 @@ function matchStoryImplementationReport(implReportFiles, storyRef, trackers) {
         fm.story === `${epicNum}.${storyNum}`
       );
     }) || null;
-  const reportSummary = reportCandidate ? parseTestReportSummary(safeReadText(reportCandidate.fullPath, 40000)) : null;
+  const reportSummary = reportCandidate ? parseTestReportSummary(safeReadText(reportCandidate.fullPath, SCAN_LIMITS.heuristicReadBytes)) : null;
   if (reportCandidate) {
     trackers.matchedReportFiles.add(`${reportCandidate.dir}::${reportCandidate.name}`);
     if (reportSummary && reportSummary.failed > 0) {
@@ -1584,8 +1609,8 @@ function evaluateStorySmartStatus({ declaredStatus, override, planEvidence, repo
 export function scanBmadWorkspace(workspaceRoot) {
   const bmadOutputDir = join(workspaceRoot, "_bmad-output");
   const docsDir = join(workspaceRoot, "docs");
-  const outputFiles = walkFiles(bmadOutputDir, workspaceRoot, 6);
-  const docFiles = walkFiles(docsDir, workspaceRoot, 3);
+  const outputFiles = walkFiles(bmadOutputDir, workspaceRoot, SCAN_LIMITS.maxDepth);
+  const docFiles = walkFiles(docsDir, workspaceRoot, SCAN_LIMITS.maxDepth);
   const git = runGitInfo(workspaceRoot);
   const persisted = loadPersistedState(workspaceRoot);
   const { projectName, techStack } = detectWorkspaceProfile(workspaceRoot);
@@ -1721,6 +1746,7 @@ export function scanBmadWorkspace(workspaceRoot) {
           const trackerRaw = entry.status || sprintStatusMap[v6Key] || "backlog";
           const declaredStatus = normalizeStatus(trackerRaw);
 
+          const v6SlugSuffix = entry.v6_key ? String(entry.v6_key).slice(2, 16) : "";
           const planCandidate = storyPlanCandidates.find((pf) => {
             const text = safeReadText(join(pf.dir, pf.name), 1500);
             const fm = parseFrontmatter(text);
@@ -1729,7 +1755,8 @@ export function scanBmadWorkspace(workspaceRoot) {
             return (
               (matchesContainer && Number(fm.ticket) === Number(entry.id)) ||
               pf.name.startsWith(`plan-${spec.num}-${entry.id}-`) ||
-              (v6Key && pf.name.includes(v6Key.slice(2, 16)))
+              pf.name.startsWith(`plan-${entry.id}-`) ||
+              (v6SlugSuffix.length >= 4 && pf.name.includes(v6SlugSuffix))
             );
           });
           if (planCandidate) matchedPlanFiles.add(`${planCandidate.dir}::${planCandidate.name}`);
@@ -1984,7 +2011,7 @@ export function scanBmadWorkspace(workspaceRoot) {
   for (const repFile of implReportFiles) {
     if (matchedReportFiles.has(`${repFile.dir}::${repFile.name}`)) continue;
 
-    const repText = safeReadText(repFile.fullPath, 40000);
+    const repText = safeReadText(repFile.fullPath, SCAN_LIMITS.heuristicReadBytes);
     const titleMatch = /^#\s+(.+)$/m.exec(repText);
     const reportTitle = titleMatch ? titleMatch[1].trim() : repFile.name.replace(/\.md$/, "");
 
@@ -2114,13 +2141,14 @@ export function scanBmadWorkspace(workspaceRoot) {
     const full = join(workspaceRoot, rootDoc);
     if (existsSync(full)) {
       try {
-        const st = statSync(full);
+        const lst = lstatSync(full);
+        if (!lst.isFile() || lst.isSymbolicLink()) continue;
         rootContextCandidates.push({
           name: rootDoc,
           relPath: rootDoc,
           fullPath: full,
-          size: st.size,
-          mtimeMs: st.mtimeMs
+          size: lst.size,
+          mtimeMs: lst.mtimeMs
         });
       } catch {}
     }
@@ -2338,7 +2366,7 @@ export function scanBmadWorkspace(workspaceRoot) {
     });
   }
   for (const df of defectLedgerFiles) {
-    const dfText = safeReadText(df.fullPath, 30000);
+    const dfText = safeReadText(df.fullPath, SCAN_LIMITS.heuristicReadBytes);
     const matches = dfText.match(/^##\s+(?:Défaut|Defect|Bug)\s+\d+/gim) || [];
     if (matches.length > 0) {
       smartInsights.push({
@@ -2845,18 +2873,19 @@ export function resolveWorkspaceArtifactPath(workspaceRoot, relPath) {
 
 export function inspectWorkspaceArtifact(workspaceRoot, relPath) {
   const { relPath: cleanRel, fullPath: full, stat: st } = resolveWorkspaceArtifactPath(workspaceRoot, relPath);
-  const text = safeReadText(full, 48000);
+  const text = safeReadText(full, SCAN_LIMITS.heuristicReadBytes);
   const meta = parseFrontmatter(text);
 
   // Compute Git Diff: 1) Working tree / staged diff vs HEAD, 2) Most recent commit diff, 3) Synthetic new-file diff
   let diffSource = "Working tree diff vs HEAD";
-  let diff = runGitCapture(workspaceRoot, ["diff", "HEAD", "--", cleanRel], GIT_CAPTURE_TIMEOUT_MS).trim();
+  let diff = runGitCapture(workspaceRoot, ["diff", "--relative", "HEAD", "--", cleanRel], GIT_CAPTURE_TIMEOUT_MS).trim();
 
   if (!diff) {
     diff = runGitCapture(
       workspaceRoot,
       [
         "log",
+        "--relative",
         "-n",
         "1",
         "-p",

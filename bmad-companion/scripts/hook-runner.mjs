@@ -44,15 +44,16 @@ const AUTO_COMPLETE_PROMPT_PREFIX_LEN = 40;
 
 // `\b(?:ticket|story) <id>\b` reference matcher for a queue item's storyId.
 function buildStoryRefRegex(storyId) {
-  return new RegExp(`\\b(?:ticket|story)\\s+${String(storyId).replace(".", "\\.")}\\b`, "i");
+  return new RegExp(`\\b(?:ticket|story)\\s+${String(storyId).replace(/\./g, "\\.")}\\b`, "i");
 }
 
 // Prompt-match predicate shared by the user-prompt auto-start scan and the
-// stop auto-complete check: prefix-includes on the item prompt, or a
-// ticket/story reference to the item's storyId.
+// stop auto-complete check: prefix-includes on the item prompt (or shaped
+// effectivePrompt), or a ticket/story reference to the item's storyId.
 function taskItemMatchesPrompt(item, promptText, prefixLen) {
   return Boolean(
     (item.prompt && promptText.includes(item.prompt.slice(0, prefixLen))) ||
+      (item.effectivePrompt && promptText.includes(item.effectivePrompt.slice(0, prefixLen))) ||
       (item.storyId && buildStoryRefRegex(item.storyId).test(promptText))
   );
 }
@@ -67,10 +68,12 @@ function readStdinJson() {
   }
 }
 
-async function tryOptionalAiTurnSynthesis(promptText, assistantText, scan) {
-  const apiKey = process.env.BMAD_COMPANION_OPENAI_KEY || process.env.OPENAI_API_KEY;
+async function tryOptionalAiTurnSynthesis(promptText, assistantText, scanOrFactory) {
+  const apiKey = String(process.env.BMAD_COMPANION_OPENAI_KEY || process.env.OPENAI_API_KEY || "").trim();
   if (!apiKey || (!promptText && !assistantText)) return null;
   try {
+    const timeoutSignal = AbortSignal.timeout(AI_SYNTHESIS_TIMEOUT_MS);
+    const scan = typeof scanOrFactory === "function" ? scanOrFactory() : scanOrFactory;
     const baseUrl = (process.env.BMAD_COMPANION_OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
     const model = process.env.BMAD_COMPANION_MODEL || "gemini-2.5-flash";
     const sys = [
@@ -103,9 +106,14 @@ async function tryOptionalAiTurnSynthesis(promptText, assistantText, scan) {
         ],
         temperature: 0.2
       }),
-      signal: AbortSignal.timeout(AI_SYNTHESIS_TIMEOUT_MS)
+      signal: timeoutSignal
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      try {
+        await res.body?.cancel?.();
+      } catch {}
+      return null;
+    }
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content;
     if (!content) return null;
@@ -195,7 +203,15 @@ function handlePostTool({ payload, workspaceRoot }) {
 // bounded LLM turn synthesis.
 async function handleStop({ payload, workspaceRoot, currentSessionId }) {
   const state = loadPersistedState(workspaceRoot);
-  const assistantMsg = String(payload.last_assistant_message || payload.responseText || "").slice(0, 6000);
+  let rawAssistantMsg = payload.last_assistant_message || payload.responseText || "";
+  if (!rawAssistantMsg && payload.transcript_path) {
+    try {
+      const lines = readFileSync(payload.transcript_path, "utf8").trim().split(/\r?\n/);
+      const last = JSON.parse(lines[lines.length - 1] || "{}");
+      rawAssistantMsg = last?.message?.content?.[0]?.text || "";
+    } catch {}
+  }
+  const assistantMsg = String(rawAssistantMsg || "").slice(0, 6000);
   const nextTurnCount = (state.turnCount || 0) + 1;
 
   savePersistedState(workspaceRoot, {
@@ -207,16 +223,19 @@ async function handleStop({ payload, workspaceRoot, currentSessionId }) {
   // Auto-complete active queued task when a single-task session finishes,
   // then hand off to the next task so the queue continues automatically.
   let stopFrame = {};
+  let completedScan = null;
   try {
     const q = state.taskQueue;
     const lastPrompt = String(state.lastUserPrompt || "");
     if (
       q &&
-      q.activeTaskId &&
       Array.isArray(q.items) &&
       !QUEUE_ORCHESTRATOR_PROMPT_RE.test(lastPrompt)
     ) {
-      const activeItem = q.items.find((it) => it.id === q.activeTaskId && it.status === "running");
+      const activeItem =
+        (q.activeTaskId && q.items.find((it) => it.id === q.activeTaskId && it.status === "running")) ||
+        (!q.activeTaskId && q.items.find((it) => it.status === "running")) ||
+        null;
       const ownsTask =
         !activeItem?.sessionId ||
         !currentSessionId ||
@@ -232,6 +251,7 @@ async function handleStop({ payload, workspaceRoot, currentSessionId }) {
           storyStatus: "done",
           summary: assistantMsg ? assistantMsg.replace(/\s+/g, " ").slice(0, 140) : "Completed in session"
         });
+        completedScan = completed?.scan || null;
         const updatedQueue = completed?.taskQueue;
         if (
           updatedQueue &&
@@ -252,8 +272,11 @@ async function handleStop({ payload, workspaceRoot, currentSessionId }) {
     }
   } catch {}
 
-  const scan = scanBmadWorkspace(workspaceRoot);
-  const aiSynth = await tryOptionalAiTurnSynthesis(state.lastUserPrompt, assistantMsg, scan);
+  const aiSynth = await tryOptionalAiTurnSynthesis(
+    state.lastUserPrompt,
+    assistantMsg,
+    () => completedScan || scanBmadWorkspace(workspaceRoot)
+  );
   if (aiSynth && Array.isArray(aiSynth.recommendations) && aiSynth.recommendations.length > 0) {
     savePersistedState(workspaceRoot, {
       agentAdvisorOverride: {

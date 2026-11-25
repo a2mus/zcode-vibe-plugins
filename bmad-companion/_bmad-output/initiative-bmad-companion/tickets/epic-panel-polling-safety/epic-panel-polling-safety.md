@@ -11,6 +11,7 @@ companions:
   - _bmad-output/planning-artifacts/ux-bmad-companion/EXPERIENCE.md
   - _bmad-output/planning-artifacts/ux-bmad-companion/DESIGN.md
 after: [epic-mcp-surface]
+status: done
 refined: true
 risk: high
 ---

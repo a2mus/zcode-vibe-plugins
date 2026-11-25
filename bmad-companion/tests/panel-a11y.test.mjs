@@ -732,3 +732,242 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       });
     });
   });
+
+  describe("UX Design Sync: LD-1 single-row 5-tab layout, semantic toasts & view consistency", () => {
+    const styleText = extractStyleContent(PANEL_HTML);
+
+    it("LD-1: lays out all 5 tabs in a single 5-column grid row without orphan wrapping", () => {
+      assert.match(
+        styleText,
+        /\.tabs-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/,
+        ".tabs-nav must use repeat(5, minmax(0, 1fr)) so all 5 tabs fit in one row"
+      );
+      assert.match(
+        styleText,
+        /\.tab-label\s*\{[\s\S]*?text-overflow:\s*ellipsis/,
+        ".tab-label must truncate cleanly with ellipsis inside narrow docks"
+      );
+    });
+
+    it("applies semantic .is-error and .is-warning toast styling alongside ARIA live priority", () => {
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      const banner = env.elements.get("toastBanner");
+
+      hooks.showToast("❌ Reconciliation error: conflict");
+      assert.ok(banner.classList.contains("is-error"), "Error toast must set .is-error");
+      assert.ok(!banner.classList.contains("is-warning"), "Error toast must not set .is-warning");
+
+      hooks.showToast("⚠️ Queue is empty! Add tasks first.");
+      assert.ok(!banner.classList.contains("is-error"), "Warning toast must clear .is-error");
+      assert.ok(banner.classList.contains("is-warning"), "Warning toast must set .is-warning");
+
+      hooks.showToast("✓ All synced!");
+      assert.ok(!banner.classList.contains("is-error"), "Success toast must clear .is-error");
+      assert.ok(!banner.classList.contains("is-warning"), "Success toast must clear .is-warning");
+
+      hooks.showToast("↻ Reset 2 failed task(s) to Queued — pick a model or click Run Queue to retry.");
+      assert.ok(!banner.classList.contains("is-error"), "Recovery toast mentioning failed tasks must not set .is-error");
+      assert.equal(banner.getAttribute("aria-live"), "polite");
+      assert.equal(banner.getAttribute("role"), "status");
+    });
+
+    it("renders paused queue banner state, reconciliation diff class, aria-pressed inspector toggles, and resets scroll on tab switch", () => {
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*id="reconciliationDiffCard"[^>]*class="reconciliation-diff-card"/,
+        "Reconciliation diff card must use .reconciliation-diff-card class"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<button[^>]*id="btnToggleDiffMode"[^>]*aria-pressed="true"/,
+        "Inspector Diff toggle must declare aria-pressed"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<button[^>]*id="btnToggleContentMode"[^>]*aria-pressed="false"/,
+        "Inspector Content toggle must declare aria-pressed"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      const mainScroll = env.elements.get("mainScroll");
+      mainScroll.scrollTop = 240;
+      hooks.switchTab("queue");
+      assert.equal(mainScroll.scrollTop, 0, "switchTab must reset mainScroll.scrollTop to 0");
+
+      hooks.renderWorkspaceState({
+        projectName: "Queue Banner Test",
+        metrics: { totalEpics: 0, totalStories: 0, smartDoneStories: 0, smartOverallPct: 0 },
+        taskQueue: {
+          status: "paused",
+          executionMode: "separate-sessions",
+          defaultReviewMode: "none",
+          counts: { total: 2, running: 0, queued: 2, done: 0, failed: 0, progressPct: 0 },
+          items: [{ id: "t1", title: "Task 1", status: "queued", model: "m", modelShort: "m", reviewMode: "none", effectivePrompt: "/bmad-build \"x\"" }]
+        }
+      });
+      const bannerHtml = env.elements.get("liveQueueBannerContent").innerHTML;
+      assert.match(bannerHtml, /pill-warning[^>]*>⏸ PAUSED \(2\)/, "Paused queue banner must render pill-warning ⏸ PAUSED badge");
+    });
+
+    it("renders padded .agent-card rows, keyboard-accessible Phase/Epic <button aria-expanded> toggles, empty states, and artifact close button", () => {
+      assert.match(
+        styleText,
+        /\.agent-card\s*\{[\s\S]*?padding:\s*9px\s+11px/,
+        ".agent-card must define 9px 11px padding"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<button[^>]*id="btnCloseArtifactPreview"/,
+        "Artifact preview card must expose #btnCloseArtifactPreview"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      env.elements.get("storyStatusFilter").value = "all";
+      env.elements.get("skillPhaseFilter").value = "all";
+      const hooks = env.getTestHooks();
+      hooks.renderWorkspaceState({
+        projectName: "UX Sync Test",
+        metrics: { totalEpics: 1, totalStories: 1, smartDoneStories: 0, smartOverallPct: 0 },
+        phases: [
+          {
+            id: "2-planning",
+            name: "Phase 2 · Planning",
+            progressPct: 50,
+            status: "in-progress",
+            summary: "UX specs",
+            artifacts: [{ relPath: "docs/ux.md", name: "ux.md", mtimeMs: Date.now() }]
+          }
+        ],
+        epics: [
+          {
+            id: "epic-ux",
+            slug: "epic-ux",
+            number: 1,
+            title: "UX Polish",
+            smartProgressPct: 0,
+            declaredProgressPct: 0,
+            stories: []
+          }
+        ],
+        skillsCatalog: [],
+        agentsCatalog: [
+          {
+            skill: "bmad-agent-ux-designer",
+            icon: "🎨",
+            name: "Sally",
+            title: "UX Designer",
+            focus: "Experience & visual systems"
+          }
+        ],
+        artifacts: []
+      });
+
+      const phasesHtml = env.elements.get("phasesList").innerHTML;
+      assert.match(phasesHtml, /<button[^>]*class="phase-summary-row"[^>]*aria-expanded="true"/);
+      assert.match(phasesHtml, /<button[^>]*class="art-chip-main"/);
+      assert.match(phasesHtml, /<button[^>]*class="art-chip-open"/);
+
+      const epicsHtml = env.elements.get("epicsList").innerHTML;
+      assert.match(epicsHtml, /<button[^>]*class="epic-toggle-btn"[^>]*aria-expanded="true"/);
+
+      const skillsHtml = env.elements.get("skillsCatalogList").innerHTML;
+      assert.match(skillsHtml, /class="empty-state-card"/);
+
+      const agentsHtml = env.elements.get("agentsCatalogList").innerHTML;
+      assert.match(agentsHtml, /class="agent-card"/);
+
+      const artsHtml = env.elements.get("artifactsDirectoryList").innerHTML;
+      assert.match(artsHtml, /class="empty-state-card"/);
+
+      // Closing artifact preview hides card
+      const previewCard = env.elements.get("artifactPreviewCard");
+      previewCard.style.display = "block";
+      env.elements.get("btnCloseArtifactPreview").dispatchEvent({ type: "click" });
+      assert.equal(previewCard.style.display, "none");
+    });
+
+    it("refines progressbar ARIA, paused queue controls, honest Queue Epic states, agent search filtering, and filter-clear buttons", () => {
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*id="progressBarTrack"[^>]*role="progressbar"[^>]*aria-labelledby="progressHeadline"[^>]*aria-valuemin="0"[^>]*aria-valuemax="100"/,
+        "Global progress bar track must declare role='progressbar' and ARIA bounds"
+      );
+      assert.match(
+        styleText,
+        /\.art-chip-group\s*\{[\s\S]*?max-width:\s*100%/,
+        ".art-chip-group must bound max-width: 100% for narrow docks"
+      );
+      assert.match(
+        styleText,
+        /\.phase-top\s*\{[\s\S]*?flex-wrap:\s*wrap/,
+        ".phase-top must wrap cleanly inside narrow docks"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      env.elements.get("storyStatusFilter").value = "all";
+      env.elements.get("skillPhaseFilter").value = "all";
+
+      hooks.renderWorkspaceState({
+        projectName: "Ergonomics Test",
+        metrics: { totalEpics: 1, totalStories: 2, smartDoneStories: 1, smartOverallPct: 50, declaredOverallPct: 50 },
+        taskQueue: {
+          status: "paused",
+          executionMode: "separate-sessions",
+          defaultReviewMode: "none",
+          counts: { total: 1, running: 0, queued: 1, done: 0, failed: 0, progressPct: 0 },
+          items: [{ id: "t1", title: "Task 1", status: "queued", model: "p/m", modelShort: "m", reviewMode: "none", effectivePrompt: "/bmad-build \"x\"" }]
+        },
+        epics: [
+          {
+            id: "epic-done",
+            slug: "epic-done",
+            number: 1,
+            title: "Completed Epic",
+            smartProgressPct: 100,
+            declaredProgressPct: 100,
+            stories: [{ id: "1.1", title: "Done Story", smartStatus: "done", declaredStatus: "done", overrideKey: "epic-done#1" }]
+          }
+        ],
+        skillsCatalog: [
+          { skill: "bmad-ux", displayName: "UX Design", description: "Design UX", module: "bmm", phase: "2-planning", contextualCommand: "/bmad-ux \"x\"" }
+        ],
+        agentsCatalog: [
+          { skill: "bmad-agent-ux-designer", icon: "🎨", name: "Sally", title: "UX Designer", focus: "Experience" },
+          { skill: "bmad-agent-dev", icon: "💻", name: "Amelia", title: "Developer", focus: "Implementation" }
+        ],
+        artifacts: [
+          { relPath: "_bmad-output/prd.md", name: "prd.md", kind: "prd", phaseId: "2-planning", phaseName: "Planning", gitStatus: "committed", mtimeMs: Date.now() }
+        ]
+      });
+
+      assert.equal(env.elements.get("progressBarTrack").getAttribute("aria-valuenow"), "50");
+      assert.match(env.elements.get("queueStatusBadge").className || env.elements.get("queueStatusBadge").getAttribute("class"), /pill-warning/);
+      assert.equal(env.elements.get("btnPauseQueue").disabled, true);
+      assert.equal(env.elements.get("btnPauseQueue").textContent, "⏸ Paused");
+
+      // Completed epic must show disabled ✓ All Done instead of Queue Epic (1)
+      const epicsHtml = env.elements.get("epicsList").innerHTML;
+      assert.match(epicsHtml, /disabled[^>]*>[\s\S]*?✓ All Done/);
+
+      // Story filter miss includes #btnClearStoryFilters
+      env.elements.get("storySearch").value = "no-such-story-xyz";
+      hooks.renderEpics(true);
+      assert.match(env.elements.get("epicsList").innerHTML, /id="btnClearStoryFilters"/);
+
+      // #skillSearch filters agents too ("sally" keeps Sally and excludes Amelia)
+      env.elements.get("skillSearch").value = "sally";
+      hooks.renderSkillsCatalog(true);
+      const agentsFilteredHtml = env.elements.get("agentsCatalogList").innerHTML;
+      assert.match(agentsFilteredHtml, /Sally/);
+      assert.doesNotMatch(agentsFilteredHtml, /Amelia/);
+      assert.match(env.elements.get("skillsCatalogList").innerHTML, /id="btnClearSkillFilters"/);
+
+      // Artifact filter miss includes #btnClearArtifactSearch
+      env.elements.get("artifactSearch").value = "missing-artifact-xyz";
+      hooks.renderArtifactsDirectory(true);
+      assert.match(env.elements.get("artifactsDirectoryList").innerHTML, /id="btnClearArtifactSearch"/);
+    });
+  });

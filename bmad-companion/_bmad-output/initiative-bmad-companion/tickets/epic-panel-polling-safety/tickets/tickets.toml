@@ -5,6 +5,7 @@
 id = 1
 type = "story"
 title = "Poll-loop guard tracer (visible-gated 5s poll + isRefreshing + stash/flush)"
+status = "done"
 description = "Tracer bullet: builds on Epic 2's frozen ScanResult contract (2.1) to prove the thinnest panel path — a visibility-gated 5000ms poll serialized by isRefreshing, guarded by isUserInteractingWithForm (textarea/input focus or 15000ms select window), stashing pendingWorkspaceState mid-flight and flushing via flushPendingState on focusout/change/Escape/Tab <=100ms with zero lost edits. Verified with a stubbed-document node:test harness. Hands off the guard baseline to Stories 2-4."
 verify = "Run `node --test tests/panel-guards.test.mjs` and confirm a guarded poll stashes then flushes on focusout, a hidden document skips the poll, and overlapping polls return immediately under the isRefreshing lock."
 covers = ["R1", "R2", "R3"]
@@ -16,6 +17,7 @@ risk = "high"
 id = 2
 type = "story"
 title = "User edit preservation + section signature diffing regression"
+status = "done"
 description = "Builds on Story 1's guard baseline to harden resolveUserPrompt/resolveUserModel (keep userEditedPrompts/userSelectedModels while base===serverCmd/serverModel, drop when base changes or the chosen model leaves availableModels) and lastSectionSignatures per-section early-return so innerHTML is replaced only when data differs; explicit user actions still render immediately. Hands off the non-destructive render baseline to Stories 3-4."
 verify = "Run `node --test tests/` and confirm an unchanged-base poll preserves an in-progress prompt/model edit, a changed base resets it, an unchanged section signature skips innerHTML, and an explicit action renders while focused."
 covers = ["R3"]
@@ -27,6 +29,7 @@ risk = "medium"
 id = 3
 type = "story"
 title = "Accessibility floor: close AD-1-AD-5"
+status = "done"
 description = "Builds on Story 1's render baseline to close EXPERIENCE.md accessibility deviations in assets/panel.html: AD-1 visible .cmd-textarea focus ring (>=3:1), AD-2 ARIA role=tablist/tab/tabpanel + aria-selected + arrow-key navigation, AD-3 #toastBanner role=status/aria-live (polite, errors assertive), AD-4 associated queue/editor labels (for/id), AD-5 prefers-reduced-motion gating of .pulse-dot. Keeps native keyboard operability and the postMessage bridge."
 verify = "Run a web-gui-tester keyboard/AT checklist and confirm textarea focus is visible, tabs expose ARIA semantics + arrow keys, toasts announce, labels associate, and the pulse stops under prefers-reduced-motion."
 covers = ["R4"]
@@ -38,6 +41,7 @@ risk = "medium"
 id = 4
 type = "story"
 title = "Contrast debt: close CD-1-CD-5 to WCAG AA"
+status = "done"
 description = "Builds on Story 1's render baseline to close DESIGN.md measured contrast debt CD-1-CD-5 (muted ink, pill text, dark primary/badge white) so essential text >=4.5:1 and focus indicators >=3:1 in both light and dark themes, re-measuring with the DESIGN.md relative-luminance method and keeping status conveyed by text + color."
 verify = "Re-measure the CD-1-CD-5 token pairs with the DESIGN.md contrast method and confirm essential text >=4.5:1 and focus >=3:1 in both themes; record the updated ratios in DESIGN.md."
 covers = ["R5"]
@@ -49,6 +53,7 @@ risk = "medium"
 id = 5
 type = "story"
 title = "Refactor sweep"
+status = "done"
 description = "Cleanup only, after Stories 1-4: deduplicate render/guard helpers, normalize signature computation and theme-token usage, and tighten escapeHtml coverage; scope set at start from deferred review findings. No new behavior."
 verify = "Run `node --test tests/` green and confirm no duplicated render/guard helper or unescaped dynamic string remains in assets/panel.html."
 covers = []

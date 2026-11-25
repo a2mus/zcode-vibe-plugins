@@ -188,6 +188,113 @@ describe("dual-progress scan tracer (Epic 3 Story 3.1)", () => {
     assert.equal(result.metrics.declaredDoneStories, 1);
     assert.ok(result.artifacts.some((a) => a.name === "rapport-verification.md"));
   });
+
+  it("matches plan-<id>-*.md to entry.id without false-matching digits inside earlier plan filenames or emitting duplicate plan-derived stories", () => {
+    const ws = workspaces.create({
+      files: {
+        "_bmad-output/initiative-dedupe/initiative-dedupe.md": "---\ntitle: Dedupe\nstatus: in-progress\n---\n",
+        "_bmad-output/initiative-dedupe/tickets/tickets.toml": [
+          "[[epic]]",
+          "id = 4",
+          'slug = "epic-panel-polling-safety"',
+          'title = "Panel Polling Safety"',
+          "",
+          "[[epic]]",
+          "id = 5",
+          'slug = "epic-execution-queue"',
+          'title = "Execution Queue"',
+          "",
+          "[[epic]]",
+          "id = 6",
+          'slug = "epic-hooks-model-router"',
+          'title = "Hooks & Model Router"'
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/plan-repo-root-ci-per-plugin-gates-2.md": [
+          "---",
+          "title: 'Wire per-plugin gates into repo-root CI'",
+          "ticket: ''",
+          "status: built",
+          "---"
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/tickets/epic-panel-polling-safety/tickets/tickets.toml": [
+          "[[entry]]",
+          "id = 3",
+          'title = "Accessibility floor: close AD-1-AD-5"',
+          "",
+          "[[entry]]",
+          "id = 5",
+          'title = "Refactor sweep"'
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/tickets/epic-panel-polling-safety/tickets/plan-3-accessibility-floor-close-ad-1-ad-5.md": [
+          "---",
+          "title: 'Accessibility floor: close AD-1-AD-5'",
+          "ticket: 3",
+          "container: epic-panel-polling-safety",
+          "status: done",
+          "---"
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/tickets/epic-panel-polling-safety/tickets/plan-5-refactor-sweep.md": [
+          "---",
+          "title: 'Refactor sweep'",
+          "ticket: 5",
+          "container: epic-panel-polling-safety",
+          "status: done",
+          "---"
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/tickets/epic-execution-queue/tickets/tickets.toml": [
+          "[[entry]]",
+          "id = 2",
+          'title = "14-action queue contract"',
+          "",
+          "[[entry]]",
+          "id = 4",
+          'title = "Dual execution engine generation"'
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/tickets/epic-execution-queue/tickets/plan-2-14-action-queue-contract.md": [
+          "---",
+          "title: '14-action queue contract'",
+          "ticket: 2",
+          "container: epic-execution-queue",
+          "status: done",
+          "---"
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/tickets/epic-execution-queue/tickets/plan-4-dual-execution-engine-generation.md": [
+          "---",
+          "title: 'Dual execution engine generation'",
+          "ticket: 4",
+          "container: epic-execution-queue",
+          "status: done",
+          "---"
+        ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/tickets/epic-hooks-model-router/tickets/tickets.toml": [
+          "[[entry]]",
+          "id = 2",
+          'title = "4-tier model scorer"'
+        ].join("\n") + "\n"
+      }
+    });
+
+    const scan = scanBmadWorkspace(ws.root);
+    const epic4 = scan.epics.find((e) => e.slug === "epic-panel-polling-safety");
+    const epic5 = scan.epics.find((e) => e.slug === "epic-execution-queue");
+    const epic6 = scan.epics.find((e) => e.slug === "epic-hooks-model-router");
+
+    assert.equal(epic4.stories.length, 2, "epic-panel-polling-safety must not emit duplicate plan-5 entry");
+    assert.ok(
+      epic4.stories.find((s) => s.id === "4.5")?.planPath?.endsWith("plan-5-refactor-sweep.md"),
+      "story 4.5 must match plan-5-refactor-sweep.md instead of plan-3-accessibility-floor-close-ad-1-ad-5.md"
+    );
+
+    assert.equal(epic5.stories.length, 2, "epic-execution-queue must not emit duplicate plan-4 entry");
+    assert.ok(
+      epic5.stories.find((s) => s.id === "5.4")?.planPath?.endsWith("plan-4-dual-execution-engine-generation.md"),
+      "story 5.4 must match plan-4-dual-execution-engine-generation.md instead of plan-2-14-action-queue-contract.md"
+    );
+
+    const story62 = epic6.stories.find((s) => s.id === "6.2");
+    assert.equal(story62.planPath, null, "story 6.2 must not match unrelated initiative CI plan ending in -2.md");
+    assert.equal(story62.smartStatus, "backlog");
+  });
 });
 
 describe("smart evidence evaluator rules (Epic 3 Story 3.2)", () => {

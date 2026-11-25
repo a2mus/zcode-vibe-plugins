@@ -7,6 +7,7 @@ sources:
   - _bmad-output/initiative-bmad-companion/initiative-bmad-companion.md
 companions: []
 after: [epic-verification-harness, epic-dual-progress-reconciliation, epic-mcp-surface]
+status: done
 refined: true
 risk: high
 ---
