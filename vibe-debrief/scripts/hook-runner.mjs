@@ -8,6 +8,7 @@ import {
   buildExplainerScenesIfComplex,
   classifyFileRole,
   computeSte100Metrics,
+  discoverCheapestEnabledModels,
   discoverLightweightGeminiModels,
   loadPersistedState,
   PERSONAS,
@@ -103,12 +104,15 @@ async function main() {
   if (mode === "session-start") {
     const state = loadPersistedState(workspaceRoot);
     const persona = PERSONAS.find((p) => p.id === state.activePersona) || PERSONAS[0];
-    const lightGemini = discoverLightweightGeminiModels()[0]?.id || "new-provider/gemini-3.8-flash";
+    const cheapestCandidate =
+      (state.preferredModel && state.preferredModel !== "auto-cheapest" ? state.preferredModel : null) ||
+      discoverCheapestEnabledModels()[0]?.id ||
+      "new-provider/gemini-3.8-flash";
 
     const additionalContext = [
       `[Vibe Debrief v0.4.0 (Karpathy Comprehension Panel) Active — Persona: ${persona.name} (${persona.badge}), STE-80: ${state.ste100Enabled !== false ? "ON" : "OFF"}]`,
       `Reading-Boundary Principle: Reason and code normally during tasks; apply comprehension formatting only when publishing to \`vibe_debrief_publish\`.`,
-      `Cost-Aware Smart Action Rule: Preferred lightweight Gemini model for ELI5 smart actions is \`${lightGemini}\`. Never spend expensive flagship models (\`opus\` / \`sonnet\`) on simple Vibe Debrief refresh/summarization tasks when \`CreateSession\` can delegate them to \`${lightGemini}\`.`,
+      `Cost-Aware Smart Action Rule: Preferred lightweight Gemini model for ELI5 smart actions is \`${cheapestCandidate}\`. Never spend expensive flagship models (\`opus\` / \`sonnet\`) on simple Vibe Debrief refresh/summarization tasks when \`CreateSession\` can delegate them to \`${cheapestCandidate}\`.`,
       `- After answering a bug/error or completing an implementation (or whenever asked to simplify / explain), call \`vibe_debrief_publish\` with:`,
       `  • **80% ASD-STE100 clarity**: short active sentences (<= 22 words), plain verbs, zero fluff.`,
       `  • **Always include \`diagram\`**: nodes using real file/component names + numbered edges (1..N).`,
@@ -139,13 +143,52 @@ async function main() {
       agentPublishedThisTurn: false
     });
 
+    if (String(promptText || "").includes("[Vibe Debrief — Clarify]")) {
+      const state = loadPersistedState(workspaceRoot);
+      const cheapestModels = discoverCheapestEnabledModels();
+      const modelMatch = String(promptText).match(/\(model:\s*`([^`]+)`\)/);
+      const specifiedModel = modelMatch ? modelMatch[1] : null;
+      const targetModel =
+        specifiedModel ||
+        (state.preferredModel && state.preferredModel !== "auto-cheapest" ? state.preferredModel : null) ||
+        cheapestModels[0]?.id ||
+        "active-session";
+
+      const delegationInstructions =
+        targetModel === "active-session"
+          ? "Call `vibe_debrief_publish` directly now using the active session model with an honest debrief (never fabricate verified claims; set `heuristicConfidence` and `rawQuote` accurately)."
+          : [
+              `Delegate clarification to model \`${targetModel}\`:`,
+              `1. If the current session is already running on \`${targetModel}\`, call \`vibe_debrief_publish\` directly now.`,
+              `2. Otherwise, load \`ListProjects\` and \`CreateSession\` via \`LocalToolSearch\` (\`select:ListProjects,CreateSession\`), call \`ListProjects\`, and call \`CreateSession({ project, model: "${targetModel}", prompt })\` (DO NOT call \`OpenSession\`) passing the last turn context and instructing that session to call \`vibe_debrief_publish\` with 80% STE-100 clarity, an always-on \`diagram\`, \`proofClaims\`, \`uncertaintyAudit\`, and \`verificationChecklist\`.`
+            ].join("\n");
+
+      const additionalContext = [
+        "MANDATORY COST-AWARE ACTION FOR [Vibe Debrief — Clarify]:",
+        "The user clicked 'Clarify' in the right-side Vibe Debrief panel due to low heuristic confidence.",
+        delegationInstructions
+      ].join("\n");
+
+      process.stdout.write(JSON.stringify({ additionalContext }) + "\n");
+      return;
+    }
+
     if (String(promptText || "").includes("[Vibe Debrief — Deep Refresh]")) {
       const state = loadPersistedState(workspaceRoot);
-      const lightGemini = discoverLightweightGeminiModels()[0]?.id || "new-provider/gemini-3.8-flash";
+      const cheapestModels = discoverCheapestEnabledModels();
+      const modelMatch =
+        String(promptText).match(/\(default:\s*`([^`]+)`\)/) ||
+        String(promptText).match(/\(model:\s*`([^`]+)`\)/);
+      const specifiedModel = modelMatch ? modelMatch[1] : null;
+      const targetModel =
+        specifiedModel ||
+        (state.preferredModel && state.preferredModel !== "auto-cheapest" ? state.preferredModel : null) ||
+        cheapestModels[0]?.id ||
+        "new-provider/gemini-3.8-flash";
       const additionalContext = [
         "MANDATORY COST-AWARE ACTION FOR [Vibe Debrief — Deep Refresh]:",
         "The user clicked 'AI Explain' in the right-side Vibe Debrief panel.",
-        `Delegate the reading-boundary debrief pass to the lightweight Gemini model specified in the message (default: \`${lightGemini}\`) via a background \`CreateSession\` call (DO NOT call \`OpenSession\`):`,
+        `Delegate the reading-boundary debrief pass to the lightweight Gemini model specified in the message (default: \`${targetModel}\`) via a background \`CreateSession\` call (DO NOT call \`OpenSession\`):`,
         "1. If the current session is already running on a lightweight Gemini Flash/Argon model, call `vibe_debrief_publish` directly.",
         `2. Otherwise, load \`ListProjects\` and \`CreateSession\` via \`LocalToolSearch\` (\`select:ListProjects,CreateSession\`), call \`ListProjects\`, and call \`CreateSession({ project, model: "<chosen-gemini-model>", prompt })\` passing the last turn context (${String(state.lastUserPrompt || "").slice(0, 300)}) and instructing that lightweight Gemini session to call \`vibe_debrief_publish\` with 80% STE-100 clarity, an always-on \`diagram\`, \`proofClaims\`, \`uncertaintyAudit\`, \`verificationChecklist\`, and \`explainerScenes\` ONLY if the workflow is complex.`
       ].join("\n");

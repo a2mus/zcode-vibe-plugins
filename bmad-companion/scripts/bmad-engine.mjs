@@ -430,6 +430,12 @@ export function classifyModelCostTier(modelId) {
   return "standard";
 }
 
+// Cost tier with per-model override fallback, shared by the ranking guards in
+// recommendModelForBmadSkill (discovered models carry costTier; direct inputs may not).
+function costTierOf(model) {
+  return model.costTier || classifyModelCostTier(model.modelId);
+}
+
 function normalizeHostModelEntry(entry) {
   if (!entry || typeof entry !== "object") return null;
   if (entry.id) return entry;
@@ -485,18 +491,17 @@ export function discoverConfiguredModels(persistedHostModels = null) {
   const credentialsPath = join(zcodeV2Dir, "credentials.json");
   const builtinPath = findRuntimeBuiltinConfigPath();
 
-  const personalCfg = existsSync(providerCfgPath)
-    ? JSON.parse(safeReadText(providerCfgPath, 400000) || "{}")
-    : {};
-  const settingCfg = existsSync(settingPath)
-    ? JSON.parse(safeReadText(settingPath, 200000) || "{}")
-    : {};
-  const credsCfg = existsSync(credentialsPath)
-    ? JSON.parse(safeReadText(credentialsPath, 200000) || "{}")
-    : {};
-  const builtinCfg = builtinPath
-    ? JSON.parse(safeReadText(builtinPath, 500000) || "{}")
-    : {};
+  // Bounded JSON config read shared by the four discovery sources below
+  // (a missing path or empty file yields {}).
+  function readJsonConfig(filePath, maxBytes) {
+    if (!filePath || !existsSync(filePath)) return {};
+    return JSON.parse(safeReadText(filePath, maxBytes) || "{}");
+  }
+
+  const personalCfg = readJsonConfig(providerCfgPath, 400000);
+  const settingCfg = readJsonConfig(settingPath, 200000);
+  const credsCfg = readJsonConfig(credentialsPath, 200000);
+  const builtinCfg = readJsonConfig(builtinPath, 500000);
 
   // 1. Collect builtin regex model rules (for capability enrichment: contextWindow, reasoningLevels, supportsImage, etc.)
   const builtinRegexRules = builtinCfg?.config?.modelConfigRules?.modelRules || [];
@@ -517,31 +522,36 @@ export function discoverConfiguredModels(persistedHostModels = null) {
     };
     let reasoningLevels = ["disabled", "enabled"];
 
+    // Single rule-overlay primitive shared by the builtin-regex and personal
+    // rule passes below: enabled flag, properties merge (inputFormat merged
+    // one level deep), and reasoning-level values.
+    function applyRuleConfig(rule) {
+      if (typeof rule.config?.enabled === "boolean") enabled = rule.config.enabled;
+      if (rule.config?.properties) {
+        properties = {
+          ...properties,
+          ...rule.config.properties,
+          inputFormat: {
+            ...properties.inputFormat,
+            ...(rule.config.properties.inputFormat || {})
+          }
+        };
+      }
+      if (Array.isArray(rule.config?.optionSpecs?.reasoningLevel?.values)) {
+        reasoningLevels = [...rule.config.optionSpecs.reasoningLevel.values];
+      }
+    }
+
     // Apply builtin regex rules in order
     for (const r of builtinRegexRules) {
       if (!r?.modelMatch) continue;
       try {
         const re = new RegExp(`^(?:${r.modelMatch})$`, "i");
-        if (re.test(modelId)) {
-          if (typeof r.config?.enabled === "boolean") enabled = r.config.enabled;
-          if (r.config?.properties) {
-            properties = {
-              ...properties,
-              ...r.config.properties,
-              inputFormat: {
-                ...properties.inputFormat,
-                ...(r.config.properties.inputFormat || {})
-              }
-            };
-          }
-          if (Array.isArray(r.config?.optionSpecs?.reasoningLevel?.values)) {
-            reasoningLevels = [...r.config.optionSpecs.reasoningLevel.values];
-          }
-        }
+        if (re.test(modelId)) applyRuleConfig(r);
       } catch {}
     }
 
-    // Apply builtin provider-specific model rules
+    // Apply builtin provider-specific model rules (enabled flag only)
     for (const r of builtinProviderModelRules) {
       if (r.providerId === providerId && r.modelId === modelId) {
         if (typeof r.config?.enabled === "boolean") enabled = r.config.enabled;
@@ -550,22 +560,7 @@ export function discoverConfiguredModels(persistedHostModels = null) {
 
     // Overlay user's personal model rules from provider_config.json
     for (const r of personalModelRules) {
-      if (r.providerId === providerId && r.modelId === modelId) {
-        if (typeof r.config?.enabled === "boolean") enabled = r.config.enabled;
-        if (r.config?.properties) {
-          properties = {
-            ...properties,
-            ...r.config.properties,
-            inputFormat: {
-              ...properties.inputFormat,
-              ...(r.config.properties.inputFormat || {})
-            }
-          };
-        }
-        if (Array.isArray(r.config?.optionSpecs?.reasoningLevel?.values)) {
-          reasoningLevels = [...r.config.optionSpecs.reasoningLevel.values];
-        }
-      }
+      if (r.providerId === providerId && r.modelId === modelId) applyRuleConfig(r);
     }
 
     return {
@@ -778,6 +773,14 @@ export function discoverConfiguredModels(persistedHostModels = null) {
   let runtimeMerged = 0;
   const runtimeAddedCounts = new Map();
 
+  // Kind/plan derivation shared by runtime model registration and the
+  // per-provider summary rows below.
+  function runtimeProviderMeta(pid) {
+    return pid.startsWith("account:")
+      ? { kind: "subscription", plan: pid.replace(/^account:/, "") }
+      : { kind: "personal", plan: "runtime" };
+  }
+
   for (const hm of runtimeModels) {
     const pid = hm.providerId;
     const mid = hm.modelId;
@@ -809,11 +812,12 @@ export function discoverConfiguredModels(persistedHostModels = null) {
       runtimeMerged += 1;
     } else {
       const beforeLen = discovered.length;
+      const meta = runtimeProviderMeta(pid);
       registerCandidate({
         providerId: pid,
         providerName: hm.providerLabel || pid,
-        providerKind: pid.startsWith("account:") ? "subscription" : "personal",
-        subscriptionPlan: pid.startsWith("account:") ? pid.replace(/^account:/, "") : "runtime",
+        providerKind: meta.kind,
+        subscriptionPlan: meta.plan,
         modelId: mid,
         caps: runtimeCaps,
         isCurrent: Boolean(hm.current)
@@ -831,11 +835,12 @@ export function discoverConfiguredModels(persistedHostModels = null) {
       row.modelCount += count;
     } else {
       const sample = runtimeModels.find((hm) => hm.providerId === pid);
+      const meta = runtimeProviderMeta(pid);
       activeProvidersSummary.push({
         providerId: pid,
         providerName: sample?.providerLabel || pid,
-        kind: pid.startsWith("account:") ? "subscription" : "personal",
-        plan: pid.startsWith("account:") ? pid.replace(/^account:/, "") : "runtime",
+        kind: meta.kind,
+        plan: meta.plan,
         modelCount: count
       });
     }
@@ -1003,12 +1008,12 @@ export function recommendModelForBmadSkill(skillName, availableModels, customPro
     // Keep deep work on a balanced (standard-cost) model when one is close.
     // Avoid downgrading architecture or review work to a budget model.
     const balanced = ranked.find(
-      (r) => (r.model.costTier || classifyModelCostTier(r.model.modelId)) === "standard" && r.score >= topScore * 0.9
+      (r) => costTierOf(r.model) === "standard" && r.score >= topScore * 0.9
     );
     if (balanced) finalPick = balanced.model;
-  } else if ((picked.costTier || classifyModelCostTier(picked.modelId)) === "premium") {
+  } else if (costTierOf(picked) === "premium") {
     const cheaper = ranked.find(
-      (r) => (r.model.costTier || classifyModelCostTier(r.model.modelId)) !== "premium" && r.score >= topScore * 0.9
+      (r) => costTierOf(r.model) !== "premium" && r.score >= topScore * 0.9
     );
     if (cheaper) finalPick = cheaper.model;
   }
@@ -1022,7 +1027,7 @@ export function recommendModelForBmadSkill(skillName, availableModels, customPro
     .filter(Boolean)
     .join(", ");
 
-  const costTier = finalPick.costTier || classifyModelCostTier(finalPick.modelId);
+  const costTier = costTierOf(finalPick);
   const sourceDesc =
     finalPick.providerKind === "subscription"
       ? `active '${finalPick.providerName}' subscription`
@@ -1269,6 +1274,25 @@ export function parseTestReportSummary(text) {
   return { found, total, passed, failed, failingSuiteName };
 }
 
+// Git subprocess timeout budgets: quick metadata probe vs bounded output capture.
+const GIT_METADATA_TIMEOUT_MS = 3000;
+const GIT_CAPTURE_TIMEOUT_MS = 4000;
+
+// Single git-capture primitive: bounded, stdout-only (stderr ignored), and
+// empty string on any failure/timeout. Shared by runGitInfo and
+// inspectWorkspaceArtifact so every git subprocess has one timeout shape.
+function runGitCapture(workspaceRoot, args, timeoutMs) {
+  try {
+    return execFileSync("git", ["-C", workspaceRoot, ...args], {
+      encoding: "utf8",
+      timeout: timeoutMs,
+      stdio: ["ignore", "pipe", "ignore"]
+    });
+  } catch {
+    return "";
+  }
+}
+
 function runGitInfo(workspaceRoot) {
   const info = {
     branch: "main",
@@ -1277,47 +1301,33 @@ function runGitInfo(workspaceRoot) {
     untrackedFiles: [],
     recentCommits: []
   };
-  try {
-    info.branch =
-      execFileSync("git", ["-C", workspaceRoot, "rev-parse", "--abbrev-ref", "HEAD"], {
-        encoding: "utf8",
-        timeout: 3000,
-        stdio: ["ignore", "pipe", "ignore"]
-      }).trim() || "main";
-  } catch {}
-  try {
-    const statusOut = execFileSync("git", ["-C", workspaceRoot, "status", "--porcelain"], {
-      encoding: "utf8",
-      timeout: 4000,
-      stdio: ["ignore", "pipe", "ignore"]
-    });
-    for (const line of statusOut.split(/\r?\n/).filter(Boolean)) {
-      const code = line.slice(0, 2);
-      const file = line.slice(3).trim();
-      if (code.includes("D") && file.startsWith("_bmad/")) {
-        info.deletedBmadConfigFiles++;
-      } else if (code === "??") {
-        info.untrackedFiles.push(file);
-      } else {
-        info.modifiedFiles.push({ status: code.trim(), path: file });
-      }
+
+  info.branch =
+    runGitCapture(workspaceRoot, ["rev-parse", "--abbrev-ref", "HEAD"], GIT_METADATA_TIMEOUT_MS).trim() || "main";
+
+  const statusOut = runGitCapture(workspaceRoot, ["status", "--porcelain"], GIT_CAPTURE_TIMEOUT_MS);
+  for (const line of statusOut.split(/\r?\n/).filter(Boolean)) {
+    const code = line.slice(0, 2);
+    const file = line.slice(3).trim();
+    if (code.includes("D") && file.startsWith("_bmad/")) {
+      info.deletedBmadConfigFiles++;
+    } else if (code === "??") {
+      info.untrackedFiles.push(file);
+    } else {
+      info.modifiedFiles.push({ status: code.trim(), path: file });
     }
-  } catch {}
-  try {
-    const logOut = execFileSync("git", ["-C", workspaceRoot, "log", "-n", "12", "--oneline"], {
-      encoding: "utf8",
-      timeout: 4000,
-      stdio: ["ignore", "pipe", "ignore"]
+  }
+
+  const logOut = runGitCapture(workspaceRoot, ["log", "-n", "12", "--oneline"], GIT_CAPTURE_TIMEOUT_MS);
+  info.recentCommits = logOut
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const sp = line.indexOf(" ");
+      return sp > 0 ? { sha: line.slice(0, sp), subject: line.slice(sp + 1) } : { sha: line, subject: "" };
     });
-    info.recentCommits = logOut
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const sp = line.indexOf(" ");
-        return sp > 0 ? { sha: line.slice(0, sp), subject: line.slice(sp + 1) } : { sha: line, subject: "" };
-      });
-  } catch {}
+
   return info;
 }
 
@@ -2427,6 +2437,29 @@ export function scanBmadWorkspace(workspaceRoot) {
   };
 }
 
+/**
+ * Assemble the SessionStart hook `additionalContext` block from a scan result
+ * (R19): activation banner, smart-vs-static metrics, active provider counts,
+ * top-3 `/bmad-<skill> "<prompt>"` recommendations with providerId/modelId,
+ * and the companion guidance rules. Single source of truth — the hook only
+ * scans, emits, and never assembles presentation strings itself.
+ */
+export function buildSessionStartContext(scan) {
+  const topRecs = scan.recommendations
+    .slice(0, 3)
+    .map((r) => `- \`${r.fullCommand}\` [Recommended Model: \`${r.recommendedModel?.modelId}\` — ${r.recommendedModel?.tier}] (${r.title})`)
+    .join("\n");
+
+  return [
+    `[BMAD Companion Active for ${scan.projectName} (${scan.techStack})]`,
+    `Smart Progress: ${scan.metrics.smartDoneStories}/${scan.metrics.totalStories} stories complete (${scan.metrics.smartOverallPct}% smart vs ${scan.metrics.declaredOverallPct}% static tracker; ${scan.metrics.reconciledStoriesCount} stories AI-reconciled across ${scan.metrics.totalEpics} epics).`,
+    `Active Providers & Models: ${scan.availableModels.length} enabled models across ${(scan.providerState?.activeProviders || []).map((p) => `${p.providerName} (${p.modelCount})`).join(", ") || "host defaults"}.`,
+    `Recommended Next BMAD Prompts & Models:\n${topRecs}`,
+    `Companion Guidance:`,
+    `1. Whenever advising the user on BMAD-METHOD or after completing a meaningful task, always provide concrete contextual prompts (e.g., \`/bmad-ux "Enhance the UI/UX of ..."\`, never a bare \`/bmad-ux\`) along with a dynamically chosen model from \`ListModels\` (respecting active provider state & subscription), and call \`bmad_update_advisor\` (passing \`hostModels\` when \`ListModels\` is inspected) or \`bmad_open_companion\` when updating the right-side BMAD Companion panel.`
+  ].join("\n");
+}
+
 function normalizeComparablePrompt(text) {
   let str = String(text || "").trim();
   const hasQuote = str.endsWith('"');
@@ -2815,41 +2848,26 @@ export function inspectWorkspaceArtifact(workspaceRoot, relPath) {
   const meta = parseFrontmatter(text);
 
   // Compute Git Diff: 1) Working tree / staged diff vs HEAD, 2) Most recent commit diff, 3) Synthetic new-file diff
-  let diff = "";
   let diffSource = "Working tree diff vs HEAD";
-  try {
-    diff = execFileSync("git", ["-C", workspaceRoot, "diff", "HEAD", "--", cleanRel], {
-      encoding: "utf8",
-      timeout: 4000,
-      stdio: ["ignore", "pipe", "ignore"]
-    }).trim();
-  } catch {}
+  let diff = runGitCapture(workspaceRoot, ["diff", "HEAD", "--", cleanRel], GIT_CAPTURE_TIMEOUT_MS).trim();
 
   if (!diff) {
-    try {
-      diff = execFileSync(
-        "git",
-        [
-          "-C",
-          workspaceRoot,
-          "log",
-          "-n",
-          "1",
-          "-p",
-          "--format=commit %h (%cr) — %s%nAuthor: %an <%ae>%nDate:   %ad",
-          "--",
-          cleanRel
-        ],
-        {
-          encoding: "utf8",
-          timeout: 4000,
-          stdio: ["ignore", "pipe", "ignore"]
-        }
-      ).trim();
-      if (diff) {
-        diffSource = "Last commit diff (working tree is clean)";
-      }
-    } catch {}
+    diff = runGitCapture(
+      workspaceRoot,
+      [
+        "log",
+        "-n",
+        "1",
+        "-p",
+        "--format=commit %h (%cr) — %s%nAuthor: %an <%ae>%nDate:   %ad",
+        "--",
+        cleanRel
+      ],
+      GIT_CAPTURE_TIMEOUT_MS
+    ).trim();
+    if (diff) {
+      diffSource = "Last commit diff (working tree is clean)";
+    }
   }
 
   if (!diff) {
@@ -2881,6 +2899,9 @@ export function inspectWorkspaceArtifact(workspaceRoot, relPath) {
   };
 }
 
+// Desktop-open budget for launching artifacts in external editors (C11).
+const OPEN_EXTERNAL_TIMEOUT_MS = 3000;
+
 export function openWorkspaceArtifactExternally(workspaceRoot, relPath, deps = {}) {
   const { relPath: cleanRel, fullPath: full } = resolveWorkspaceArtifactPath(workspaceRoot, relPath);
   const platform = deps.platform || process.platform;
@@ -2894,14 +2915,14 @@ export function openWorkspaceArtifactExternally(workspaceRoot, relPath, deps = {
   try {
     if (platform === "win32") {
       runExecFileSync("cmd.exe", ["/c", "start", "", full], {
-        timeout: 3000,
+        timeout: OPEN_EXTERNAL_TIMEOUT_MS,
         windowsHide: true,
         stdio: "ignore"
       });
     } else if (platform === "darwin") {
-      runExecFileSync("open", [full], { timeout: 3000, stdio: "ignore" });
+      runExecFileSync("open", [full], { timeout: OPEN_EXTERNAL_TIMEOUT_MS, stdio: "ignore" });
     } else {
-      runExecFileSync("xdg-open", [full], { timeout: 3000, stdio: "ignore" });
+      runExecFileSync("xdg-open", [full], { timeout: OPEN_EXTERNAL_TIMEOUT_MS, stdio: "ignore" });
     }
     return { opened: true, relPath: cleanRel, fullPath: full, openMethod };
   } catch (err) {

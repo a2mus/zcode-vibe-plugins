@@ -36,3 +36,15 @@ Use this skill whenever the user wants a high-ROI, scannable comprehension pass 
 2. Call `vibe_debrief_publish` with `responseType`, `persona`, `tldrHeadline`, `realWorldAnalogy`, `diagram`, `bugReport`/`implementationReport`, `proofClaims`, `uncertaintyAudit`, `verificationChecklist`, `lessonsLearned`, and `explainerScenes` (complex workflows only).
 3. Call `vibe_debrief_confirm_lesson` whenever a lesson is confirmed to write `<slug>.md` and update `MEMORY.md`.
 4. Call `vibe_debrief_export_html` if the user asks for a standalone shareable HTML explainer file.
+
+## Optional OQ-5 Cockpit HUD Publish Hints (v0.4.0+)
+When enriching the debrief for Cockpit HUD vNext, you may optionally include any of the following additive OQ-5 fields in `vibe_debrief_publish` (all fields degrade cleanly and are inferred if omitted):
+- **`verdict`**: Top-of-fold verdict pill (`"Solved" | "Built" | "Explained" | "Blocked" | "Planned"`).
+- **`waitingOnYou`**: 5-state radar status (`"choice" | "action" | "reply" | "blocked" | "none"`) with actionable `chips` (`[{ id, key, label, techLabel, messagePrompt, primary }]`) and `allowInlineReply`.
+- **`choices`**: Architectural or next-step choices with trade-off meter scores (`tradeOffs: [{ label, score }]`, `0..100`).
+- **`xray`**: Dual-coded copy (`plain: { headline, summaryBullets }`, `tech: { headline, summaryBullets, symbols, paths, commands, exitCodes, proofLines }`) for instant `<16ms` client-side toggling.
+- **`diagramSpec`**: 5-grammar Diagram Spec alias (`sequence`, `flow-diff`, `subway-map`, `before-after`, `decision-tree`; `viewBoxWidth: 460`, `<= 6` nodes).
+- **`concepts`**: Up to 6 key technical concept pills (`[{ slug, label, techSymbol, targetPlugin, stage1: { definition, analogy, microVisualSpec }, stage2: { howItWorks, keyTradeOff, inYourCodebase }, stage2Prompt }]`).
+- **`microBlocks`**: Explicit block composition order (`["radar", "choices", "diagram", "proof-audit", "concepts", "lessons"]`).
+- **`heuristicConfidence` & `rawQuote`**: Honesty metrics (`0.0–1.0` confidence, raw response snippet `<= 280` chars). Flags `< 0.55` trigger the `unclear-box` instead of fabricating claims.
+

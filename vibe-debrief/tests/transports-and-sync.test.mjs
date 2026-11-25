@@ -943,6 +943,117 @@ describe("hook runner stdout isolation", () => {
     }
   });
 
+  it("delegates a Clarify prompt with the dynamically resolved model without hardcoding Argon", async () => {
+    const { workspace, home, cleanup } = createTempFixture({
+      home: {
+        providerConfig: {
+          config: {
+            providerConfigRules: {
+              providerRules: [
+                {
+                  providerId: "openai",
+                  providerName: "OpenAI",
+                  config: {
+                    access: { type: "api-key", apiKey: "sk-test" },
+                    modelOrder: ["gpt-5-nano"]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    });
+
+    try {
+      const clarifyPrompt = [
+        "[Vibe Debrief — Clarify]",
+        "Cost-Aware Clarification Action (model: `openai/gpt-5-nano`):",
+        "- If this session is already on `openai/gpt-5-nano`, call `vibe_debrief_publish` directly now.",
+        "The Vibe Debrief panel could not confidently parse the last AI response."
+      ].join("\n");
+
+      const result = await runHookRunner(
+        "user-prompt",
+        { prompt: clarifyPrompt },
+        { cwd: workspace.root, env: mcpEnv(workspace, home) }
+      );
+      const frame = parseHookFrame(result, "user-prompt (clarify with model)");
+      assert.match(frame.additionalContext, /MANDATORY COST-AWARE ACTION FOR \[Vibe Debrief — Clarify\]/);
+      assert.match(frame.additionalContext, /openai\/gpt-5-nano/);
+      assert.equal(
+        frame.additionalContext.includes("gemini-4-argon"),
+        false,
+        "UserPromptSubmit Clarify must never hardcode Argon"
+      );
+      assert.match(frame.additionalContext, /CreateSession/);
+      assert.match(frame.additionalContext, /vibe_debrief_publish/);
+
+      const persisted = readJsonFile(workspace.statePath);
+      assert.equal(persisted.lastUserPrompt, clarifyPrompt);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("delegates a Clarify prompt to active-session when no model is configured", async () => {
+    const { workspace, home, cleanup } = createTempFixture();
+
+    try {
+      const result = await runHookRunner(
+        "user-prompt",
+        { prompt: "[Vibe Debrief — Clarify] please clarify the last explanation" },
+        { cwd: workspace.root, env: mcpEnv(workspace, home) }
+      );
+      const frame = parseHookFrame(result, "user-prompt (clarify fallback)");
+      assert.match(frame.additionalContext, /MANDATORY COST-AWARE ACTION FOR \[Vibe Debrief — Clarify\]/);
+      assert.match(frame.additionalContext, /active session model/);
+      assert.match(frame.additionalContext, /vibe_debrief_publish/);
+      assert.equal(
+        frame.additionalContext.includes("gemini-4-argon"),
+        false,
+        "Fallback must never hardcode Argon"
+      );
+
+      const persisted = readJsonFile(workspace.statePath);
+      assert.equal(persisted.lastUserPrompt, "[Vibe Debrief — Clarify] please clarify the last explanation");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("both /vibe-debrief and /eli5 skills carry optional OQ-5 publish hints while keeping v0.2.0 compatibility", () => {
+    const vdSkillPath = join(REPO_ROOT, "skills", "vibe-debrief", "SKILL.md");
+    const eli5SkillPath = join(REPO_ROOT, "skills", "eli5", "SKILL.md");
+
+    assert.equal(existsSync(vdSkillPath), true, "skills/vibe-debrief/SKILL.md must exist");
+    assert.equal(existsSync(eli5SkillPath), true, "skills/eli5/SKILL.md must exist");
+
+    const vdContent = readFileSync(vdSkillPath, "utf8");
+    const eli5Content = readFileSync(eli5SkillPath, "utf8");
+
+    // Both must carry OQ-5 hints
+    assert.match(vdContent, /OQ-5/);
+    assert.match(eli5Content, /OQ-5/);
+
+    // Both must document key OQ-5 fields
+    for (const field of ["verdict", "waitingOnYou", "choices", "xray", "diagramSpec", "concepts", "heuristicConfidence"]) {
+      assert.ok(vdContent.includes(field), `skills/vibe-debrief/SKILL.md must document optional ${field}`);
+      assert.ok(eli5Content.includes(field), `skills/eli5/SKILL.md must document optional ${field}`);
+    }
+
+    // Both must retain core v0.2.0 instructions
+    assert.match(vdContent, /vibe_debrief_publish/);
+    assert.match(vdContent, /proofClaims/);
+    assert.match(vdContent, /uncertaintyAudit/);
+    assert.match(vdContent, /verificationChecklist/);
+
+    assert.match(eli5Content, /vibe_debrief_publish/);
+    assert.match(eli5Content, /proofClaims/);
+    assert.match(eli5Content, /uncertaintyAudit/);
+    assert.match(eli5Content, /verificationChecklist/);
+  });
+
   it("tracks edited files and Bash outcomes on post-tool", async () => {
     const { workspace, home, cleanup } = createTempFixture();
     const touchedFile = workspace.write("src/panel-view.mjs", "export const view = 1;\n");
