@@ -5,6 +5,7 @@
 id = 1
 type = "story"
 title = "OQ-5 schema enrichment & publish pass-through tracer"
+status = "done"
 description = "Builds on Epics 1-4 baselines (1.3, 1.4, 2.1, 2.2, 3.2, 4.3) to add ensureDebriefEnriched additive OQ-5 fields (verdict, waitingOnYou, choices, xray raw text, diagramSpec alias, microBlocks, concepts <= 6, minimalMode, heuristicConfidence, rawQuote) and widen vibe_debrief_publish in scripts/mcp-server.mjs while keeping v0.2.0/v0.3.0 snapshots valid. Hands off the frozen OQ-5 debrief core shape to stories 2-5 and Epics 6-7."
 verify = "Run `node --test tests/` and confirm a v0.2.0 state fixture upgrades cleanly in buildFullPanelState and a widened vibe_debrief_publish stdio call persists and returns all OQ-5 fields with legacy fields intact."
 covers = ["R1"]
@@ -16,6 +17,7 @@ risk = "medium"
 id = 2
 type = "story"
 title = "5-grammar diagramSpec normalizer & lane-safe edge synthesis"
+status = "done"
 description = "Builds on Story 1's diagramSpec alias in scripts/debrief-engine.mjs to support all 5 grammars (sequence, flow-diff, subway-map, before-after, decision-tree; viewBoxWidth 460, <= 6 nodes, deterministic 4-to-5 mapping) with lane-safe before-after edge synthesis that never bridges before-lane to after-lane nodes. Hands off normalized diagramSpec output to stories 3-4 and Epic 6."
 verify = "Run `node --test tests/` and confirm all 5 grammars normalize with <= 6 nodes, legacy diagramType maps deterministically, and before-after edge synthesis omits cross-lane edges."
 covers = ["R2"]
@@ -27,6 +29,7 @@ risk = "medium"
 id = 3
 type = "story"
 title = "Model-agnostic cheapest model & visual plugin discovery"
+status = "done"
 description = "Builds on Story 1's buildFullPanelState envelope and Story 2's debrief-engine.mjs edits to add discoverCheapestEnabledModels (retaining discoverLightweightGeminiModels alias) across enabled ~/.zcode/v2/ providers with active-session fallback and discoverInstalledVisualPlugins inspecting ~/.zcode/cli/plugins/, .mcp.json, and project skills. Hands off availableModels, recommendedModel, and installedVisualPlugins to Stories 4-5 and Epics 6-7."
 verify = "Run `node --test tests/` and confirm fixture provider/plugin directories rank cheapest enabled models, detect installed visual plugins, and degrade cleanly to active-session and [] when absent."
 covers = ["R3", "R5"]
@@ -38,6 +41,7 @@ risk = "medium"
 id = 4
 type = "story"
 title = "Anytime explainer gate, Tiny-Turn Minimal Mode & Stop confidence"
+status = "done"
 description = "Builds on Story 1's OQ-5 enrichment, Story 2's diagramSpec node counts, and Story 3's debrief-engine.mjs edits to populate explainerScenes (< 5ms) on non-minimal turns while keeping buildExplainerScenesIfComplex returning [] for simple turns, enforce the 4-condition minimalMode gate (short trivial response, waitingOnYou none, 0 choices, confidence >= 0.55), and emit heuristicConfidence and rawQuote (<= 280 chars) within <= 50ms Stop-hook latency. Hands off minimalMode and low-confidence signals to Story 5 and Epic 6."
 verify = "Run `node --test tests/` and confirm buildExplainerScenesIfComplex returns [] for simple turns, confidence < 0.55 forces minimalMode false, and Stop-hook heuristic synthesis finishes in <= 50ms."
 covers = ["R4", "R5"]
@@ -49,6 +53,7 @@ risk = "high"
 id = 5
 type = "story"
 title = "Widened set_persona, export_html & Clarify hook delegation"
+status = "done"
 description = "Builds on Story 3's model/plugin discovery and Story 4's minimalMode/confidence fields to widen vibe_debrief_set_persona (language, preferredModel, themePreference) and vibe_debrief_export_html (conceptSlug, targetPlugin) in scripts/mcp-server.mjs, intercept [Vibe Debrief — Clarify] / [Vibe Debrief — Deep Refresh] in scripts/hook-runner.mjs using model-agnostic CreateSession/active-session delegation, and add optional OQ-5 publish hints to skills/vibe-debrief/SKILL.md and skills/eli5/SKILL.md. Hands off widened MCP tools and Clarify hook behavior to Epics 6 and 7."
 verify = "Run `node --test tests/` and confirm set_persona persists all 3 new settings, export_html accepts conceptSlug/targetPlugin, UserPromptSubmit Clarify emits single-line JSON without hardcoded Argon, and both SKILL.md files include optional OQ-5 hints."
 covers = ["R3", "R5"]
@@ -60,6 +65,7 @@ risk = "medium"
 id = 6
 type = "story"
 title = "Refactor sweep"
+status = "done"
 description = "Builds on Stories 1-5 to perform a cleanup-only pass across scripts/debrief-engine.mjs, scripts/mcp-server.mjs, scripts/hook-runner.mjs, and tests/ resolving deferred plan and review findings without altering behavior. Hands off the clean Epic 5 codebase to Epics 6 and 7."
 verify = "Run `node --check scripts/*.mjs` and `node --test tests/` and confirm every syntax, engine, MCP, and hook suite passes with zero regressions."
 covers = ["R1", "R2", "R3", "R4", "R5"]

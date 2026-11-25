@@ -721,6 +721,37 @@ describe("Story 6.6 — standalone HTML export parity (5 grammars, offline)", ()
     pause.dispatchEvent({ type: "click" });
     assert.equal(play.getAttribute("aria-pressed"), "false");
     assert.equal(pause.getAttribute("aria-pressed"), "true");
+
+    // Keyboard navigation (ArrowRight/ArrowLeft/Home/End) & roving tabindex on scene pills.
+    const pillsRow = run.getElementById("explainerScenePills");
+    pillsRow.dispatchEvent({ type: "keydown", key: "Home", preventDefault() {} });
+    assert.equal(pillsRow.querySelectorAll(".scene-pill")[0].getAttribute("tabindex"), "0");
+    assert.equal(pillsRow.querySelectorAll(".scene-pill")[1].getAttribute("tabindex"), "-1");
+    pillsRow.dispatchEvent({ type: "keydown", key: "ArrowRight", preventDefault() {} });
+    assert.equal(pillsRow.querySelectorAll(".scene-pill")[1].classList.contains("active"), true);
+    assert.equal(pillsRow.querySelectorAll(".scene-pill")[1].getAttribute("tabindex"), "0");
+    assert.equal(run.getActiveElement()?.getAttribute("data-scene-idx"), "1");
+    pillsRow.dispatchEvent({ type: "keydown", key: "ArrowLeft", preventDefault() {} });
+    assert.equal(pillsRow.querySelectorAll(".scene-pill")[0].classList.contains("active"), true);
+    pillsRow.dispatchEvent({ type: "keydown", key: "End", preventDefault() {} });
+    assert.equal(pillsRow.querySelectorAll(".scene-pill")[1].classList.contains("active"), true);
+  });
+
+  it("enforces Field Desk Light semantic wash overrides and renders unclear-box on low-confidence exports", () => {
+    const html = generateStandaloneHtmlArtifact(
+      buildPanelStateFixture({
+        debrief: {
+          tldrHeadline: "Low confidence export.",
+          heuristicConfidence: 0.4,
+          rawQuote: "Unstructured output <script>alert(1)</script>"
+        }
+      })
+    );
+    assert.match(html, /id="microBlockUnclear"/);
+    assert.match(html, /Confidence 40%/);
+    assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+    assert.equal(html.includes("<script>alert(1)</script>"), false);
+    assert.match(html, /@media\s*\(prefers-color-scheme:\s*light\)[\s\S]*?\.wait-badge[\s\S]*?\.pill\.grammar[\s\S]*?\.missing-banner strong[\s\S]*?color:var\(--text-primary\)/);
   });
 
   it("shares the X-Ray CSS-only swap contract with the panel (body[data-xray-mode] rules + pre-bound spans)", () => {

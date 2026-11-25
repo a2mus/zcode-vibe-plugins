@@ -2697,9 +2697,14 @@ describe("Story 7.1 — Concept pills & <100ms Stage 1 inline micro-drawer trace
     await env.flush();
     assert.ok(block.innerHTML.includes('id="stage1Drawer"'), "same-turn re-render must preserve open stage1-drawer");
 
-    // Re-click active pill collapses cleanly
+    // Re-click active pill collapses cleanly and keeps keyboard focus on the pill
     block.querySelectorAll(".concept-pill")[0].dispatchEvent({ type: "click" });
     assert.equal(block.innerHTML.includes('id="stage1Drawer"'), false, "re-clicking active pill must collapse stage1-drawer");
+    assert.equal(
+      env.getActiveElement()?.getAttribute("data-concept-slug"),
+      "sse-stream",
+      "toggling a concept-pill must preserve focus on the toggled pill"
+    );
 
     // Open again and press Escape -> collapses and restores focus to active concept-pill
     block.querySelectorAll(".concept-pill")[1].dispatchEvent({ type: "click" });
@@ -3138,5 +3143,15 @@ describe("Story 7.3 — mandatory Stage 2 HTML fallback & persistent missing-ban
       PANEL_HTML,
       /<div[^>]*class="missing-banner"[^>]*id="missingPluginBanner"[^>]*role="status"[^>]*aria-live="polite"/
     );
+  });
+
+  it("applies Field Desk Light semantic wash ink overrides to minimal-badge, unclear-title, missing-artifact-link, and lesson-form-title", () => {
+    for (const selector of [".minimal-badge", ".unclear-title", ".missing-artifact-link", ".lesson-form-title"]) {
+      assert.match(
+        PANEL_HTML,
+        new RegExp(`body\\.theme-light\\s+\\${selector}[\\s\\S]*?color:\\s*var\\(--text-primary\\)`),
+        `Field Desk Light must override ${selector} to var(--text-primary) for >= 4.5:1 contrast`
+      );
+    }
   });
 });

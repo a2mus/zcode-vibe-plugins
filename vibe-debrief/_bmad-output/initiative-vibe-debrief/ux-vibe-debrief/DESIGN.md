@@ -2,7 +2,7 @@
 name: Vibe Debrief
 description: Zero-dependency ZCode right-side Cockpit HUD (MCP App) and standalone HTML explainer combining 10-second situational radar, X-Ray STE-80 dual coding, multi-grammar SVG diagrams, and 2-stage concept deep dives.
 status: final
-updated: 2026-11-24
+updated: 2026-11-25
 colors:
   # Dark HUD defaults (:root in assets/panel.html & mockups/cockpit-hud.html)
   bg-app: '#090d13'
@@ -166,7 +166,7 @@ spacing:
   '4': 10px
   '5': 12px
   '6': 16px
-  header-padding: '10px 12px'
+  header-padding: '8px 12px'
   hud-padding: 12px
   card-padding: '10px 11px'
   radar-padding: '11px 12px'
@@ -176,6 +176,8 @@ spacing:
   stage2-canvas-height: 270px
   canvas-width: 600px
   canvas-height: 250px
+  export-canvas-width: 880px
+  export-canvas-height: 230px
 components:
   hud-header:
     background: '{colors.bg-surface}'
@@ -482,7 +484,7 @@ components:
 
 # Vibe Debrief — Design Specification (`DESIGN.md`)
 
-> Visual identity and token contract for `assets/panel.html` (`ui://vibe-debrief/panel.html`) and standalone offline HTML exports (`generateStandaloneHtmlArtifact`), evolved to **Cockpit HUD vNext (target `v0.4.0`)** while preserving `v0.3.0` theme-parity and CSP hardening (`R10`, `R11`). Behavioral rules, IA, and journeys live in [EXPERIENCE.md](./EXPERIENCE.md).
+> Visual identity and token contract for `assets/panel.html` (`ui://vibe-debrief/panel.html`) and standalone offline HTML exports (`generateStandaloneHtmlArtifact`), reflecting the shipped **Cockpit HUD (`v0.4.0`)** architecture while preserving `v0.3.0` theme-parity and CSP hardening (`R10`, `R11`). Behavioral rules, IA, and journeys live in [EXPERIENCE.md](./EXPERIENCE.md).
 
 ## Brand & Style
 
@@ -518,7 +520,7 @@ Vibe Debrief is **dark-first** with a complete **Field Desk Light** override tab
 
 **Contrast & Theme Parity Floor (`R10`):**
 - Load-bearing body text (`{colors.text-primary}` / `{colors.text-secondary}` on `{colors.bg-app}`, `{colors.bg-surface}`, `{colors.bg-panel}`, `{colors.bg-card}`, `{colors.bg-elevated}`) satisfies WCAG 2.1 AA (`>= 4.5:1`), and interactive strokes/accents/focus rings satisfy `>= 3:1` in both Dark HUD and Field Desk Light.
-- **Field Desk Light Semantic Wash Rule:** Soft-filled semantic banners, toasts, and confirmation buttons (`hud-toast`, `status-banner`, `btn-success`, `missing-banner`, `snapshot-banner`, `unclear-box` body copy) use `{colors.text-primary}` (`#17202e` in light, `>= 13.3:1` contrast) for readable `11–13px` prose rather than `#059669` (`3.18:1` on `ok-soft-light`) or `#b45309` (`4.21:1` on `warn-soft-light`). Solid amber CTAs pair `{colors.warn-light}` with `{colors.text-on-warn-light}` (`#ffffff`, `5.02:1` vs. `3.85:1` for `#140d00`).
+- **Field Desk Light Semantic Wash Rule:** Soft-filled semantic banners, toasts, active chips/tabs, and confirmation buttons use `{colors.text-primary}` (`#17202e` in light, `>= 13.3:1` contrast) for readable `10–13px` labels and copy rather than `#059669` (`3.18:1` on `ok-soft-light`), `#0284c7`, or `#b45309` (`4.21:1` on `warn-soft-light`). In `assets/panel.html`, this covers `.hud-toast`, `.status-banner`, `.btn-success`, `.distill-btn`, `.xray-toggle[data-mode="tech"]`, `.pop-chip[aria-pressed="true"]`, `.view-tab.active`, `.action-chip.primary`/`.selected`, `.proof-pill.ok`/`.risk`, `.powerup-btn.active`/`.complex-pulse`, `.node-inspector code`, `.pill-impl`/`.pill-success`/`.pill-warning`/`.pill-teal`, `.wait-badge`, `.sym`, `.analogy-title`, `.mini-promote-btn`, `.minimal-badge`, `.unclear-title`, `.missing-artifact-link`, `.lesson-form-title`, and `#explainerSceneTitle`. In `generateStandaloneHtmlArtifact` (`@media (prefers-color-scheme: light)`), it covers `.pill.impl`, `.pill.ste`, `.pill.ok`, `.pill.warn`, `.script-summary`, `.action-chip.primary`/`.selected`, `.proof-pill.ok`/`.risk`, `.choice-item.picked`, `.xray-toggle[data-mode="tech"]`, `.scene-pill.active`, `.wait-badge`, `.pill.grammar`, `.missing-banner strong`, and `.unclear-title`. Solid amber CTAs pair `{colors.warn-light}` with `{colors.text-on-warn-light}` (`#ffffff`, `5.02:1` vs. `3.85:1` for `#140d00`).
 - **v0.3.0 → vNext Parity Rule:** SVG nodes, SVG edge labels, and inline `<canvas>` frames read resolved CSS custom properties (`getComputedStyle(document.documentElement)`) rather than hardcoded dark hexes, guaranteeing crisp legibility under `body.theme-light`, `html[data-theme="light"]`, and standalone `@media (prefers-color-scheme: light)` exports. `{colors.text-muted}` (`#69788e` dark / `#768396` light, `>= 3:1` UI/large-text contrast) is restricted strictly to non-essential uppercase eyebrows, timestamps, and completed strikethroughs — never load-bearing copy.
 
 ## Typography
@@ -545,18 +547,18 @@ Designed for a **narrow vertical ZCode sidebar (`320–460px`, default prototype
 - **Gear Popover (`{components.gear-popover}`):** Anchored `top: 46px; right: 10px; width: 235px` above the HUD body so theme, language, persona, clarity guard, model preference, and HTML export never clutter the header strip.
 - **SVG Multi-Grammar Stage (`viewBox="0 0 {spacing.diagram-viewbox-width} H"`):** Scales fluidly (`width: 100%; height: auto`) with grammar-appropriate layouts (`Sequence`, `FlowDiff`, `Subway Layer Map`, `Before/After Split`, `Decision Tree`) capped at 6 primary nodes so labels remain readable at `320px`.
 - **Stage 1 vs Stage 2 Spatial Boundary:** Stage 1 inline micro-visuals stay bounded at `height: {spacing.stage1-canvas-height}` (`104px`) inside the panel; Stage 2 full interactive canvases (`height: {spacing.stage2-canvas-height}` `270px+` viewport + 3-column `{components.stage2-deep-card}` grid `repeat(auto-fit, minmax(200px, 1fr))` on `>= 740px`) always pop out onto the main ZCode stage or a standalone browser window.
-- **Narrow-Panel Wrapping Guard (`320px` Floor):** Headlines (`.tldr-headline`), lesson titles (`.lesson-title`), history rows (`.history-item`), and `{components.hud-toast}` apply `word-break: break-word` and `flex-wrap: wrap` so long identifiers or file paths never force horizontal scrollbars at `320px`.
+- **Narrow-Panel Wrapping Guard (`320px` Floor):** Headlines (`.tldr-headline`), Stage 1 drawer prose (`.stage1-copy`, `.stage1-analogy`), artifact links (`.missing-artifact-link`), lesson titles (`.lesson-title`), history rows (`.history-item`), and `{components.hud-toast}` apply `word-break: break-word` / `overflow-wrap: anywhere` and `flex-wrap: wrap` so long identifiers or file paths never force horizontal scrollbars at `320px`.
 
 **6-View Spatial Matrix (Panel, Popover, Main Stage & Offline Export):**
 
 | View / Surface | Container Envelope | Primary Visual Stack |
 | --- | --- | --- |
-| `HUD` (Default) | `320–460px` scrollable body (`padding: {spacing.hud-padding}`, `gap: {spacing.block-gap}`) | Optional `{components.snapshot-banner}` + inline `{components.missing-banner}` → `{components.radar-card}` (or `{components.minimal-strip}`) → composed `.micro-block`s (`choice-grid`, `svg-stage`, `proof-pill` + `audit-row` + `check-row`, `concept-pill` + `stage1-drawer`, `lesson-card`). |
-| `Visual` (Curator Tour) | `320–460px` scrollable body | `{components.explainer-stage}` (`600×250` `<canvas>`, `width: 100%; height: auto`) + transport row + wrapping `scene-pill` strip + active caption box + copyable `script-box` (or clean empty-tour prompt on minimal turns). |
+| `HUD` (Default) | `320–460px` scrollable body (`padding: {spacing.hud-padding}`, `gap: {spacing.block-gap}`) | Optional `{components.snapshot-banner}` + inline `{components.missing-banner}` → `{components.radar-card}` (or `{components.minimal-strip}`) → composed `.micro-block`s (`choice-grid`, `unclear-box`, `concept-pill` + `stage1-drawer`, `svg-stage` + `touchedFilesStrip` + `node-inspector` + `powerup-dock`, `proof-pill` + `audit-row` + `check-row`, `lesson-card` + `lesson-form`). |
+| `Visual` (Curator Tour) | `320–460px` scrollable body | `{components.explainer-stage}` (`600×250` `<canvas>`, `width: 100%; height: auto`) + transport row + wrapping `scene-pill` strip + active caption box + copyable `script-box` (or centered `visual-empty-prompt` on minimal/empty-scene turns). |
 | `Memory & History` | `320–460px` scrollable body | Confirmed Lesson Bank card (`<= 50` emerald-washed `{components.lesson-card}`s) + live `MEMORY.md` `{components.memory-code-box}` (`max-height: 260px`) + 15-turn `{components.history-item}` list (`.active-snapshot` highlights active replay). |
 | `Settings & Export` | `235px` floating `{components.gear-popover}` (`top: 46px; right: 10px`) | 6 compact label + `{colors.bg-elevated}` chip rows (`Surface Theme`, `Language`, `Persona`, `Clarity Guard`, `Model`, `Export HTML`). |
 | `Stage 2 Pop-Out` | Main ZCode stage / desktop `>= 740px` (`{rounded.shell}`) | `stage2-header` → optional `{components.missing-banner}` → `{components.stage2-toolbar}` + `270px+` stage (`grid-dot` or `#faf8f2` Excalidraw paper) with floating `{colors.telemetry-pill-bg}` pill → 3-column `{components.stage2-deep-card}` grid. |
-| `Standalone HTML Export` | Desktop browser (`max-width: 960px`, `padding: 24px`) | Auto-themed `@media (prefers-color-scheme: light)` container with `10s Radar`, `880×210` viewBox SVG + `nodeInspector`, 2-col storyboard/oversight grids, Canvas tour, and Stage 2 3-column view on fallback. |
+| `Standalone HTML Export` | Desktop browser (`max-width: 960px`, `padding: 24px`) | Auto-themed `@media (prefers-color-scheme: light)` container with `10s Radar` + local `X-Ray` toggle, optional Stage 2 3-column fallback + `missing-banner`, optional `unclear-box`, `choice-grid`, `460px` viewBox 5-grammar SVG + `#fileChips` + `nodeInspector`, 2-col storyboard/oversight grids, `880×230` Canvas tour with `scene-pill` keyboard strip, and checklist/script verification. |
 
 ## Elevation & Depth
 
@@ -582,22 +584,22 @@ Every visual component in the Cockpit HUD contract (paired with behavioral contr
 
 | Component | Token Spec | Visual Anatomy & States |
 | --- | --- | --- |
-| `hud-header`, `distill-btn`, `gear-btn` | `{components.hud-header}`, `{components.distill-btn}`, `{components.gear-btn}` | Single compact top bar (`10px 12px`) with brand clock/spark icon, workspace title, compact `Distill` refresh button, `xray-toggle`, and `28×28px` `gear-btn`. |
+| `hud-header`, `distill-btn`, `gear-btn` | `{components.hud-header}`, `{components.distill-btn}`, `{components.gear-btn}` | Single compact top bar (`8px 12px`) with brand clock/spark icon, workspace title, compact `Distill` refresh button, `xray-toggle`, and `28×28px` `gear-btn`. |
 | `xray-toggle` | `{components.xray-toggle}` | `999px` pill displaying `X-Ray: Plain ↔ Tech`; shifts to `{colors.accent-soft}` fill and `{colors.accent-border}` stroke when `data-mode="tech"`. |
 | `gear-popover` | `{components.gear-popover}` | `235px` floating menu triggered by `28×28px` `gear-btn`; stacks 6 compact key/chip rows (`Surface Theme`, `Language`, `Persona`, `Clarity Guard`, `Model`, `Export HTML`). |
-| `view-switcher` | `{components.view-switcher}` | Compact 3-segment tablist (`HUD` \| `Visual` \| `Memory & History`) pinned directly below `hud-header` on `{colors.bg-surface}` without multi-row chip bloat. |
-| `radar-card` | `{components.radar-card}` | Top hero card pairing `WHAT JUST HAPPENED` eyebrow, verdict pill, <=14-word headline (with inline `.sym` code badges in Tech mode), confidence strip, and dashed-top `WAITING ON YOU` footer. |
+| `view-switcher` | `{components.view-switcher}` | Compact 3-segment tablist (`HUD` \| `Visual` \| `Memory & History`) pinned directly below `hud-header` (`margin: 0 12px 8px`) on `{colors.bg-surface}` without multi-row chip bloat. |
+| `radar-card` | `{components.radar-card}` | Top hero card pairing `WHAT JUST HAPPENED` eyebrow, verdict pill, verification confidence pill, clickable `complexityPill` (`🧩 Complex · ▶ Visual`), <=14-word headline (with inline `.sym` code badges in Tech mode), `radar-meta-row`, collapsible `analogy-box`, and dashed-top `WAITING ON YOU` footer. |
 | `waiting-badge` & `action-chip` | `{components.waiting-badge}`, `{components.action-chip}` | Semantic pill with `6px` status dot (`Choice` amber, `Action` sky, `Reply` violet, `Blocked` rose, `None` emerald) + wrapping `action-chip` quick-reply buttons (`.primary`, `.selected`). |
 | `inline-reply-box` | `{components.inline-reply-box}` | Single-line input + accent submit button appearing inside `radar-card` when state is `Reply`. |
 | `minimal-strip` | `{components.minimal-strip}` | Collapsed 1-line bar (`{colors.ok-border}`) for trivial turns showing verified badge, 1-line label, and `Expand` link. |
 | `choice-grid` & `choice-item` | `{components.choice-grid}` | Vertical stack of selectable cards; each has `20×20px` monospace key (`A`/`B`), bold title, subtext, optional `34×4px` trade-off bars, and emerald `.picked` state. |
-| `svg-stage`, `node-inspector`, `powerup-dock` | `{components.svg-stage}`, `{components.node-inspector}`, `{components.powerup-dock}` | Inset `1px`-bordered diagram stage (`460px` viewBox) with risk-coded nodes (`stroke-width: 2.4` on hover/focus-visible for white light-card legibility), numbered edges, kinetic `.dash-flow` dashed pulse, click-to-inspect `node-inspector` bar (`role`, `risk`, `file`), and `powerup-dock` pill row (`[SVG]`, `[Excalidraw]`, `[Interactive Gen UI]`, `[VectorCraft]`, `[Animate]`). |
+| `svg-stage`, `node-inspector`, `powerup-dock` | `{components.svg-stage}`, `{components.node-inspector}`, `{components.powerup-dock}` | Inset `1px`-bordered diagram stage (`460px` viewBox) with risk-coded nodes (`stroke-width: 2.4` on hover/focus-visible for white light-card legibility), numbered edges, kinetic `.dash-flow` dashed pulse, synchronized `touchedFilesStrip` chips (matched + unmatched `.selected` state), click-to-inspect `node-inspector` bar (`role`, `risk`, `file`), and `powerup-dock` pill row (`[SVG]`, `[Excalidraw]`, `[Interactive Gen UI]`, `[VectorCraft]`, `[Animate]`). |
 | `proof-pill`, `audit-row`, `check-row` | `{components.proof-pill}`, `{components.audit-row}`, `{components.check-row}` | Compact inline badges (`ok` emerald, `risk` rose, `info` neutral) toggling monospace `proof-detail` drawer, paired with `audit-row` (`💡→Rule` promote pill) and emerald `check-row` verification checkboxes. |
-| `concept-pill` & `stage1-drawer` | `{components.concept-pill}`, `{components.stage1-drawer}` | Wrapping `999px` technical term pills; active pill opens `{colors.accent-border}` inline drawer with target-plugin `target-tag`, STE-80 explanation, left-accented analogy box, `104px` micro-canvas, and full-width `Deep Dive & Pop Out ↗` CTA. |
-| `stage2-popout`, `stage2-toolbar`, `stage2-deep-card`, `missing-banner` | `{components.stage2-popout}`, `{components.stage2-toolbar}`, `{components.stage2-deep-card}`, `{components.missing-banner}` | Main-stage visual shell with `stage2-toolbar`, `270px+` dot-grid or Excalidraw `#faf8f2` canvas, floating `{colors.telemetry-pill-bg}` telemetry bar (`#e7edf6` ink), and 3-column `stage2-deep-card` grid (`How It Works`, `Key Trade-off`, `In Your Codebase`). Missing plugins render an amber `missing-banner` (`Install <plugin>` CTA + clickable artifact link) both inline inside `HUD` (persisting across `tool-result` pushes) and above the Stage 2 built-in HTML fallback. |
-| `unclear-box` | `{components.unclear-box}` | Amber-bordered fallback card showing honest uncertainty notice, monospace `raw-quote` snippet, and `Clarify (Fast / Cheapest Model)` + `Show Raw Reply` buttons. |
-| `explainer-stage` | `{components.explainer-stage}` | `600×250` theme-resolved blueprint `<canvas>` curator tour (`#070b12` dark / `#f1ece1` light, `30px` grid, `▶`/`⏸`, `⏮`/`⏭`, speed, voice toggle, scene pills, and copyable `script-box`), unlockable anytime via `Visual` or `[Animate]`. |
-| `lesson-card`, `lesson-form`, `memory-code-box` | `{components.lesson-card}`, `{components.lesson-form}`, `{components.memory-code-box}` | Rule cards (emerald wash when confirmed in `MEMORY.md`), inline `➕ Add Lesson` form (`54px` textarea), and scrollable monospace `MEMORY.md` preview. |
+| `concept-pill` & `stage1-drawer` | `{components.concept-pill}`, `{components.stage1-drawer}` | Wrapping `999px` technical term pills; active pill opens `{colors.accent-border}` inline drawer with target-plugin `target-tag`, `×` close button, `STE-80` explanation (`overflow-wrap: anywhere`), left-accented analogy box, `104px` micro-SVG stage, and full-width `Deep Dive & Pop Out ↗` CTA. |
+| `stage2-popout`, `stage2-toolbar`, `stage2-deep-card`, `missing-banner` | `{components.stage2-popout}`, `{components.stage2-toolbar}`, `{components.stage2-deep-card}`, `{components.missing-banner}` | Main-stage visual shell with `stage2-toolbar`, `270px+` dot-grid or Excalidraw `#faf8f2` canvas, floating `{colors.telemetry-pill-bg}` telemetry bar (`#e7edf6` ink), and 3-column `stage2-deep-card` grid (`How It Works`, `Key Trade-off`, `In Your Codebase`). Missing plugins render an amber `missing-banner` (`Install <plugin>` CTA, clickable `.missing-artifact-link`, and `×` dismiss) both inline inside `HUD` (persisting across same-turn `tool-result` pushes) and above the Stage 2 built-in HTML fallback. |
+| `unclear-box` | `{components.unclear-box}` | Amber-bordered fallback card showing honest uncertainty notice, monospace `raw-quote` snippet, and `Clarify (Fast / Cheapest Model)` + `Show Raw Reply` buttons (and rendered in offline exports when confidence < 0.55 or `rawQuote` exists). |
+| `explainer-stage` | `{components.explainer-stage}` | `600×250` (`880×230` in offline exports) theme-resolved blueprint `<canvas>` curator tour (`#070b12` dark / `#f1ece1` light, `30px` grid, `▶`/`⏸`, `⏮`/`⏭`, speed, voice toggle, keyboard-navigable `scene-pill`s, and copyable `script-box`), unlockable anytime via `Visual` or `[Animate]`. |
+| `lesson-card`, `lesson-form`, `memory-code-box` | `{components.lesson-card}`, `{components.lesson-form}`, `{components.memory-code-box}` | Rule cards (emerald wash when confirmed in `MEMORY.md`), inline `➕ Add Lesson` form (`lesson-form-title`, `54px` textarea), and scrollable monospace `MEMORY.md` preview. |
 | `snapshot-banner`, `history-item` & `hud-toast` | `{components.snapshot-banner}`, `{components.history-item}`, `{components.hud-toast}` | Amber-tinted `snapshot-banner` pinned above `radar-card` during history replay (`Viewing Turn Snapshot · Return to Latest`), clickable `.active-snapshot`-highlighted turn rows, and wrapping `hud-toast` (`text-primary` ink over `ok`/`warn`/`risk` semantic border & soft wash for `>= 13:1` light-mode contrast). |
 
 ## Do's and Don'ts
