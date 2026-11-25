@@ -2038,13 +2038,28 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
       : "";
 
   // Story 6.5 — Canvas tour scene pills (jump to any scene, keyboard via
-  // native button semantics).
+  // native button semantics + Arrow/Home/End roving tabindex).
   const scenePillsMarkup = scenes
     .map(
       (s, idx) =>
-        `<button class="scene-pill ${idx === 0 ? "active" : ""}" type="button" data-scene-idx="${idx}" aria-pressed="${idx === 0 ? "true" : "false"}">${escapeHtml(s.title || `Scene ${idx + 1}`)}</button>`
+        `<button class="scene-pill ${idx === 0 ? "active" : ""}" type="button" data-scene-idx="${idx}" aria-pressed="${idx === 0 ? "true" : "false"}" tabindex="${idx === 0 ? "0" : "-1"}">${escapeHtml(s.title || `Scene ${idx + 1}`)}</button>`
     )
     .join("");
+
+  // Story 6.5 — Honest unclear-box fallback in offline exports when confidence < 0.55 or rawQuote is present.
+  const exportConfidence =
+    typeof d.heuristicConfidence === "number" && !Number.isNaN(d.heuristicConfidence)
+      ? d.heuristicConfidence
+      : 1;
+  const exportRawQuote = String(d.rawQuote || "").trim().slice(0, 280);
+  const unclearMarkup =
+    exportConfidence < 0.55 || exportRawQuote
+      ? `<div class="micro-block unclear-box" id="microBlockUnclear" role="status" aria-live="polite">
+    <div class="block-head"><strong class="unclear-title">⚠️ Unclear Reply — Honest Fallback</strong><span class="pill warn">${exportConfidence < 0.55 ? `Confidence ${Math.round(exportConfidence * 100)}%` : "Unclear"}</span></div>
+    <div style="font-size:12.5px;margin-bottom:6px;">This turn was not confidently understood, so nothing here is claimed as verified.</div>
+    ${exportRawQuote ? `<pre class="raw-quote" id="unclearRawQuote">${escapeHtml(exportRawQuote)}</pre>` : ""}
+  </div>`
+      : "";
 
   const cardData = isBug
     ? [
@@ -2109,7 +2124,11 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
       .proof-pill.risk,
       .choice-item.picked,
       .xray-toggle[data-mode="tech"],
-      .scene-pill.active { color:var(--text-primary); }
+      .scene-pill.active,
+      .wait-badge,
+      .pill.grammar,
+      .missing-banner strong,
+      .unclear-title { color:var(--text-primary); }
     }
     * { box-sizing:border-box; }
     :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
@@ -2222,6 +2241,9 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
     .proof-detail { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:11px; color:var(--text-secondary); background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; padding:6px 8px; display:none; white-space:pre-wrap; word-break:break-word; margin-bottom:6px; }
     .proof-detail.open { display:block; }
     .audit-row { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; padding:5px 8px; border-radius:6px; background:var(--bg-elevated); border:1px solid var(--border-subtle); margin-bottom:5px; font-size:11.6px; }
+    .micro-block.unclear-box { background:var(--warn-soft); border-color:var(--warn-border); }
+    .unclear-title { color:var(--warn); }
+    .raw-quote { margin:0; padding:8px 10px; background:var(--bg-elevated); border:1px solid var(--border); border-radius:7px; font-size:11.5px; color:var(--text-primary); white-space:pre-wrap; overflow-wrap:anywhere; }
     .scene-pill-row { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:9px; }
     .scene-pill { appearance:none; border:1px solid var(--border); background:var(--bg-panel); color:var(--text-secondary); border-radius:6px; padding:4px 8px; font-size:11px; font-weight:600; cursor:pointer; }
     .scene-pill.active { border-color:var(--accent); background:var(--accent-soft); color:var(--text-primary); }
@@ -2263,6 +2285,7 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
     </div>
   </div>
 ${stage2Markup}
+${unclearMarkup}
   ${
     choicesMarkup
       ? `<div class="micro-block" id="microBlockChoices">
@@ -2869,9 +2892,22 @@ ${stage2Markup}
       ctx.fillText(sc.title || "", 28, 34);
       cap.textContent = sc.narration || "";
     };
+    var pillsEl = document.getElementById("explainerScenePills");
+    function syncScenePills(){
+      var pills = pillsEl && pillsEl.querySelectorAll ? pillsEl.querySelectorAll(".scene-pill") : [];
+      for (var si = 0; si < pills.length; si++) {
+        var isOn = Number(pills[si].getAttribute("data-scene-idx")) === idx;
+        pills[si].className = "scene-pill" + (isOn ? " active" : "");
+        pills[si].setAttribute("aria-pressed", isOn ? "true" : "false");
+        pills[si].setAttribute("tabindex", isOn ? "0" : "-1");
+      }
+    }
     function tick(){
       t++;
-      if(playing && t % 240 === 0){ idx = (idx + 1) % scenes.length; }
+      if(playing && t % 240 === 0){
+        idx = (idx + 1) % scenes.length;
+        syncScenePills();
+      }
       drawFrame();
       if(playing && !reducedMotion()) raf = requestAnimationFrame(tick);
     }
@@ -2898,17 +2934,8 @@ ${stage2Markup}
         if(raf) cancelAnimationFrame(raf);
       });
     }
-    // Story 6.5/6.6 — Canvas tour scene pills: jump to any scene (the active
-    // pill tracks idx; playback keeps advancing from the jumped scene).
-    var pillsEl = document.getElementById("explainerScenePills");
-    function syncScenePills(){
-      var pills = pillsEl && pillsEl.querySelectorAll ? pillsEl.querySelectorAll(".scene-pill") : [];
-      for (var si = 0; si < pills.length; si++) {
-        var isOn = Number(pills[si].getAttribute("data-scene-idx")) === idx;
-        pills[si].className = "scene-pill" + (isOn ? " active" : "");
-        pills[si].setAttribute("aria-pressed", isOn ? "true" : "false");
-      }
-    }
+    // Story 6.5/6.6 — Canvas tour scene pills: click & Arrow/Home/End keyboard
+    // navigation (panel parity).
     if (pillsEl && pillsEl.querySelectorAll) {
       var pills = pillsEl.querySelectorAll(".scene-pill");
       for (var pi = 0; pi < pills.length; pi++) {
@@ -2920,6 +2947,23 @@ ${stage2Markup}
             drawFrame();
           });
         })(pills[pi]);
+      }
+      if (pillsEl.addEventListener) {
+        pillsEl.addEventListener("keydown", function(e){
+          if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Home" && e.key !== "End") return;
+          var list = pillsEl.querySelectorAll(".scene-pill");
+          if (!list || !list.length) return;
+          var cur = idx;
+          if (e.key === "ArrowRight") idx = (cur + 1) % list.length;
+          else if (e.key === "ArrowLeft") idx = (cur - 1 + list.length) % list.length;
+          else if (e.key === "Home") idx = 0;
+          else if (e.key === "End") idx = list.length - 1;
+          if (e.preventDefault) e.preventDefault();
+          t = 0;
+          syncScenePills();
+          drawFrame();
+          if (list[idx] && typeof list[idx].focus === "function") list[idx].focus();
+        });
       }
       syncScenePills();
     }
