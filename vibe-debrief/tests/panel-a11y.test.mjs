@@ -3155,3 +3155,147 @@ describe("Story 7.3 — mandatory Stage 2 HTML fallback & persistent missing-ban
     }
   });
 });
+
+describe("320px-460px Live Desktop Rendering Guards", () => {
+  const styleText = extractStyleContent(PANEL_HTML);
+
+  it("gives Memory & History proportional space and narrow <=390px auto/minmax sizing so tab labels never clip at 320px", () => {
+    assert.match(styleText, /\.view-switcher\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*0\.78fr\)\s+minmax\(0,\s*0\.82fr\)\s+minmax\(0,\s*1\.4fr\)/s);
+    assert.match(styleText, /@media\s*\(max-width:\s*390px\)\s*\{[\s\S]*?\.view-switcher\s*\{[^}]*grid-template-columns:\s*auto\s+auto\s+minmax\(0,\s*1fr\)/);
+    assert.match(PANEL_HTML, /id="tabBtnMemory"[^>]*><span class="view-tab-label">Memory &amp; History \(<span id="memoryCountBadge">0<\/span>\)<\/span><\/button>/);
+  });
+
+  it("right-aligns wrapped header controls and drops gear-popover below the 2-row header at <=340px", () => {
+    assert.match(styleText, /@media\s*\(max-width:\s*340px\)\s*\{[\s\S]*?\.hud-controls\s*\{[^}]*margin-left:\s*auto/);
+    const baseGearIdx = styleText.indexOf(".gear-popover {");
+    assert.ok(baseGearIdx !== -1, "Expected base .gear-popover rule");
+    const afterBaseGear = styleText.slice(baseGearIdx);
+    assert.match(
+      afterBaseGear,
+      /@media\s*\(max-width:\s*340px\)\s*\{\s*\.gear-popover\s*\{[^}]*top:\s*72px/,
+      "Wrapped gear-popover top override must appear after base .gear-popover rule"
+    );
+  });
+
+  it("wraps long memory directory paths and keeps lesson slug pills single-line inside lesson-title-row", () => {
+    assert.match(PANEL_HTML, /id="memoryDirPathLabel"[^>]*overflow-wrap:\s*anywhere/);
+    assert.match(styleText, /\.lesson-title-row\s*\{[^}]*flex-wrap:\s*wrap/s);
+    assert.match(styleText, /\.lesson-title-row\s+\.pill\s*\{[^}]*white-space:\s*nowrap/s);
+  });
+});
+
+describe("UX Views, Flows & Ergonomics Parity (v0.4.0)", () => {
+  const styleText = extractStyleContent(PANEL_HTML);
+
+  it("applies Field Desk Light semantic wash ink overrides to concept-pill.active, target-tag, pill-bug, pill-persona, and interactive hovers", () => {
+    for (const selector of [
+      ".concept-pill.active",
+      ".target-tag",
+      ".pill-bug",
+      ".pill-persona",
+      ".action-chip:hover:not(:disabled)",
+      ".pop-chip:hover:not(:disabled)",
+      ".concept-pill:hover"
+    ]) {
+      const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      assert.match(
+        styleText,
+        new RegExp(`body\\.theme-light\\s+${escaped}[\\s\\S]*?color:\\s*var\\(--text-primary\\)`),
+        `Field Desk Light must override ${selector} to var(--text-primary)`
+      );
+    }
+  });
+
+  it("enforces 320px wrapping and left-aligned wrapping labels on chips, proof pills, file badges, stage1 titles, and node inspector", () => {
+    assert.match(styleText, /\.node-inspector\s*\{[^}]*flex-wrap:\s*wrap[^}]*overflow-wrap:\s*anywhere/s);
+    assert.match(styleText, /\.file-badge\s*\{[^}]*max-width:\s*100%[^}]*overflow-wrap:\s*anywhere[^}]*text-align:\s*left/s);
+    assert.match(styleText, /\.stage1-title\s*\{[^}]*overflow-wrap:\s*anywhere/s);
+    for (const cls of [".action-chip", ".proof-pill", ".concept-pill"]) {
+      const escaped = cls.replace(".", "\\.");
+      assert.match(
+        styleText,
+        new RegExp(`${escaped}\\s*\\{[^}]*max-width:\\s*100%[^}]*text-align:\\s*left`, "s"),
+        `${cls} must wrap left-aligned within 100% container width`
+      );
+    }
+  });
+
+  it("focuses Generate Quick Tour when [Animate] opens Visual on an empty-scene turn, and Play when scenes exist", async () => {
+    const env = createPanelDomEnvironment();
+    await env.flush();
+
+    env.pushState({
+      activePersona: "vibe-mentor",
+      currentDebrief: {
+        id: "empty-scenes-turn",
+        responseType: "implementation",
+        tldrHeadline: "Simple edit.",
+        diagram: { nodes: [{ id: "n1", label: "File", role: "Core", risk: "low" }], edges: [] },
+        explainerScenes: []
+      }
+    });
+    await env.flush();
+
+    env.elements.get("btnPowerupAnimate").dispatchEvent({ type: "click" });
+    assert.equal(env.elements.get("tab-visual").style.display, "block");
+    assert.equal(env.getActiveElement(), env.elements.get("btnGenerateQuickTour"));
+
+    env.pushState({
+      activePersona: "vibe-mentor",
+      currentDebrief: {
+        id: "complex-scenes-turn",
+        responseType: "implementation",
+        tldrHeadline: "Complex edit.",
+        complexity: { level: "complex", score: 5, reason: "Multi-layer" },
+        diagram: { nodes: [{ id: "n1", label: "File", role: "Core", risk: "low" }], edges: [] },
+        explainerScenes: [{ title: "Scene 1", narration: "Walkthrough.", highlightNodeIds: ["n1"] }]
+      }
+    });
+    await env.flush();
+
+    env.elements.get("btnPowerupAnimate").dispatchEvent({ type: "click" });
+    assert.equal(env.getActiveElement(), env.elements.get("btnExplainerPlay"));
+  });
+
+  it("closes gearPopover and restores focus to btnGearSettings after Export HTML so the confirmation toast is visible", async () => {
+    const env = createPanelDomEnvironment();
+    await env.flush();
+
+    env.elements.get("btnGearSettings").dispatchEvent({ type: "click" });
+    assert.ok(env.elements.get("gearPopover").classList.contains("open"));
+
+    await env.elements.get("gearExportHtmlBtn").listeners.get("click")[0]();
+    assert.equal(env.elements.get("gearPopover").classList.contains("open"), false);
+    assert.equal(env.getActiveElement(), env.elements.get("btnGearSettings"));
+    assert.ok(env.elements.get("toastBanner").classList.contains("visible"));
+  });
+
+  it("restores focus to tabBtnHud when Escape dismisses a focused missing-banner control", async () => {
+    const env = createPanelDomEnvironment();
+    await env.flush();
+    env.pushState({
+      activePersona: "vibe-mentor",
+      installedVisualPlugins: [],
+      currentDebrief: {
+        id: "missing-focus-turn",
+        responseType: "implementation",
+        tldrHeadline: "Fallback focus test.",
+        diagram: { nodes: [{ id: "n1", label: "A", role: "Core", risk: "low" }], edges: [] }
+      }
+    });
+    await env.flush();
+
+    env.elements.get("btnPowerupExcalidraw").dispatchEvent({ type: "click" });
+    await env.flush();
+
+    const banner = env.elements.get("missingPluginBanner");
+    const dismissBtn = env.elements.get("btnDismissMissingBanner");
+    banner.contains = (el) => el === banner || el === dismissBtn;
+    dismissBtn.focus();
+
+    env.dispatchWindowEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+    await env.flush();
+    assert.equal(banner.style.display, "none");
+    assert.equal(env.getActiveElement(), env.elements.get("tabBtnHud"));
+  });
+});

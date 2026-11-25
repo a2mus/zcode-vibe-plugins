@@ -2112,6 +2112,7 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
         --explainer-stage-bg:#f1ece1; --canvas-grid-line:rgba(2,132,199,0.08);
       }
       .pill.impl { color:var(--text-primary); background:var(--accent-soft); }
+      .pill.bug { color:var(--text-primary); background:var(--risk-soft); }
       .pill.ste { color:var(--text-primary); background:var(--ok-soft); }
       .pill.ok { color:var(--text-primary); background:var(--ok-soft); }
       .pill.warn { color:var(--text-primary); background:var(--warn-soft); }
@@ -2120,6 +2121,7 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
          fills for selected/primary interactive states (panel parity). */
       .action-chip.primary,
       .action-chip.selected,
+      .action-chip:hover,
       .proof-pill.ok,
       .proof-pill.risk,
       .choice-item.picked,
@@ -2167,17 +2169,17 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
     .telemetry-pill { position:absolute; top:8px; right:10px; background:var(--telemetry-pill-bg); color:#e7edf6; border:1px solid var(--border-strong); border-radius:999px; padding:3px 10px; font-size:11px; font-weight:600; }
     .stage2-deep-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
     @media (max-width:740px) { .stage2-deep-grid { grid-template-columns:1fr; } }
-    .stage2-deep-card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; font-size:13px; color:var(--text-secondary); }
+    .stage2-deep-card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; font-size:13px; color:var(--text-secondary); overflow-wrap:anywhere; }
     .stage2-deep-card h3 { margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
     .stage2-deep-card.how { border-top:3px solid var(--accent); }
     .stage2-deep-card.trade { border-top:3px solid var(--warn); }
     .stage2-deep-card.code { border-top:3px solid var(--ok); }
     .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-    .chip { font-size:11.5px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); cursor:pointer; color:var(--text); }
+    .chip { font-size:11.5px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); cursor:pointer; color:var(--text); max-width:100%; overflow-wrap:anywhere; text-align:left; }
     .chip.high { border-color:var(--bad); }
     .chip.medium { border-color:var(--warn); }
     .chip.selected { border-color:var(--accent); background:var(--accent-soft); }
-    .inspector { margin-top:10px; padding:8px 12px; border-radius:8px; background:var(--bg); border:1px solid var(--border); font-size:12.5px; color:var(--muted); }
+    .inspector { margin-top:10px; padding:8px 12px; border-radius:8px; background:var(--bg); border:1px solid var(--border); font-size:12.5px; color:var(--muted); overflow-wrap:anywhere; }
     .inspector.has-selection { border-color:var(--accent-border); color:var(--text-primary); }
     .chk-row { display:flex; align-items:flex-start; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); cursor:pointer; }
     .chk-row:last-child { border-bottom:none; }
@@ -2216,7 +2218,7 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
     .wait-badge.choice, .wait-badge.action, .wait-badge.reply { color:var(--warn); }
     .wait-prompt { font-size:12.5px; color:var(--text-secondary); }
     .wait-chips { display:flex; flex-wrap:wrap; gap:6px; }
-    .action-chip { appearance:none; display:inline-flex; align-items:center; gap:5px; padding:5px 9px; border-radius:7px; font-size:11.5px; font-weight:600; border:1px solid var(--border-strong); background:var(--bg-elevated); color:var(--text-primary); cursor:pointer; word-break:break-word; }
+    .action-chip { appearance:none; display:inline-flex; align-items:center; gap:5px; padding:5px 9px; border-radius:7px; font-size:11.5px; font-weight:600; border:1px solid var(--border-strong); background:var(--bg-elevated); color:var(--text-primary); cursor:pointer; max-width:100%; text-align:left; word-break:break-word; }
     .action-chip:hover { border-color:var(--accent-border); background:var(--accent-soft); color:var(--accent); }
     .action-chip.primary { background:var(--accent-soft); border-color:var(--accent-border); color:var(--accent); }
     .action-chip.selected { background:var(--ok-soft); border-color:var(--ok-border); color:var(--ok); }
@@ -2234,7 +2236,7 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
     .tbar-track { width:34px; height:4px; border-radius:99px; background:var(--border); overflow:hidden; display:inline-block; }
     .tbar-fill { height:100%; background:var(--accent); border-radius:99px; display:block; }
     .proof-pill-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-    .proof-pill { appearance:none; display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border-radius:7px; font-size:11px; font-weight:600; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text-secondary); cursor:pointer; word-break:break-word; }
+    .proof-pill { appearance:none; display:inline-flex; align-items:center; gap:5px; padding:4px 8px; border-radius:7px; font-size:11px; font-weight:600; border:1px solid var(--border); background:var(--bg-elevated); color:var(--text-secondary); cursor:pointer; max-width:100%; text-align:left; word-break:break-word; }
     .proof-pill.ok { color:var(--ok); border-color:var(--ok-border); background:var(--ok-soft); }
     .proof-pill.risk { color:var(--risk); border-color:var(--risk-border); background:var(--risk-soft); }
     .proof-pill.info { color:var(--text-secondary); }
@@ -2276,7 +2278,7 @@ export function generateStandaloneHtmlArtifact(panelState, options = {}) {
       <span class="pill ${d.complexity?.level === "complex" ? "warn" : ""}">${d.complexity?.level === "complex" ? "🧩 Complex Workflow" : "⚡ Focused Turn"}</span>
       <span class="radar-time">${escapeHtml(timestamp)}</span>
     </div>
-    <div class="analogy"><strong>💡 Picture It Like This:</strong> ${escapeHtml(d.realWorldAnalogy)}</div>
+    ${String(d.realWorldAnalogy || "").trim() ? `<div class="analogy"><strong>💡 Picture It Like This:</strong> ${escapeHtml(d.realWorldAnalogy)}</div>` : ""}
     <div class="wait-strip" id="radarWaitingStrip">
       <span class="wait-badge ${waitingState}">${EXPORT_WAITING_ICONS[waitingState]} ${escapeHtml(waiting.label || "All Clear")}</span>
       <div class="wait-prompt" id="waitingPromptText">${dual(waiting.prompt || "All changes verified. Ready for next task.", waiting.prompt || "All changes verified. Ready for next task.")}</div>

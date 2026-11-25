@@ -325,6 +325,9 @@
         .brand-workspace {
           display: none;
         }
+        .hud-controls {
+          margin-left: auto;
+        }
       }
 
       /* Floating 6-Row Gear Popover */
@@ -343,6 +346,12 @@
         display: none;
         flex-direction: column;
         gap: 8px;
+      }
+
+      @media (max-width: 340px) {
+        .gear-popover {
+          top: 72px;
+        }
       }
 
       .gear-popover.open {
@@ -388,7 +397,7 @@
       /* Compact 3-Segment View Switcher */
       .view-switcher {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: minmax(0, 0.78fr) minmax(0, 0.82fr) minmax(0, 1.4fr);
         gap: 4px;
         margin: 0 12px 8px;
         padding: 3px;
@@ -417,6 +426,23 @@
         overflow: hidden;
         text-overflow: ellipsis;
         transition: all 0.14s ease;
+      }
+
+      .view-tab-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      @media (max-width: 390px) {
+        .view-switcher {
+          grid-template-columns: auto auto minmax(0, 1fr);
+        }
+        .view-tab {
+          padding: 4px 6px;
+          font-size: 11px;
+        }
       }
 
       .view-tab:hover {
@@ -844,6 +870,8 @@
         background: var(--bg-elevated);
         color: var(--text-primary);
         cursor: pointer;
+        max-width: 100%;
+        text-align: left;
         word-break: break-word;
         transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
       }
@@ -1124,6 +1152,8 @@
         background: var(--bg-elevated);
         color: var(--text-secondary);
         cursor: pointer;
+        max-width: 100%;
+        text-align: left;
         word-break: break-word;
       }
 
@@ -1261,6 +1291,9 @@
         border: 1px solid var(--border-strong);
         color: var(--text-primary);
         cursor: pointer;
+        max-width: 100%;
+        text-align: left;
+        overflow-wrap: anywhere;
         transition: border-color 0.14s ease, color 0.14s ease, background 0.14s ease;
       }
 
@@ -1308,6 +1341,7 @@
         gap: 6px;
         flex-wrap: wrap;
         min-width: 0;
+        overflow-wrap: anywhere;
       }
 
       .target-tag {
@@ -1476,6 +1510,9 @@
         font-family: var(--font-mono);
         color: var(--text-primary);
         cursor: pointer;
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        text-align: left;
       }
 
       .file-badge.risk-high {
@@ -1509,7 +1546,9 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        flex-wrap: wrap;
         gap: 8px;
+        overflow-wrap: anywhere;
       }
 
       .node-inspector.has-selection {
@@ -1627,10 +1666,24 @@
       html[data-theme="light"] .xray-toggle[data-mode="tech"],
       body.theme-light .pop-chip[aria-pressed="true"],
       html[data-theme="light"] .pop-chip[aria-pressed="true"],
+      body.theme-light .pop-chip:hover:not(:disabled),
+      html[data-theme="light"] .pop-chip:hover:not(:disabled),
+      body.theme-light .action-chip:hover:not(:disabled),
+      html[data-theme="light"] .action-chip:hover:not(:disabled),
+      body.theme-light .concept-pill:hover,
+      html[data-theme="light"] .concept-pill:hover,
+      body.theme-light .concept-pill.active,
+      html[data-theme="light"] .concept-pill.active,
+      body.theme-light .target-tag,
+      html[data-theme="light"] .target-tag,
       body.theme-light .view-tab.active,
       html[data-theme="light"] .view-tab.active,
+      body.theme-light .pill-bug,
+      html[data-theme="light"] .pill-bug,
       body.theme-light .pill-impl,
       html[data-theme="light"] .pill-impl,
+      body.theme-light .pill-persona,
+      html[data-theme="light"] .pill-persona,
       body.theme-light .pill-success,
       html[data-theme="light"] .pill-success,
       body.theme-light .pill-warning,
@@ -1788,6 +1841,15 @@
         justify-content: space-between;
         gap: 8px;
         margin-bottom: 5px;
+        flex-wrap: wrap;
+      }
+
+      .lesson-title-row .pill {
+        flex-shrink: 0;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .lesson-title {
@@ -2032,7 +2094,7 @@
         <nav class="view-switcher" id="tabsNav" role="tablist" aria-label="Cockpit HUD views">
           <button class="view-tab active" id="tabBtnHud" role="tab" aria-selected="true" aria-controls="tab-hud" tabindex="0" data-tab="hud">HUD</button>
           <button class="view-tab" id="tabBtnVisual" role="tab" aria-selected="false" aria-controls="tab-visual" tabindex="-1" data-tab="visual">Visual</button>
-          <button class="view-tab" id="tabBtnMemory" role="tab" aria-selected="false" aria-controls="tab-memory" tabindex="-1" data-tab="memory">Memory &amp; History (<span id="memoryCountBadge">0</span>)</button>
+          <button class="view-tab" id="tabBtnMemory" role="tab" aria-selected="false" aria-controls="tab-memory" tabindex="-1" data-tab="memory"><span class="view-tab-label">Memory &amp; History (<span id="memoryCountBadge">0</span>)</span></button>
         </nav>
       </header>
 
@@ -2342,8 +2404,8 @@
               <div class="story-card-title">📌 Confirmed Lessons Saved to ZCode Memory</div>
               <span class="pill pill-success" id="confirmedTotalPill">0 saved</span>
             </div>
-            <div style="font-size: 11.3px; color: var(--text-secondary); margin-bottom: 8px;">
-              Memory Directory: <code id="memoryDirPathLabel" style="font-family: var(--font-mono);">~/.zcode/cli/memories/...</code>
+            <div style="font-size: 11.3px; color: var(--text-secondary); margin-bottom: 8px; overflow-wrap: anywhere;">
+              Memory Directory: <code id="memoryDirPathLabel" style="font-family: var(--font-mono); overflow-wrap: anywhere;">~/.zcode/cli/memories/...</code>
             </div>
             <div id="confirmedLessonsBankList"></div>
           </div>
@@ -4093,16 +4155,11 @@
           const compPill = document.getElementById("complexityPill");
           if (compPill && !compPill._hasExplainerTrigger && compPill.addEventListener) {
             compPill._hasExplainerTrigger = true;
-            const openVisual = () => {
-              switchTab("visual");
-              const playBtn = document.getElementById("btnExplainerPlay");
-              if (playBtn && typeof playBtn.focus === "function") playBtn.focus();
-            };
-            compPill.addEventListener("click", openVisual);
+            compPill.addEventListener("click", openVisualView);
             compPill.addEventListener("keydown", (e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                openVisual();
+                openVisualView();
               }
             });
           }
@@ -5252,6 +5309,14 @@
           });
         }
 
+        function openVisualView() {
+          switchTab("visual");
+          const scenes = currentState?.currentDebrief?.explainerScenes;
+          const hasScenes = Array.isArray(scenes) && scenes.length > 0;
+          const target = document.getElementById(hasScenes ? "btnExplainerPlay" : "btnGenerateQuickTour");
+          if (target && typeof target.focus === "function") target.focus();
+        }
+
         function switchTab(tabId) {
           const normalizedTab = ["hud", "visual", "memory"].includes(tabId) ? tabId : "hud";
           uiState.activeView = normalizedTab;
@@ -5329,12 +5394,7 @@
 
         const animatePowerupBtn = document.getElementById("btnPowerupAnimate");
         if (animatePowerupBtn && animatePowerupBtn.addEventListener) {
-          const openVisualFromDock = () => {
-            switchTab("visual");
-            const playBtn = document.getElementById("btnExplainerPlay");
-            if (playBtn && typeof playBtn.focus === "function") playBtn.focus();
-          };
-          animatePowerupBtn.addEventListener("click", openVisualFromDock);
+          animatePowerupBtn.addEventListener("click", openVisualView);
         }
 
         for (const extId of ["btnPowerupExcalidraw", "btnPowerupVisualize", "btnPowerupVectorcraft"]) {
@@ -5527,6 +5587,9 @@
           try {
             const res = await callServerTool("vibe_debrief_export_html", {});
             const art = res?.structuredContent?.exportedArtifact;
+            if (uiState.gearPopoverOpen) {
+              setGearPopoverOpen(false, { restoreFocus: true });
+            }
             if (art?.fileName) {
               showToast(`🌐 Saved ${art.fileName} to .zcode/vibe-debrief-artifacts/`, "ok");
             } else {
@@ -5852,8 +5915,17 @@
               closeStage1Drawer({ restoreFocus: true });
             } else if (uiState.missingPluginFallback) {
               e.preventDefault();
+              const bannerEl = document.getElementById("missingPluginBanner");
+              const activeEl = typeof document !== "undefined" ? document.activeElement : null;
+              const bannerHadFocus = Boolean(
+                bannerEl && activeEl && typeof bannerEl.contains === "function" && bannerEl.contains(activeEl)
+              );
               uiState.missingPluginFallback = null;
               renderMissingBanner();
+              if (bannerHadFocus) {
+                const hudTab = document.getElementById("tabBtnHud");
+                if (hudTab && typeof hudTab.focus === "function") hudTab.focus();
+              }
             }
           }
         });

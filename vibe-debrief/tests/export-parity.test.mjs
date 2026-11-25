@@ -920,4 +920,28 @@ describe("Story 7.3 — Stage 2 missing-plugin HTML fallback export", () => {
     assert.ok(run.getElementById("stage2TelemetryPill"));
     assert.equal(run.body.querySelectorAll(".stage2-deep-card").length, 3);
   });
+
+  it("hides the analogy box when realWorldAnalogy is empty and enforces light-wash contrast & narrow-viewport wrapping", () => {
+    const withoutAnalogy = generateStandaloneHtmlArtifact(
+      buildPanelStateFixture({
+        debrief: {
+          realWorldAnalogy: ""
+        }
+      })
+    );
+    assert.equal(withoutAnalogy.includes('class="analogy"'), false, "empty realWorldAnalogy must not render an empty analogy box");
+
+    const withAnalogy = generateStandaloneHtmlArtifact(
+      buildPanelStateFixture({
+        debrief: {
+          realWorldAnalogy: "Like a circuit breaker guarding a branch line."
+        }
+      })
+    );
+    assert.match(withAnalogy, /<div class="analogy"><strong>💡 Picture It Like This:<\/strong> Like a circuit breaker guarding a branch line\.<\/div>/);
+    assert.match(withAnalogy, /@media\s*\(prefers-color-scheme:\s*light\)[\s\S]*?\.pill\.bug\s*\{\s*color:var\(--text-primary\)/);
+    assert.match(withAnalogy, /@media\s*\(prefers-color-scheme:\s*light\)[\s\S]*?\.action-chip:hover[\s\S]*?color:var\(--text-primary\)/);
+    assert.match(withAnalogy, /\.inspector\s*\{[^}]*overflow-wrap:anywhere/);
+    assert.match(withAnalogy, /\.chip\s*\{[^}]*max-width:100%;\s*overflow-wrap:anywhere;\s*text-align:left/);
+  });
 });
