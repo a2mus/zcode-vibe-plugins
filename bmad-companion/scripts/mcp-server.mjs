@@ -698,7 +698,7 @@ async function processLine(line) {
         },
         serverInfo: {
           name: "bmad-companion",
-          version: "0.5.3"
+          version: "0.5.4"
         }
       });
       return;
