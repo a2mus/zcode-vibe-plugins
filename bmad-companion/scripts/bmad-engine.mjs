@@ -383,6 +383,14 @@ function safeReadText(filePath, maxBytes = 120000) {
   }
 }
 
+// Bounded JSON config read shared by model discovery and workspace profiling
+// (a missing path or empty file yields {}; malformed JSON still throws to the
+// caller's own error handling, exactly as the former inline copies did).
+function readJsonConfig(filePath, maxBytes = 120000) {
+  if (!filePath || !existsSync(filePath)) return {};
+  return JSON.parse(safeReadText(filePath, maxBytes) || "{}");
+}
+
 // Shared tool-error text extraction so every surfaced error has one shape.
 export function errorMessage(err) {
   return err instanceof Error ? err.message : String(err);
@@ -490,13 +498,6 @@ export function discoverConfiguredModels(persistedHostModels = null) {
   const settingPath = join(zcodeV2Dir, "setting.json");
   const credentialsPath = join(zcodeV2Dir, "credentials.json");
   const builtinPath = findRuntimeBuiltinConfigPath();
-
-  // Bounded JSON config read shared by the four discovery sources below
-  // (a missing path or empty file yields {}).
-  function readJsonConfig(filePath, maxBytes) {
-    if (!filePath || !existsSync(filePath)) return {};
-    return JSON.parse(safeReadText(filePath, maxBytes) || "{}");
-  }
 
   const personalCfg = readJsonConfig(providerCfgPath, 400000);
   const settingCfg = readJsonConfig(settingPath, 200000);
@@ -1056,7 +1057,7 @@ function detectWorkspaceProfile(workspaceRoot) {
       if (!projectName || projectName === ".") projectName = slnFile.replace(/\.slnx?$/i, "");
     }
     if (rootEntries.includes("package.json")) {
-      const pkg = JSON.parse(safeReadText(join(workspaceRoot, "package.json")) || "{}");
+      const pkg = readJsonConfig(join(workspaceRoot, "package.json"));
       if (pkg.name && projectName === basename(workspaceRoot)) {
         projectName = pkg.name.replace(/^@[^/]+\//, "");
       }

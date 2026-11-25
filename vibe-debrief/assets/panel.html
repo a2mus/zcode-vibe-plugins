@@ -1345,6 +1345,7 @@
         font-size: 12px;
         color: var(--text-secondary);
         line-height: 1.45;
+        overflow-wrap: anywhere;
       }
 
       .stage1-analogy {
@@ -1355,6 +1356,7 @@
         background: var(--bg-card);
         border-radius: 0 6px 6px 0;
         line-height: 1.4;
+        overflow-wrap: anywhere;
       }
 
       .stage1-canvas-wrap {
@@ -1643,9 +1645,24 @@
       html[data-theme="light"] .analogy-title,
       body.theme-light .mini-promote-btn,
       html[data-theme="light"] .mini-promote-btn,
+      body.theme-light .minimal-badge,
+      html[data-theme="light"] .minimal-badge,
+      body.theme-light .unclear-title,
+      html[data-theme="light"] .unclear-title,
+      body.theme-light .missing-artifact-link,
+      html[data-theme="light"] .missing-artifact-link,
+      body.theme-light .lesson-form-title,
+      html[data-theme="light"] .lesson-form-title,
       body.theme-light #explainerSceneTitle,
       html[data-theme="light"] #explainerSceneTitle {
         color: var(--text-primary);
+      }
+
+      .lesson-form-title {
+        font-weight: 700;
+        font-size: 11.5px;
+        margin-bottom: 6px;
+        color: var(--warning);
       }
 
       /* Inline Proof Claims inside Card 3 */
@@ -2245,7 +2262,7 @@
             </div>
 
             <div id="customLessonForm" role="region" aria-label="Add Lesson to ZCode Memory" style="display: none; background: var(--bg-primary); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 9px;">
-              <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 6px; color: var(--warning);">
+              <div class="lesson-form-title">
                 ✍️ Confirm &amp; Save a Lesson to ZCode Memory
               </div>
               <input type="text" class="form-input" id="customLessonTitle" aria-label="Lesson rule title" aria-required="true" placeholder="Short rule title (e.g. Check DepotId before validating POS sale)" />
@@ -4547,6 +4564,12 @@
               if (!slug) return;
               uiState.activeConceptSlug = uiState.activeConceptSlug === slug ? null : slug;
               renderConceptsBlock(debrief);
+              const nextPill = Array.from(container.querySelectorAll(".concept-pill")).find(
+                (el) => el.getAttribute("data-concept-slug") === slug
+              );
+              if (nextPill && typeof nextPill.focus === "function") {
+                nextPill.focus();
+              }
             });
           });
 

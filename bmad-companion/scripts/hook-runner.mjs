@@ -1,12 +1,61 @@
 import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
+import { format } from "node:util";
 import {
+  buildSessionStartContext,
   buildTaskSessionLaunchInstructions,
   loadPersistedState,
   manageBmadTaskQueue,
   savePersistedState,
   scanBmadWorkspace
 } from "./bmad-engine.mjs";
+
+// --- Stdout isolation -------------------------------------------------------
+// A hook speaks exactly one JSON line on stdout. emitHookFrame is the single
+// write point and is guarded so no code path (handler, fallback, or error
+// recovery) can produce a second line, and the console loggers are redirected
+// to stderr so accidental library logging can never corrupt the frame.
+let frameEmitted = false;
+function emitHookFrame(frame) {
+  if (frameEmitted) return;
+  frameEmitted = true;
+  process.stdout.write(JSON.stringify(frame || {}) + "\n");
+}
+
+for (const level of ["log", "info", "debug"]) {
+  console[level] = (...args) => {
+    process.stderr.write(format(...args) + "\n");
+  };
+}
+
+// --- Shared hook vocabulary --------------------------------------------------
+// C12: optional Stop-hook LLM synthesis is bounded by AbortSignal.timeout(4500)
+// with silent fallback inside the <=4800ms Stop budget.
+const AI_SYNTHESIS_TIMEOUT_MS = 4500;
+
+// Queue-orchestrator prompts must never auto-start or auto-complete queue
+// items (shared by the user-prompt and stop handlers).
+const QUEUE_ORCHESTRATOR_PROMPT_RE = /Execute the active @bmad-companion Task Queue|bmad-task-queue\.dwf\.ts/i;
+
+// Prompt-prefix match lengths differ per handler contract: auto-start (R20)
+// compares 45 chars, auto-complete (R22) compares 40.
+const AUTO_START_PROMPT_PREFIX_LEN = 45;
+const AUTO_COMPLETE_PROMPT_PREFIX_LEN = 40;
+
+// `\b(?:ticket|story) <id>\b` reference matcher for a queue item's storyId.
+function buildStoryRefRegex(storyId) {
+  return new RegExp(`\\b(?:ticket|story)\\s+${String(storyId).replace(".", "\\.")}\\b`, "i");
+}
+
+// Prompt-match predicate shared by the user-prompt auto-start scan and the
+// stop auto-complete check: prefix-includes on the item prompt, or a
+// ticket/story reference to the item's storyId.
+function taskItemMatchesPrompt(item, promptText, prefixLen) {
+  return Boolean(
+    (item.prompt && promptText.includes(item.prompt.slice(0, prefixLen))) ||
+      (item.storyId && buildStoryRefRegex(item.storyId).test(promptText))
+  );
+}
 
 function readStdinJson() {
   try {
@@ -18,7 +67,7 @@ function readStdinJson() {
   }
 }
 
-async function tryOptionalAiTurnSynthesis(workspaceRoot, promptText, assistantText, scan) {
+async function tryOptionalAiTurnSynthesis(promptText, assistantText, scan) {
   const apiKey = process.env.BMAD_COMPANION_OPENAI_KEY || process.env.OPENAI_API_KEY;
   if (!apiKey || (!promptText && !assistantText)) return null;
   try {
@@ -54,7 +103,7 @@ async function tryOptionalAiTurnSynthesis(workspaceRoot, promptText, assistantTe
         ],
         temperature: 0.2
       }),
-      signal: AbortSignal.timeout(4500)
+      signal: AbortSignal.timeout(AI_SYNTHESIS_TIMEOUT_MS)
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -65,6 +114,167 @@ async function tryOptionalAiTurnSynthesis(workspaceRoot, promptText, assistantTe
     return null;
   }
 }
+
+// --- Hook handlers ------------------------------------------------------------
+// Every handler returns its stdout frame; none writes to stdout directly.
+
+// SessionStart (R19): scan the workspace, stamp the session, and inject the
+// smart-progress/provider/recommendation context (assembled by the engine).
+function handleSessionStart({ workspaceRoot }) {
+  const scan = scanBmadWorkspace(workspaceRoot);
+  savePersistedState(workspaceRoot, {
+    lastSessionStartAt: new Date().toISOString()
+  });
+  return { additionalContext: buildSessionStartContext(scan) };
+}
+
+// UserPromptSubmit (R20): store the prompt, reset touched files, and auto
+// start-task a matching queued task.
+function handleUserPrompt({ payload, workspaceRoot, currentSessionId }) {
+  let promptText = payload.prompt || payload.user_prompt || "";
+  if (!promptText && payload.transcript_path) {
+    try {
+      const lines = readFileSync(payload.transcript_path, "utf8").trim().split(/\r?\n/);
+      const last = JSON.parse(lines[lines.length - 1] || "{}");
+      promptText = last?.message?.content?.[0]?.text || "";
+    } catch {}
+  }
+  const cleanPrompt = String(promptText || "").slice(0, 4000);
+  savePersistedState(workspaceRoot, {
+    lastUserPrompt: cleanPrompt,
+    lastUserPromptAt: new Date().toISOString(),
+    recentTouchedFiles: []
+  });
+
+  // If this prompt matches a queued task (and is not the queue orchestrator command itself), mark it active
+  try {
+    const state = loadPersistedState(workspaceRoot);
+    const qItems = state.taskQueue?.items || [];
+    if (qItems.length > 0 && !QUEUE_ORCHESTRATOR_PROMPT_RE.test(cleanPrompt)) {
+      const matched = qItems.find(
+        (it) =>
+          it.status === "queued" &&
+          taskItemMatchesPrompt(it, cleanPrompt, AUTO_START_PROMPT_PREFIX_LEN)
+      );
+      if (matched) {
+        manageBmadTaskQueue(workspaceRoot, {
+          action: "start-task",
+          taskId: matched.id,
+          ...(currentSessionId ? { sessionId: currentSessionId } : {})
+        });
+      }
+    }
+  } catch {}
+
+  return {};
+}
+
+// PostToolUse (R21): record up to 15 workspace-relative touched paths.
+function handlePostTool({ payload, workspaceRoot }) {
+  const state = loadPersistedState(workspaceRoot);
+  const touched = new Set(state.recentTouchedFiles || []);
+  const fileCandidate =
+    payload?.tool_input?.file_path ||
+    payload?.tool_input?.path ||
+    payload?.toolInput?.file_path ||
+    "";
+  if (fileCandidate) {
+    try {
+      const rel = relative(workspaceRoot, resolve(workspaceRoot, fileCandidate)).replace(/\\/g, "/");
+      if (!rel.startsWith("..")) touched.add(rel);
+    } catch {}
+  }
+  savePersistedState(workspaceRoot, {
+    recentTouchedFiles: [...touched].slice(-15)
+  });
+  return {};
+}
+
+// Stop (R22): count the turn, store the assistant message, auto-complete a
+// running single-session task (with queue handoff), and optionally run the
+// bounded LLM turn synthesis.
+async function handleStop({ payload, workspaceRoot, currentSessionId }) {
+  const state = loadPersistedState(workspaceRoot);
+  const assistantMsg = String(payload.last_assistant_message || payload.responseText || "").slice(0, 6000);
+  const nextTurnCount = (state.turnCount || 0) + 1;
+
+  savePersistedState(workspaceRoot, {
+    lastAssistantMessage: assistantMsg,
+    lastTurnAnalyzedAt: new Date().toISOString(),
+    turnCount: nextTurnCount
+  });
+
+  // Auto-complete active queued task when a single-task session finishes,
+  // then hand off to the next task so the queue continues automatically.
+  let stopFrame = {};
+  try {
+    const q = state.taskQueue;
+    const lastPrompt = String(state.lastUserPrompt || "");
+    if (
+      q &&
+      q.activeTaskId &&
+      Array.isArray(q.items) &&
+      !QUEUE_ORCHESTRATOR_PROMPT_RE.test(lastPrompt)
+    ) {
+      const activeItem = q.items.find((it) => it.id === q.activeTaskId && it.status === "running");
+      const ownsTask =
+        !activeItem?.sessionId ||
+        !currentSessionId ||
+        String(activeItem.sessionId) === currentSessionId;
+      if (
+        activeItem &&
+        ownsTask &&
+        taskItemMatchesPrompt(activeItem, lastPrompt, AUTO_COMPLETE_PROMPT_PREFIX_LEN)
+      ) {
+        const completed = manageBmadTaskQueue(workspaceRoot, {
+          action: "complete-task",
+          taskId: activeItem.id,
+          storyStatus: "done",
+          summary: assistantMsg ? assistantMsg.replace(/\s+/g, " ").slice(0, 140) : "Completed in session"
+        });
+        const updatedQueue = completed?.taskQueue;
+        if (
+          updatedQueue &&
+          updatedQueue.executionMode === "separate-sessions" &&
+          updatedQueue.status === "running" &&
+          updatedQueue.nextQueuedTask
+        ) {
+          stopFrame = {
+            decision: "block",
+            reason: [
+              `BMAD Companion queue continuation: "${activeItem.title}" is complete. ${updatedQueue.counts.queued} task(s) remain queued.`,
+              "Start the next task now; the bmad-companion Stop hook continues the chain after every finished task.",
+              buildTaskSessionLaunchInstructions(updatedQueue.nextQueuedTask)
+            ].join("\n")
+          };
+        }
+      }
+    }
+  } catch {}
+
+  const scan = scanBmadWorkspace(workspaceRoot);
+  const aiSynth = await tryOptionalAiTurnSynthesis(state.lastUserPrompt, assistantMsg, scan);
+  if (aiSynth && Array.isArray(aiSynth.recommendations) && aiSynth.recommendations.length > 0) {
+    savePersistedState(workspaceRoot, {
+      agentAdvisorOverride: {
+        headline: aiSynth.headline,
+        turnSummary: aiSynth.turnSummary,
+        recommendations: aiSynth.recommendations,
+        updatedAt: new Date().toISOString()
+      }
+    });
+  }
+
+  return stopFrame;
+}
+
+// Mode dispatch table (function declarations hoist above this map).
+const HOOK_HANDLERS = {
+  "session-start": handleSessionStart,
+  "user-prompt": handleUserPrompt,
+  "post-tool": handlePostTool,
+  stop: handleStop
+};
 
 async function main() {
   const mode = process.argv[2] || "session-start";
@@ -79,177 +289,12 @@ async function main() {
       process.cwd()
   );
 
-  if (mode === "session-start") {
-    const scan = scanBmadWorkspace(workspaceRoot);
-    savePersistedState(workspaceRoot, {
-      lastSessionStartAt: new Date().toISOString()
-    });
-    const topRecs = scan.recommendations
-      .slice(0, 3)
-      .map((r) => `- \`${r.fullCommand}\` [Recommended Model: \`${r.recommendedModel?.modelId}\` — ${r.recommendedModel?.tier}] (${r.title})`)
-      .join("\n");
-
-    const additionalContext = [
-      `[BMAD Companion Active for ${scan.projectName} (${scan.techStack})]`,
-      `Smart Progress: ${scan.metrics.smartDoneStories}/${scan.metrics.totalStories} stories complete (${scan.metrics.smartOverallPct}% smart vs ${scan.metrics.declaredOverallPct}% static tracker; ${scan.metrics.reconciledStoriesCount} stories AI-reconciled across ${scan.metrics.totalEpics} epics).`,
-      `Active Providers & Models: ${scan.availableModels.length} enabled models across ${(scan.providerState?.activeProviders || []).map((p) => `${p.providerName} (${p.modelCount})`).join(", ") || "host defaults"}.`,
-      `Recommended Next BMAD Prompts & Models:\n${topRecs}`,
-      `Companion Guidance:`,
-      `1. Whenever advising the user on BMAD-METHOD or after completing a meaningful task, always provide concrete contextual prompts (e.g., \`/bmad-ux "Enhance the UI/UX of ..."\`, never a bare \`/bmad-ux\`) along with a dynamically chosen model from \`ListModels\` (respecting active provider state & subscription), and call \`bmad_update_advisor\` (passing \`hostModels\` when \`ListModels\` is inspected) or \`bmad_open_companion\` when updating the right-side BMAD Companion panel.`
-    ].join("\n");
-
-    process.stdout.write(JSON.stringify({ additionalContext }) + "\n");
-    return;
-  }
-
-  if (mode === "user-prompt") {
-    let promptText = payload.prompt || payload.user_prompt || "";
-    if (!promptText && payload.transcript_path) {
-      try {
-        const lines = readFileSync(payload.transcript_path, "utf8").trim().split(/\r?\n/);
-        const last = JSON.parse(lines[lines.length - 1] || "{}");
-        promptText = last?.message?.content?.[0]?.text || "";
-      } catch {}
-    }
-    const cleanPrompt = String(promptText || "").slice(0, 4000);
-    savePersistedState(workspaceRoot, {
-      lastUserPrompt: cleanPrompt,
-      lastUserPromptAt: new Date().toISOString(),
-      recentTouchedFiles: []
-    });
-
-    // If this prompt matches a queued task (and is not the queue orchestrator command itself), mark it active
-    try {
-      const state = loadPersistedState(workspaceRoot);
-      const qItems = state.taskQueue?.items || [];
-      if (qItems.length > 0 && !/Execute the active @bmad-companion Task Queue|bmad-task-queue\.dwf\.ts/i.test(cleanPrompt)) {
-        const matched = qItems.find(
-          (it) =>
-            it.status === "queued" &&
-            ((it.prompt && cleanPrompt.includes(it.prompt.slice(0, 45))) ||
-              (it.storyId && new RegExp(`\\b(?:ticket|story)\\s+${String(it.storyId).replace(".", "\\.")}\\b`, "i").test(cleanPrompt)))
-        );
-        if (matched) {
-          manageBmadTaskQueue(workspaceRoot, {
-            action: "start-task",
-            taskId: matched.id,
-            ...(currentSessionId ? { sessionId: currentSessionId } : {})
-          });
-        }
-      }
-    } catch {}
-
-    process.stdout.write("{}\n");
-    return;
-  }
-
-  if (mode === "post-tool") {
-    const state = loadPersistedState(workspaceRoot);
-    const touched = new Set(state.recentTouchedFiles || []);
-    const fileCandidate =
-      payload?.tool_input?.file_path ||
-      payload?.tool_input?.path ||
-      payload?.toolInput?.file_path ||
-      "";
-    if (fileCandidate) {
-      try {
-        const rel = relative(workspaceRoot, resolve(workspaceRoot, fileCandidate)).replace(/\\/g, "/");
-        if (!rel.startsWith("..")) touched.add(rel);
-      } catch {}
-    }
-    savePersistedState(workspaceRoot, {
-      recentTouchedFiles: [...touched].slice(-15)
-    });
-    process.stdout.write("{}\n");
-    return;
-  }
-
-  if (mode === "stop") {
-    const state = loadPersistedState(workspaceRoot);
-    const assistantMsg = String(payload.last_assistant_message || payload.responseText || "").slice(0, 6000);
-    const nextTurnCount = (state.turnCount || 0) + 1;
-
-    savePersistedState(workspaceRoot, {
-      lastAssistantMessage: assistantMsg,
-      lastTurnAnalyzedAt: new Date().toISOString(),
-      turnCount: nextTurnCount
-    });
-
-    // Auto-complete active queued task when a single-task session finishes,
-    // then hand off to the next task so the queue continues automatically.
-    let stopFrame = {};
-    try {
-      const q = state.taskQueue;
-      const lastPrompt = String(state.lastUserPrompt || "");
-      if (
-        q &&
-        q.activeTaskId &&
-        Array.isArray(q.items) &&
-        !/Execute the active @bmad-companion Task Queue|bmad-task-queue\.dwf\.ts/i.test(lastPrompt)
-      ) {
-        const activeItem = q.items.find((it) => it.id === q.activeTaskId && it.status === "running");
-        const ownsTask =
-          !activeItem?.sessionId ||
-          !currentSessionId ||
-          String(activeItem.sessionId) === currentSessionId;
-        if (
-          activeItem &&
-          ownsTask &&
-          ((activeItem.prompt && lastPrompt.includes(activeItem.prompt.slice(0, 40))) ||
-            (activeItem.storyId &&
-              new RegExp(`\\b(?:ticket|story)\\s+${String(activeItem.storyId).replace(".", "\\.")}\\b`, "i").test(lastPrompt)))
-        ) {
-          const completed = manageBmadTaskQueue(workspaceRoot, {
-            action: "complete-task",
-            taskId: activeItem.id,
-            storyStatus: "done",
-            summary: assistantMsg ? assistantMsg.replace(/\s+/g, " ").slice(0, 140) : "Completed in session"
-          });
-          const updatedQueue = completed?.taskQueue;
-          if (
-            updatedQueue &&
-            updatedQueue.executionMode === "separate-sessions" &&
-            updatedQueue.status === "running" &&
-            updatedQueue.nextQueuedTask
-          ) {
-            stopFrame = {
-              decision: "block",
-              reason: [
-                `BMAD Companion queue continuation: "${activeItem.title}" is complete. ${updatedQueue.counts.queued} task(s) remain queued.`,
-                "Start the next task now; the bmad-companion Stop hook continues the chain after every finished task.",
-                buildTaskSessionLaunchInstructions(updatedQueue.nextQueuedTask)
-              ].join("\n")
-            };
-          }
-        }
-      }
-    } catch {}
-
-    const scan = scanBmadWorkspace(workspaceRoot);
-    const aiSynth = await tryOptionalAiTurnSynthesis(
-      workspaceRoot,
-      state.lastUserPrompt,
-      assistantMsg,
-      scan
-    );
-    if (aiSynth && Array.isArray(aiSynth.recommendations) && aiSynth.recommendations.length > 0) {
-      savePersistedState(workspaceRoot, {
-        agentAdvisorOverride: {
-          headline: aiSynth.headline,
-          turnSummary: aiSynth.turnSummary,
-          recommendations: aiSynth.recommendations,
-          updatedAt: new Date().toISOString()
-        }
-      });
-    }
-
-    process.stdout.write(JSON.stringify(stopFrame) + "\n");
-    return;
-  }
-
-  process.stdout.write("{}\n");
+  // Unknown modes fall back to a no-op {} frame without state side effects.
+  const handler = HOOK_HANDLERS[mode];
+  const frame = handler ? await handler({ payload, workspaceRoot, currentSessionId }) : {};
+  emitHookFrame(frame);
 }
 
 main().catch(() => {
-  process.stdout.write("{}\n");
+  emitHookFrame({});
 });
