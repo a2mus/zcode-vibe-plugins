@@ -3,7 +3,7 @@ title: 'Temp-file + renameSync atomic savePersistedState tracer'
 type: refactor
 ticket: '1'
 created: '2026-11-20'
-status: built
+status: done
 baseline_revision: '7dc4e0a4277ffec2b5e1a9523a7d696c31f15daf'
 route: oneshot
 route_source: pinned

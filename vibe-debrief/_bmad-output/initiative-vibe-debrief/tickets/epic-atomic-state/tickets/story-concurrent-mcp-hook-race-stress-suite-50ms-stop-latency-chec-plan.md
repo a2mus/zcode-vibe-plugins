@@ -3,7 +3,7 @@ title: 'Concurrent MCP + Hook race stress suite & <=50ms Stop latency check'
 type: feature
 ticket: '2'
 created: '2026-11-20'
-status: built
+status: done
 baseline_revision: '111e4695a71f5ed33c7e3aa1e289ec70131bb03b'
 route: full
 route_source: auto
