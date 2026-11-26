@@ -13,6 +13,36 @@ import {
 
 const PANEL_HTML = readFileSync(PANEL_HTML_PATH, "utf8");
 
+/**
+ * Read a custom property's value from the first CSS scope matching scopePattern.
+ */
+function extractCssVar(css, scopePattern, varName) {
+  const scopeMatch = css.match(scopePattern);
+  assert.ok(scopeMatch, `Scope matching ${scopePattern} must exist in CSS`);
+  const varRegex = new RegExp(`${varName}:\\s*([^;]+);`);
+  const varMatch = scopeMatch[0].match(varRegex);
+  assert.ok(varMatch, `CSS variable ${varName} must exist in scope`);
+  return varMatch[1].trim();
+}
+
+/**
+ * Parse a color token that is either rgba(r, g, b, a) or #RRGGBBAA (8-digit hex,
+ * the soft-fill format of the Palette C token blocks) into { hex, alpha }.
+ */
+function parseRgba(tokenStr) {
+  const rgbaMatch = tokenStr.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
+  if (rgbaMatch) {
+    const hex = "#" + [1, 2, 3].map((i) => Number(rgbaMatch[i]).toString(16).padStart(2, "0")).join("");
+    return { hex, alpha: parseFloat(rgbaMatch[4]) };
+  }
+  const hexAlphaMatch = tokenStr.match(/^#([0-9a-fA-F]{6})([0-9a-fA-F]{2})$/);
+  assert.ok(hexAlphaMatch, `Must be rgba(...) or #RRGGBBAA: ${tokenStr}`);
+  return {
+    hex: `#${hexAlphaMatch[1].toLowerCase()}`,
+    alpha: parseInt(hexAlphaMatch[2], 16) / 255
+  };
+}
+
 function createStubbedA11yEnvironment() {
   const elements = new Map();
   const windowListeners = new Map();
@@ -282,36 +312,22 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
     });
 
     it("verifies >= 3:1 focus ring contrast across all dark and light theme background surfaces", () => {
-      // Dark theme tokens from panel.html :root
-      const darkAccent = "#388bfd";
-      const darkSurfaces = [
-        { name: "--bg-primary", hex: "#0d1117" },
-        { name: "--bg-secondary", hex: "#161b22" },
-        { name: "--bg-tertiary", hex: "#1f2630" }
+      const scopes = [
+        { name: "Dark", pattern: /:root\s*\{[\s\S]*?\}/ },
+        { name: "Light", pattern: /body\.theme-light\s*\{[\s\S]*?\}/ }
       ];
+      const surfaceVars = ["--bg-primary", "--bg-secondary", "--bg-tertiary"];
 
-      for (const surface of darkSurfaces) {
-        const ratio = contrastRatio(darkAccent, surface.hex);
-        assert.ok(
-          ratio >= 3.0,
-          `Dark theme focus ring ${darkAccent} on ${surface.name} (${surface.hex}) contrast is ${ratio.toFixed(2)}:1 (must be >= 3:1)`
-        );
-      }
-
-      // Light theme tokens from panel.html body.theme-light
-      const lightAccent = "#0757b6";
-      const lightSurfaces = [
-        { name: "--bg-primary-light", hex: "#ffffff" },
-        { name: "--bg-secondary-light", hex: "#f6f8fa" },
-        { name: "--bg-tertiary-light", hex: "#eaeef2" }
-      ];
-
-      for (const surface of lightSurfaces) {
-        const ratio = contrastRatio(lightAccent, surface.hex);
-        assert.ok(
-          ratio >= 3.0,
-          `Light theme focus ring ${lightAccent} on ${surface.name} (${surface.hex}) contrast is ${ratio.toFixed(2)}:1 (must be >= 3:1)`
-        );
+      for (const { name, pattern } of scopes) {
+        const accent = extractCssVar(styleText, pattern, "--accent");
+        for (const surfaceVar of surfaceVars) {
+          const surface = extractCssVar(styleText, pattern, surfaceVar);
+          const ratio = contrastRatio(accent, surface);
+          assert.ok(
+            ratio >= 3.0,
+            `${name} theme focus ring (${accent}) on ${surfaceVar} (${surface}) contrast is ${ratio.toFixed(2)}:1 (must be >= 3:1)`
+          );
+        }
       }
     });
   });
@@ -570,27 +586,13 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
   describe("Story 4.4: Contrast debt — close CD-1 through CD-5 to WCAG AA", () => {
     const styleText = extractStyleContent(PANEL_HTML);
 
-    function extractCssVar(css, scopePattern, varName) {
-      const scopeMatch = css.match(scopePattern);
-      assert.ok(scopeMatch, `Scope matching ${scopePattern} must exist in CSS`);
-      const varRegex = new RegExp(`${varName}:\\s*([^;]+);`);
-      const varMatch = scopeMatch[0].match(varRegex);
-      assert.ok(varMatch, `CSS variable ${varName} must exist in scope`);
-      return varMatch[1].trim();
-    }
-
-    function parseRgba(rgbaStr) {
-      const m = rgbaStr.match(/rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/);
-      assert.ok(m, `Must be rgba(...): ${rgbaStr}`);
-      const hex = "#" + [1, 2, 3].map((i) => Number(m[i]).toString(16).padStart(2, "0")).join("");
-      const alpha = parseFloat(m[4]);
-      return { hex, alpha };
-    }
-
     describe("CD-1: text-muted meets WCAG AA (>= 4.5:1) in both themes", () => {
       it("confirms dark --text-muted reaches >= 4.5:1 across dark surfaces", () => {
-        const darkMuted = extractCssVar(styleText, /:root\s*\{[\s\S]*?\}/, "--text-muted");
-        const darkSurfaces = ["#0d1117", "#161b22", "#1f2630"];
+        const rootScope = /:root\s*\{[\s\S]*?\}/;
+        const darkMuted = extractCssVar(styleText, rootScope, "--text-muted");
+        const darkSurfaces = ["--bg-primary", "--bg-secondary", "--bg-tertiary"].map((v) =>
+          extractCssVar(styleText, rootScope, v)
+        );
         for (const bg of darkSurfaces) {
           const ratio = contrastRatio(darkMuted, bg);
           assert.ok(
@@ -601,8 +603,11 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       });
 
       it("confirms light --text-muted reaches >= 4.5:1 across light surfaces", () => {
-        const lightMuted = extractCssVar(styleText, /body\.theme-light\s*\{[\s\S]*?\}/, "--text-muted");
-        const lightSurfaces = ["#ffffff", "#f6f8fa", "#eaeef2"];
+        const lightScope = /body\.theme-light\s*\{[\s\S]*?\}/;
+        const lightMuted = extractCssVar(styleText, lightScope, "--text-muted");
+        const lightSurfaces = ["--bg-primary", "--bg-secondary", "--bg-tertiary"].map((v) =>
+          extractCssVar(styleText, lightScope, v)
+        );
         for (const bg of lightSurfaces) {
           const ratio = contrastRatio(lightMuted, bg);
           assert.ok(
@@ -969,5 +974,93 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       env.elements.get("artifactSearch").value = "missing-artifact-xyz";
       hooks.renderArtifactsDirectory(true);
       assert.match(env.elements.get("artifactsDirectoryList").innerHTML, /id="btnClearArtifactSearch"/);
+    });
+  });
+
+  describe("Story 8.1: Palette C warm charcoal tokens, radii & closed larger type ramp", () => {
+    const styleText = extractStyleContent(PANEL_HTML);
+
+    it("ships the Palette C token blocks with --on-primary and reserved overlay type roles", () => {
+      const rootScope = /:root\s*\{[\s\S]*?\}/;
+      const lightScope = /body\.theme-light\s*\{[\s\S]*?\}/;
+
+      // Palette C dark values (DESIGN.md colors frontmatter, verbatim).
+      assert.equal(extractCssVar(styleText, rootScope, "--bg-primary"), "#1b1b1e");
+      assert.equal(extractCssVar(styleText, rootScope, "--accent"), "#74a9c9");
+      assert.equal(extractCssVar(styleText, rootScope, "--on-primary"), "#ffffff");
+
+      // Palette C light values (no light --on-primary override: white passes both gradient sets).
+      assert.equal(extractCssVar(styleText, lightScope, "--bg-primary"), "#fbf9f6");
+      assert.equal(extractCssVar(styleText, lightScope, "--accent"), "#28627c");
+      const lightBlock = styleText.match(lightScope);
+      assert.ok(lightBlock, "body.theme-light scope must exist");
+      assert.ok(
+        !lightBlock[0].includes("--on-primary"),
+        "body.theme-light must not override --on-primary (white passes both gradient sets)"
+      );
+
+      // Soft fills ride the spine alphas as 8-digit hex (dark 8%, light accent 10% / rest 8%).
+      assert.equal(extractCssVar(styleText, rootScope, "--accent-soft"), "#74a9c914");
+      assert.equal(extractCssVar(styleText, lightScope, "--accent-soft"), "#28627c1a");
+
+      // RD-1/RD-6/RD-7: the four reserved overlay roles complete the closed ramp (consumed by Story 3+).
+      assert.match(styleText, /--overlay-title-size:\s*16px/);
+      assert.match(styleText, /--overlay-body-size:\s*15px/);
+      assert.match(styleText, /--overlay-command-size:\s*14\.5px/);
+      assert.match(styleText, /--overlay-meta-size:\s*13\.5px/);
+    });
+
+    it("routes the brand badge, primary button and chip-open hover labels through var(--on-primary)", () => {
+      assert.match(
+        styleText,
+        /\.brand-badge\s*\{[^}]*?color:\s*var\(--on-primary\)/,
+        ".brand-badge must use var(--on-primary) instead of a literal white"
+      );
+      assert.match(
+        styleText,
+        /\.btn-primary\s*\{[^}]*?color:\s*var\(--on-primary\)/,
+        ".btn-primary must use var(--on-primary) instead of a literal white"
+      );
+      assert.match(
+        styleText,
+        /\.art-chip-open:hover\s*\{[^}]*?color:\s*var\(--on-primary\)/,
+        ".art-chip-open:hover must use var(--on-primary) instead of a literal white"
+      );
+    });
+
+    it("rounds the .cmd-textarea focus outline at 4px (RD-2 rounded.sm)", () => {
+      assert.match(
+        styleText,
+        /\.cmd-textarea:focus,\s*\n\s*\.cmd-textarea:focus-visible\s*\{[\s\S]*?border-radius:\s*4px/,
+        ".cmd-textarea focus outline must use the 4px rounded.sm radius (was 3px)"
+      );
+    });
+
+    it("keeps every CSS font-size inside the closed ramp {16, 15, 14.5, 14, 13.5, 13, 12.5, 12}px with nothing below 12px (RD-1/RD-6)", () => {
+      const allowed = new Set([16, 15, 14.5, 14, 13.5, 13, 12.5, 12]);
+      const seen = new Map();
+      for (const match of styleText.matchAll(/font-size\s*:\s*([\d.]+)px/g)) {
+        const value = Number.parseFloat(match[1]);
+        seen.set(value, (seen.get(value) || 0) + 1);
+        assert.ok(
+          allowed.has(value),
+          `font-size ${value}px is outside the closed ramp (allowed: 16, 15, 14.5, 14, 13.5, 13, 12.5, 12)`
+        );
+        assert.ok(value >= 12, `font-size ${value}px is below the 12px panel floor (RD-6)`);
+      }
+      assert.ok(seen.size > 0, "style block must declare ramp font sizes");
+    });
+
+    it("contains zero inline font-size styles and no JS-assigned fontSize (RD-1)", () => {
+      assert.doesNotMatch(
+        PANEL_HTML,
+        /style="[^"]*font-size/i,
+        "no style attribute may set font-size; sizes ride the closed ramp through classes"
+      );
+      assert.doesNotMatch(
+        extractInlineScript(PANEL_HTML),
+        /\.style\.fontSize\s*=/,
+        "no inline script may assign .style.fontSize"
+      );
     });
   });

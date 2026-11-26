@@ -5,59 +5,67 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>BMAD Companion</title>
     <style>
+      /* Palette C — Warm charcoal (DESIGN.md colors frontmatter, verbatim). */
       :root {
-        --bg-primary: #0d1117;
-        --bg-secondary: #161b22;
-        --bg-tertiary: #1f2630;
-        --bg-elevated: #212834;
-        --border: #30363d;
-        --border-subtle: #21262d;
-        --text-primary: #e6edf3;
-        --text-secondary: #9198a1;
-        --text-muted: #848d97;
-        --accent: #388bfd;
-        --accent-soft: rgba(56, 139, 253, 0.08);
-        --success: #3fb950;
-        --success-soft: rgba(63, 185, 80, 0.10);
-        --warning: #d29922;
-        --warning-soft: rgba(210, 153, 34, 0.10);
-        --purple: #a371f7;
-        --purple-soft: rgba(163, 113, 247, 0.08);
-        --danger: #f85149;
-        --danger-soft: rgba(248, 81, 73, 0.08);
-        --primary-gradient-start: #1f6feb;
-        --primary-gradient-end: #2563eb;
-        --brand-gradient-start: #1f6feb;
-        --brand-gradient-end: #8957e5;
+        --bg-primary: #1b1b1e;
+        --bg-secondary: #242428;
+        --bg-tertiary: #2e2e33;
+        --bg-elevated: #35353b; /* defined, reserved — no rule consumes it yet */
+        --border: #3d3d44;
+        --border-subtle: #2c2c31;
+        --text-primary: #d6d3cd;
+        --text-secondary: #a3a09a;
+        --text-muted: #9e9b95;
+        --accent: #74a9c9;
+        --accent-soft: #74a9c914; /* 8% same hue */
+        --success: #86b98a;
+        --success-soft: #86b98a14; /* 8% same hue */
+        --warning: #cfae62;
+        --warning-soft: #cfae6214; /* 8% same hue */
+        --purple: #b3a4d6;
+        --purple-soft: #b3a4d614; /* 8% same hue */
+        --danger: #d98890;
+        --danger-soft: #d9889014; /* 8% same hue */
+        --on-primary: #ffffff; /* white label on primary buttons, brand badge, chip-open hover */
+        --primary-gradient-start: #35687f;
+        --primary-gradient-end: #3a728b;
+        --brand-gradient-start: #35687f;
+        --brand-gradient-end: #7d6aa0;
+        /* RD-1/RD-6/RD-7 reserved overlay type roles — defined, consumed by Story 3+ overlays. */
+        --overlay-title-size: 16px;
+        --overlay-body-size: 15px;
+        --overlay-command-size: 14.5px;
+        --overlay-meta-size: 13.5px;
         --radius: 8px;
         --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
         --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
       }
 
+      /* Palette C light overrides (DESIGN.md colors frontmatter, verbatim; --on-primary white passes both gradient sets, so no light override). */
       body.theme-light {
-        --bg-primary: #ffffff;
-        --bg-secondary: #f6f8fa;
-        --bg-tertiary: #eaeef2;
+        --bg-primary: #fbf9f6;
+        --bg-secondary: #f4f1ed;
+        --bg-tertiary: #e9e5df;
         --bg-elevated: #ffffff;
-        --border: #d0d7de;
-        --border-subtle: #e5e9f0;
-        --text-primary: #1f2328;
-        --text-secondary: #59636e;
-        --text-muted: #636c76;
-        --accent: #0757b6;
-        --accent-soft: rgba(7, 87, 182, 0.10);
-        --success: #13712d;
-        --success-soft: rgba(19, 113, 45, 0.10);
-        --warning: #7d4e00;
-        --warning-soft: rgba(125, 78, 0, 0.10);
-        --purple: #7445c7;
-        --purple-soft: rgba(116, 69, 199, 0.10);
-        --danger: #bd1d28;
-        --danger-soft: rgba(189, 29, 40, 0.10);
-        --primary-gradient-start: #0757b6;
-        --primary-gradient-end: #2563eb;
-        --brand-gradient-start: #0757b6;
-        --brand-gradient-end: #7445c7;
+        --border: #d9d3ca;
+        --border-subtle: #e6e1da;
+        --text-primary: #2b2926;
+        --text-secondary: #5c5852;
+        --text-muted: #67625b;
+        --accent: #28627c;
+        --accent-soft: #28627c1a; /* 10% same hue */
+        --success: #2a663c;
+        --success-soft: #2a663c14; /* 8% same hue */
+        --warning: #7d5f22;
+        --warning-soft: #7d5f2214; /* 8% same hue */
+        --purple: #6b5a9c;
+        --purple-soft: #6b5a9c14; /* 8% same hue */
+        --danger: #a4444d;
+        --danger-soft: #a4444d14; /* 8% same hue */
+        --primary-gradient-start: #28627c;
+        --primary-gradient-end: #225468;
+        --brand-gradient-start: #28627c;
+        --brand-gradient-end: #6b5a9c;
       }
 
       * {
@@ -72,8 +80,8 @@
         background: var(--bg-primary);
         color: var(--text-primary);
         font-family: var(--font-sans);
-        font-size: 12.5px;
-        line-height: 1.45;
+        font-size: 14px;
+        line-height: 1.5;
       }
 
       .app-shell {
@@ -109,9 +117,9 @@
         height: 26px;
         border-radius: 6px;
         background: linear-gradient(135deg, var(--brand-gradient-start), var(--brand-gradient-end));
-        color: #fff;
+        color: var(--on-primary);
         font-weight: 700;
-        font-size: 12px;
+        font-size: 12.5px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -124,14 +132,14 @@
 
       .brand-title {
         font-weight: 700;
-        font-size: 13px;
+        font-size: 14px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
       }
 
       .brand-subtitle {
-        font-size: 11px;
+        font-size: 12.5px;
         color: var(--text-secondary);
         white-space: nowrap;
         overflow: hidden;
@@ -157,7 +165,7 @@
         color: var(--text-primary);
         border-radius: 6px;
         padding: 4px 8px;
-        font-size: 11.5px;
+        font-size: 12.5px;
         font-weight: 600;
         cursor: pointer;
         display: inline-flex;
@@ -174,7 +182,7 @@
       .btn-primary {
         background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
         border-color: var(--primary-gradient-start);
-        color: #ffffff;
+        color: var(--on-primary);
       }
 
       .btn-primary:hover {
@@ -200,7 +208,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        font-size: 11px;
+        font-size: 12.5px;
         margin-bottom: 5px;
       }
 
@@ -212,7 +220,7 @@
       .progress-numbers {
         color: var(--text-secondary);
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: 12.5px;
       }
 
       .dual-bar {
@@ -245,7 +253,7 @@
         background: transparent;
         color: var(--text-secondary);
         padding: 6px 3px;
-        font-size: 11px;
+        font-size: 12px;
         font-weight: 600;
         border-radius: 5px;
         cursor: pointer;
@@ -280,7 +288,7 @@
       .toast-banner {
         display: none;
         padding: 6px 12px;
-        font-size: 11.5px;
+        font-size: 12.5px;
         font-weight: 600;
         background: var(--success-soft);
         color: var(--success);
@@ -329,7 +337,7 @@
 
       .section-title {
         font-weight: 700;
-        font-size: 12.5px;
+        font-size: 14px;
         display: flex;
         align-items: center;
         gap: 6px;
@@ -340,7 +348,7 @@
         align-items: center;
         padding: 1.5px 6px;
         border-radius: 999px;
-        font-size: 10.5px;
+        font-size: 12px;
         font-weight: 600;
         font-family: var(--font-mono);
       }
@@ -376,7 +384,7 @@
         padding: 8px 10px;
         border-radius: 0 6px 6px 0;
         margin-top: 6px;
-        font-size: 11.8px;
+        font-size: 12.5px;
       }
 
       .turn-headline {
@@ -387,7 +395,7 @@
 
       .turn-summary {
         color: var(--text-secondary);
-        font-size: 11.3px;
+        font-size: 12.5px;
       }
 
       .rec-card {
@@ -413,13 +421,13 @@
       }
 
       .rec-title {
-        font-weight: 700;
-        font-size: 12.5px;
+        font-weight: 600;
+        font-size: 13px;
         color: var(--text-primary);
       }
 
       .rec-rationale {
-        font-size: 11.5px;
+        font-size: 12.5px;
         color: var(--text-secondary);
         margin: 4px 0 8px;
       }
@@ -435,7 +443,7 @@
       }
 
       .cmd-label {
-        font-size: 10.5px;
+        font-size: 12px;
         color: var(--text-muted);
         font-weight: 600;
         text-transform: uppercase;
@@ -450,8 +458,8 @@
         background: transparent;
         color: var(--accent);
         font-family: var(--font-mono);
-        font-size: 11.5px;
-        line-height: 1.4;
+        font-size: 13.5px;
+        line-height: 1.45;
         resize: vertical;
         min-height: 38px;
         outline: none;
@@ -461,7 +469,7 @@
       .cmd-textarea:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 1px;
-        border-radius: 3px;
+        border-radius: 4px;
       }
 
       .cmd-editor-wrap:focus-within {
@@ -495,7 +503,7 @@
         border-radius: 5px;
         padding: 3px 6px;
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: 12.5px;
         max-width: 100%;
         flex: 1;
         min-width: 150px;
@@ -515,7 +523,7 @@
       }
 
       .model-reason {
-        font-size: 10.8px;
+        font-size: 12px;
         color: var(--text-secondary);
       }
 
@@ -596,7 +604,7 @@
         background: var(--bg-secondary);
         border: 1px solid var(--border);
         overflow: hidden;
-        font-size: 10.5px;
+        font-size: 12px;
         font-family: var(--font-mono);
       }
 
@@ -640,7 +648,7 @@
       }
 
       .art-chip-open:hover {
-        color: #fff;
+        color: var(--on-primary);
         background: var(--accent);
       }
 
@@ -672,7 +680,7 @@
       }
 
       .reconciliation-diff-content {
-        font-size: 11px;
+        font-size: 12.5px;
         max-height: 220px;
         overflow-y: auto;
         font-family: var(--font-mono);
@@ -718,7 +726,7 @@
         color: var(--text-primary);
         border-radius: 6px;
         padding: 5px 8px;
-        font-size: 12px;
+        font-size: 12.5px;
         outline: none;
       }
 
@@ -793,11 +801,11 @@
 
       .story-title {
         font-weight: 600;
-        font-size: 11.8px;
+        font-size: 13px;
       }
 
       .story-evidence {
-        font-size: 11px;
+        font-size: 12.5px;
         color: var(--purple);
         background: var(--purple-soft);
         padding: 3px 6px;
@@ -818,13 +826,13 @@
       }
 
       .insight-title {
-        font-weight: 700;
-        font-size: 11.5px;
+        font-weight: 600;
+        font-size: 13px;
         margin-bottom: 2px;
       }
 
       .insight-detail {
-        font-size: 11px;
+        font-size: 12.5px;
         color: var(--text-secondary);
       }
 
@@ -834,7 +842,7 @@
         border-radius: 6px;
         padding: 8px 10px;
         font-family: var(--font-mono);
-        font-size: 11px;
+        font-size: 12.5px;
         white-space: pre-wrap;
         max-height: 360px;
         overflow-y: auto;
@@ -846,7 +854,7 @@
         background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--purple) 14%, transparent));
         border-bottom: 1px solid var(--accent);
         padding: 7px 11px;
-        font-size: 11.2px;
+        font-size: 12.5px;
       }
 
       .live-queue-banner.visible {
@@ -926,7 +934,7 @@
 
       .queue-prompt-inset {
         font-family: var(--font-mono);
-        font-size: 10.5px;
+        font-size: 12.5px;
         color: var(--text-secondary);
         background: var(--bg-primary);
         padding: 5px 7px;
@@ -942,7 +950,7 @@
         padding: 14px 12px;
         text-align: center;
         color: var(--text-secondary);
-        font-size: 11.3px;
+        font-size: 12.5px;
         margin-bottom: 10px;
       }
 
@@ -952,6 +960,32 @@
         accent-color: var(--accent);
         cursor: pointer;
         flex-shrink: 0;
+      }
+
+      /* RD-1 closed type ramp — role utilities for dynamically rendered markup (never inline font-size). */
+      .text-caption {
+        font-size: 12.5px;
+        color: var(--text-secondary);
+      }
+
+      .text-micro {
+        font-size: 12px;
+      }
+
+      .text-mono-meta {
+        font-size: 12.5px;
+        font-family: var(--font-mono);
+      }
+
+      /* The label-caps role: the single collapsed style for form labels (queue controls, queue items). */
+      .label-caps {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        display: block;
+        margin-bottom: 3px;
       }
     </style>
   </head>
@@ -1025,9 +1059,9 @@
           <div class="section-header" style="margin: 8px 2px 6px; flex-wrap: wrap; gap: 6px;">
             <div class="section-title">🚀 Next BMAD Prompts (Select Multiple to Queue or Launch Directly)</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
-              <button type="button" class="btn" id="btnSelectAllRecs" style="padding:2px 7px;font-size:10.5px;" title="Select or deselect all recommended tasks">☑️ Select All</button>
-              <button type="button" class="btn btn-purple" id="btnQueueSelectedRecs" style="padding:2px 8px;font-size:10.5px;" title="Add checked recommendations with their selected models to the execution queue">➕ Add Checked to Queue</button>
-              <button type="button" class="btn btn-primary" id="btnGoToQueueFromAdvisor" style="padding:2px 8px;font-size:10.5px;" title="Open the Multi-Task Queue Runner">⛓️ Open Queue</button>
+              <button type="button" class="btn" id="btnSelectAllRecs" style="padding:2px 7px;" title="Select or deselect all recommended tasks">☑️ Select All</button>
+              <button type="button" class="btn btn-purple" id="btnQueueSelectedRecs" style="padding:2px 8px;" title="Add checked recommendations with their selected models to the execution queue">➕ Add Checked to Queue</button>
+              <button type="button" class="btn btn-primary" id="btnGoToQueueFromAdvisor" style="padding:2px 8px;" title="Open the Multi-Task Queue Runner">⛓️ Open Queue</button>
             </div>
           </div>
           <div id="recommendationsList"></div>
@@ -1046,7 +1080,7 @@
             <div class="section-header" style="flex-wrap: wrap; gap: 6px;">
               <div>
                 <div class="section-title">⛓️ Multi-Task Execution Queue & Per-Task Model Orchestrator</div>
-                <div style="font-size: 11px; color: var(--text-secondary); margin-top: 2px;">
+                <div class="text-caption" style="margin-top: 2px;">
                   Queue multiple recommended tasks or an entire epic, pick an AI model & token-saving review gate per task, and run them automatically in separate sessions or as a compiled ZCode Dynamic Workflow (<code>.dwf.ts</code>).
                 </div>
               </div>
@@ -1055,7 +1089,7 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
               <div>
-                <label for="queueDefaultReviewSelect" style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
+                <label for="queueDefaultReviewSelect" class="label-caps">
                   🛡️ Default Review & Token Gate (Applies to Queue)
                 </label>
                 <select class="model-select" id="queueDefaultReviewSelect" aria-label="Default Review & Token Gate (Applies to Queue)" style="width: 100%;">
@@ -1065,7 +1099,7 @@
                 </select>
               </div>
               <div>
-                <label for="queueEpicPicker" style="font-size: 10.5px; color: var(--text-secondary); display: block; margin-bottom: 3px; font-weight: 600;">
+                <label for="queueEpicPicker" class="label-caps">
                   📦 Quick-Enqueue Entire Epic (Build Order)
                 </label>
                 <div style="display: flex; gap: 4px;">
@@ -1120,7 +1154,7 @@
               <div class="section-title">📈 Static Tracker vs. Smart AI Reconciliation</div>
               <span class="pill pill-success" id="reconciledBadge">Smart Verified</span>
             </div>
-            <div id="metricsBreakdown" style="font-size: 11.5px; color: var(--text-secondary);"></div>
+            <div id="metricsBreakdown" class="text-caption"></div>
             <div style="display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap;">
               <button type="button" class="btn btn-primary" id="btnReconcileTrackers" title="Reconcile and write back Smart AI status findings into sprint-status.yaml and/or tickets.toml">
                 ⚡ Reconcile Trackers with Reality
@@ -1130,9 +1164,9 @@
               </button>
             </div>
             <div id="reconciliationDiffCard" class="reconciliation-diff-card">
-              <div style="font-weight: 700; font-size: 11.5px; margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center;">
+              <div class="section-title" style="justify-content: space-between; margin-bottom: 5px;">
                 <span id="diffCardTitle">Reconciliation Preview</span>
-                <button type="button" class="btn" id="btnCloseDiff" style="padding: 1px 6px; font-size: 10px;">✕ Close</button>
+                <button type="button" class="btn" id="btnCloseDiff" style="padding: 1px 6px;">✕ Close</button>
               </div>
               <div id="diffCardContent" class="reconciliation-diff-content"></div>
             </div>
@@ -1141,8 +1175,8 @@
           <div class="section-header" style="margin: 8px 2px 6px;">
             <div class="section-title">🏛️ 4-Phase BMAD-METHOD Lifecycle</div>
             <div style="display:flex;gap:4px;">
-              <button type="button" class="btn" id="btnExpandAllPhases" style="padding:2px 6px;font-size:10.5px;">Expand All</button>
-              <button type="button" class="btn" id="btnCollapseAllPhases" style="padding:2px 6px;font-size:10.5px;">Collapse All</button>
+              <button type="button" class="btn" id="btnExpandAllPhases" style="padding:2px 6px;">Expand All</button>
+              <button type="button" class="btn" id="btnCollapseAllPhases" style="padding:2px 6px;">Collapse All</button>
             </div>
           </div>
           <div id="phasesList"></div>
@@ -1193,7 +1227,7 @@
             <div class="section-header" style="flex-wrap: wrap;">
               <div style="min-width: 0;">
                 <div class="section-title" id="previewFileName" style="font-family: var(--font-mono); color: var(--accent); overflow-wrap: anywhere; word-break: break-word;">Artifact Preview</div>
-                <div id="previewMetaSubtitle" style="font-size: 10.8px; color: var(--text-secondary); margin-top: 2px;"></div>
+                <div id="previewMetaSubtitle" class="text-micro" style="color: var(--text-secondary); margin-top: 2px;"></div>
               </div>
               <div style="display: flex; gap: 5px; flex-wrap: wrap;">
                 <button type="button" class="btn btn-purple" id="btnToggleDiffMode" aria-pressed="true" title="Switch between Git Diff and Full Content">🔀 Git Diff</button>
@@ -1211,7 +1245,7 @@
               <div class="section-title">🕒 Workspace BMAD Artifacts (Ordered by Last Modified)</div>
               <span class="pill pill-accent" id="artifactCountBadge">0 files</span>
             </div>
-            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">
+            <div class="text-caption" style="margin-bottom: 8px;">
               Sorted newest-modified first. Click <b>🔀 Diff</b> to inspect the artifact's diff, or <b>↗ Open</b> to launch it in your editor.
             </div>
             <div class="filter-bar">
@@ -1838,14 +1872,14 @@
                     ${counts.failed > 0 ? `<span class="pill pill-danger">⚠️ ${escapeHtml(counts.failed)} Failed</span>` : ""}
                     ${
                       active
-                        ? `<button type="button" class="btn btn-primary" id="bannerBtnCompleteActive" style="padding:2px 7px;font-size:10.3px;" title="Mark the active task Done and continue with the next queued task in the current execution mode">✓ Done & Continue</button>`
+                        ? `<button type="button" class="btn btn-primary" id="bannerBtnCompleteActive" style="padding:2px 7px;" title="Mark the active task Done and continue with the next queued task in the current execution mode">✓ Done & Continue</button>`
                         : counts.queued > 0
-                          ? `<button type="button" class="btn btn-primary" id="bannerBtnRunWorkflow" style="padding:2px 7px;font-size:10.3px;" title="Continue the queued tasks in the current execution mode">${q.executionMode === "separate-sessions" ? "▶ Continue Queue" : "⚡ Run Workflow"}</button>`
+                          ? `<button type="button" class="btn btn-primary" id="bannerBtnRunWorkflow" style="padding:2px 7px;" title="Continue the queued tasks in the current execution mode">${q.executionMode === "separate-sessions" ? "▶ Continue Queue" : "⚡ Run Workflow"}</button>`
                           : counts.failed > 0
-                            ? `<button type="button" class="btn btn-primary" id="bannerBtnRetryFailed" style="padding:2px 7px;font-size:10.3px;" title="Reset failed task(s) back to Queued so you can re-run them">↻ Retry Failed</button>`
+                            ? `<button type="button" class="btn btn-primary" id="bannerBtnRetryFailed" style="padding:2px 7px;" title="Reset failed task(s) back to Queued so you can re-run them">↻ Retry Failed</button>`
                             : ""
                     }
-                    <button type="button" class="btn" id="bannerBtnOpenQueue" style="padding:2px 7px;font-size:10.3px;">⛓️ View Queue</button>
+                    <button type="button" class="btn" id="bannerBtnOpenQueue" style="padding:2px 7px;">⛓️ View Queue</button>
                   </div>
                 </div>
                 <div class="dual-bar" style="height:4px;margin-top:5px;">
@@ -1951,7 +1985,7 @@
                       <span class="pill pill-accent">review: ${escapeHtml(act.reviewMode || "none")}</span>
                     </div>
                   </div>
-                  <div style="font-weight:700;font-size:12.2px;margin-bottom:4px;">${escapeHtml(act.title)}</div>
+                  <div class="section-title" style="margin-bottom:4px;">${escapeHtml(act.title)}</div>
                   <div class="queue-prompt-inset">
                     ${escapeHtml(act.effectivePrompt)}
                   </div>
@@ -1968,8 +2002,8 @@
           if (!(q.items || []).length) {
             listEl.innerHTML = `
               <div class="empty-state-card" style="padding:16px 12px;">
-                <div style="font-weight:700;font-size:12px;color:var(--text-primary);margin-bottom:4px;">Your BMAD Execution Queue is Empty</div>
-                <div style="font-size:11px;">
+                <div class="section-title" style="color:var(--text-primary);margin-bottom:4px;justify-content:center;">Your BMAD Execution Queue is Empty</div>
+                <div class="text-caption">
                   Select an Epic above and click <b>➕ Queue Epic</b>, or check multiple tasks in <b>⚡ Next Prompts</b> / <b>📊 Phases & Epics</b> to enqueue them with per-task AI models.
                 </div>
               </div>
@@ -1995,7 +2029,7 @@
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
                     <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
                       <span class="pill pill-purple" style="flex-shrink:0;">#${idx + 1}</span>
-                      <span style="font-weight:700;font-size:11.8px;min-width:0;overflow-wrap:anywhere;">${escapeHtml(it.title)}</span>
+                      <span class="story-title" style="min-width:0;overflow-wrap:anywhere;">${escapeHtml(it.title)}</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;flex-wrap:wrap;">
                       ${it.storyId ? `<span class="pill pill-purple">Story ${escapeHtml(it.storyId)}</span>` : ""}
@@ -2005,13 +2039,13 @@
 
                   <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:6px;margin-bottom:6px;">
                     <div>
-                      <label for="q-model-${idx}" style="font-size:10px;color:var(--text-muted);margin-bottom:2px;display:block;">Assigned AI Model for this Task:</label>
+                      <label for="q-model-${idx}" class="label-caps">Assigned AI Model for this Task:</label>
                       <select class="model-select" id="q-model-${idx}" data-q-model="${escapeHtml(it.id)}" aria-label="Assigned AI Model for ${escapeHtml(it.title)}" style="width:100%;">
                         ${buildModelSelectOptions(it.model, it.model)}
                       </select>
                     </div>
                     <div>
-                      <label for="q-review-${idx}" style="font-size:10px;color:var(--text-muted);margin-bottom:2px;display:block;">Review & Token Gate:</label>
+                      <label for="q-review-${idx}" class="label-caps">Review & Token Gate:</label>
                       <select class="model-select" id="q-review-${idx}" data-q-review="${escapeHtml(it.id)}" aria-label="Review and Token Gate for ${escapeHtml(it.title)}" style="width:100%;">
                         <option value="none" ${it.reviewMode === "none" ? "selected" : ""}>⚡ Minimal (Oneshot + Tests · 0 LLM Review)</option>
                         <option value="quick" ${it.reviewMode === "quick" ? "selected" : ""}>🔍 Quick (Oneshot + 1 Quick Pass)</option>
@@ -2026,27 +2060,27 @@
                   ${
                     it.resultSummary
                       ? isFailed
-                        ? `<div style="font-size:10.7px;color:var(--danger);background:var(--danger-soft);border:1px solid color-mix(in srgb, var(--danger) 30%, transparent);border-radius:5px;padding:5px 7px;margin-bottom:6px;word-break:break-word;">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
-                        : `<div style="font-size:10.7px;color:var(--success);margin-bottom:5px;">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
+                        ? `<div class="text-micro" style="color:var(--danger);background:var(--danger-soft);border:1px solid color-mix(in srgb, var(--danger) 30%, transparent);border-radius:5px;padding:5px 7px;margin-bottom:6px;word-break:break-word;">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
+                        : `<div class="text-micro" style="color:var(--success);margin-bottom:5px;">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
                       : ""
                   }
 
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:5px;flex-wrap:wrap;">
                     <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                      <button type="button" class="btn" style="padding:2px 6px;font-size:10px;" data-q-move="up" data-q-id="${escapeHtml(it.id)}" ${idx === 0 ? "disabled" : ""} title="Move task earlier in queue">↑ Up</button>
-                      <button type="button" class="btn" style="padding:2px 6px;font-size:10px;" data-q-move="down" data-q-id="${escapeHtml(it.id)}" ${idx === q.items.length - 1 ? "disabled" : ""} title="Move task later in queue">↓ Down</button>
+                      <button type="button" class="btn" style="padding:2px 6px;" data-q-move="up" data-q-id="${escapeHtml(it.id)}" ${idx === 0 ? "disabled" : ""} title="Move task earlier in queue">↑ Up</button>
+                      <button type="button" class="btn" style="padding:2px 6px;" data-q-move="down" data-q-id="${escapeHtml(it.id)}" ${idx === q.items.length - 1 ? "disabled" : ""} title="Move task later in queue">↓ Down</button>
                       ${
                         isFailed
-                          ? `<button type="button" class="btn btn-primary" style="padding:2px 7px;font-size:10px;" data-q-retry="${escapeHtml(it.id)}" title="Reset this failed task back to Queued so it can run again">↻ Retry / Re-queue</button>`
+                          ? `<button type="button" class="btn btn-primary" style="padding:2px 7px;" data-q-retry="${escapeHtml(it.id)}" title="Reset this failed task back to Queued so it can run again">↻ Retry / Re-queue</button>`
                           : isAct
                             ? ""
-                            : `<button type="button" class="btn" style="padding:2px 7px;font-size:10px;" data-q-activate="${escapeHtml(it.id)}" title="Mark this task as the currently active task">🟢 Set Active</button>`
+                            : `<button type="button" class="btn" style="padding:2px 7px;" data-q-activate="${escapeHtml(it.id)}" title="Mark this task as the currently active task">🟢 Set Active</button>`
                       }
-                      <button type="button" class="btn" style="padding:2px 7px;font-size:10px;" data-q-done="${escapeHtml(it.id)}" ${isDone ? "disabled" : ""} title="Mark this task as Done and advance queue">✓ Mark Done</button>
+                      <button type="button" class="btn" style="padding:2px 7px;" data-q-done="${escapeHtml(it.id)}" ${isDone ? "disabled" : ""} title="Mark this task as Done and advance queue">✓ Mark Done</button>
                     </div>
                     <div style="display:flex;gap:4px;">
-                      <button type="button" class="btn btn-primary" style="padding:2px 7px;font-size:10px;" data-q-launch-single="${escapeHtml(it.id)}" title="Open a single new conversation for this task with its prompt pre-pasted">🚀 New Session</button>
-                      <button type="button" class="btn" style="padding:2px 7px;font-size:10px;color:var(--danger);" data-q-remove="${escapeHtml(it.id)}" aria-label="Remove ${escapeHtml(it.title)} from queue" title="Remove task from queue">✕</button>
+                      <button type="button" class="btn btn-primary" style="padding:2px 7px;" data-q-launch-single="${escapeHtml(it.id)}" title="Open a single new conversation for this task with its prompt pre-pasted">🚀 New Session</button>
+                      <button type="button" class="btn" style="padding:2px 7px;color:var(--danger);" data-q-remove="${escapeHtml(it.id)}" aria-label="Remove ${escapeHtml(it.title)} from queue" title="Remove task from queue">✕</button>
                     </div>
                   </div>
                 </div>
@@ -2470,13 +2504,13 @@
               const bodyHtml = isExpanded
                 ? `
                   <div class="phase-body">
-                    <div style="font-size:11.3px;color:var(--text-secondary);margin-bottom:6px;">
+                    <div class="text-caption" style="margin-bottom:6px;">
                       ${escapeHtml(p.summary)}
                     </div>
-                    <div style="font-size:10.5px;color:var(--text-muted);margin-bottom:4px;">
+                    <div class="text-micro" style="color:var(--text-muted);margin-bottom:4px;">
                       Generated Artifacts (${escapeHtml(artCount)}) — click file name to view diff, or <b>↗</b> to open file:
                     </div>
-                    <div class="phase-artifacts">${chips || `<span style="font-size:11px;color:var(--text-muted);">No artifacts generated in this phase yet.</span>`}</div>
+                    <div class="phase-artifacts">${chips || `<span class="text-caption" style="color:var(--text-muted);">No artifacts generated in this phase yet.</span>`}</div>
                   </div>
                 `
                 : "";
@@ -2600,10 +2634,10 @@
                               🤖 ${escapeHtml(stModelShort)}
                             </span>
                             <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                              <button type="button" class="btn btn-purple" style="padding:2px 7px;font-size:10.5px;" data-queue-story-id="${escapeHtml(s.id)}" data-queue-story-override="${escapeHtml(s.overrideKey)}" data-queue-story-epic="${escapeHtml(epic.slug)}" data-queue-story-title="${escapeHtml(`Story ${s.id}: ${s.title}`)}" data-queue-story-prompt="${escapeHtml(smartPrompt)}" data-queue-story-model="${escapeHtml(stModel)}" data-queue-story-verify="${escapeHtml(s.verify || "")}">
+                              <button type="button" class="btn btn-purple" style="padding:2px 7px;" data-queue-story-id="${escapeHtml(s.id)}" data-queue-story-override="${escapeHtml(s.overrideKey)}" data-queue-story-epic="${escapeHtml(epic.slug)}" data-queue-story-title="${escapeHtml(`Story ${s.id}: ${s.title}`)}" data-queue-story-prompt="${escapeHtml(smartPrompt)}" data-queue-story-model="${escapeHtml(stModel)}" data-queue-story-verify="${escapeHtml(s.verify || "")}">
                                 ${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Queue Story"}
                               </button>
-                              <button type="button" class="btn btn-primary" style="padding:2px 7px;font-size:10.5px;" data-story-prompt="${escapeHtml(smartPrompt)}" data-story-model="${escapeHtml(stModel)}" data-story-title="${escapeHtml(s.title)}">
+                              <button type="button" class="btn btn-primary" style="padding:2px 7px;" data-story-prompt="${escapeHtml(smartPrompt)}" data-story-model="${escapeHtml(stModel)}" data-story-title="${escapeHtml(s.title)}">
                                 🚀 New Session
                               </button>
                             </div>
@@ -2619,15 +2653,15 @@
               <div class="epic-box">
                 <div class="epic-summary">
                   <button type="button" class="epic-toggle-btn" aria-expanded="${isExpanded ? "true" : "false"}" data-epic-toggle="${escapeHtml(epic.id)}">
-                    <div style="font-weight:700;font-size:12px;">
+                    <div class="section-title">
                       ${isExpanded ? "▾" : "▸"} Epic ${escapeHtml(epic.number)} · ${escapeHtml(epic.title)}
                     </div>
-                    <div style="font-size:10.8px;color:var(--text-secondary);">
+                    <div class="text-micro" style="color:var(--text-secondary);">
                       ${filteredStories.length} stories ${epic.hasRetrospective ? "· ✓ Retrospective complete" : ""}
                     </div>
                   </button>
                   <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
-                    <button type="button" class="btn btn-purple" style="padding:2px 7px;font-size:10.2px;" data-queue-epic-slug="${escapeHtml(epic.slug)}" ${openStoriesCount === 0 ? "disabled" : ""} title="${openStoriesCount === 0 ? `All stories in Epic ${escapeHtml(epic.number)} are already done` : `Enqueue all ${openStoriesCount} open stories of Epic ${escapeHtml(epic.number)} in build order`}">
+                    <button type="button" class="btn btn-purple" style="padding:2px 7px;" data-queue-epic-slug="${escapeHtml(epic.slug)}" ${openStoriesCount === 0 ? "disabled" : ""} title="${openStoriesCount === 0 ? `All stories in Epic ${escapeHtml(epic.number)} are already done` : `Enqueue all ${openStoriesCount} open stories of Epic ${escapeHtml(epic.number)} in build order`}">
                       ${openStoriesCount === 0 ? "✓ All Done" : `➕ Queue Epic (${openStoriesCount})`}
                     </button>
                     ${statusPill}
@@ -2770,7 +2804,7 @@
                       </div>
                     </div>
                     <div class="rec-rationale">${escapeHtml(s.description)}</div>
-                    ${flow ? `<div style="font-size:10.5px;color:var(--text-muted);margin-bottom:6px;font-family:var(--font-mono);">${escapeHtml(flow)}</div>` : ""}
+                    ${flow ? `<div class="text-mono-meta" style="color:var(--text-muted);margin-bottom:6px;">${escapeHtml(flow)}</div>` : ""}
                     <div class="cmd-editor-wrap">
                       <label class="cmd-label" for="cat-cmd-${idx}">
                         <span>BMAD Skill Command (Editable)</span>
@@ -2880,7 +2914,7 @@
                     <div class="agent-card">
                       <div style="min-width:0;flex:1;">
                         <div style="font-weight:700;">${escapeHtml(a.icon)} ${escapeHtml(a.name)} — ${escapeHtml(a.title)}</div>
-                        <div style="font-size:11px;color:var(--text-secondary);">${escapeHtml(a.focus)}</div>
+                        <div class="text-caption">${escapeHtml(a.focus)}</div>
                         <div style="margin-top:3px;"><span class="pill pill-purple">🤖 ${escapeHtml(aShort)}</span></div>
                       </div>
                       <button type="button" class="btn btn-primary" style="flex-shrink:0;" data-agent-cmd="${escapeHtml(agentCmd)}" data-agent-model="${escapeHtml(aModel)}" data-agent-name="${escapeHtml(a.name)}">
@@ -2944,20 +2978,20 @@
               return `
                 <div class="insight-item${isInspecting ? " is-inspecting" : ""}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                   <button type="button" class="art-row-btn" data-open-art="${escapeHtml(a.relPath)}" aria-label="Inspect ${escapeHtml(a.relPath)}">
-                    <div class="art-row-path" style="font-weight:600;font-family:var(--font-mono);font-size:11.3px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                    <div class="art-row-path text-mono-meta" style="font-weight:600;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                       ${escapeHtml(a.relPath)}
                     </div>
-                    <div style="font-size:10.6px;color:var(--text-secondary);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px;">
+                    <div class="text-micro" style="color:var(--text-secondary);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px;">
                       <span>🕒 ${escapeHtml(formatTimestamp(a.mtimeMs))}</span>
                       <span>· ${escapeHtml(a.kind)} (${escapeHtml(a.phaseName || a.phaseId)})</span>
                       ${statusBadge}
                     </div>
                   </button>
                   <div style="display:flex;gap:4px;flex-shrink:0;">
-                    <button type="button" class="btn btn-purple" style="padding:3px 7px;font-size:10.5px;" data-open-art="${escapeHtml(a.relPath)}" title="View Git Diff & Content">
+                    <button type="button" class="btn btn-purple" style="padding:3px 7px;" data-open-art="${escapeHtml(a.relPath)}" title="View Git Diff & Content">
                       🔀 Diff
                     </button>
-                    <button type="button" class="btn" style="padding:3px 7px;font-size:10.5px;" data-ext-art="${escapeHtml(a.relPath)}" title="Open file in desktop editor">
+                    <button type="button" class="btn" style="padding:3px 7px;" data-ext-art="${escapeHtml(a.relPath)}" title="Open file in desktop editor">
                       ↗ Open
                     </button>
                   </div>
@@ -3065,9 +3099,9 @@
                 .map(
                   (c) => `
                 <div style="margin-bottom: 5px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 3px;">
-                  <span style="color:var(--text-muted);font-size:10px;">${escapeHtml(c.file)}</span><br/>
+                  <span style="color:var(--text-muted);">${escapeHtml(c.file)}</span><br/>
                   <b>${escapeHtml(c.key)}</b>: <span style="color:var(--danger);">${escapeHtml(c.oldStatus)}</span> → <b style="color:var(--success);">${escapeHtml(c.newStatus)}</b>
-                  <div style="font-size:10px;color:var(--text-secondary);">${escapeHtml(c.reason)}</div>
+                  <div style="color:var(--text-secondary);">${escapeHtml(c.reason)}</div>
                 </div>
               `
                 )
