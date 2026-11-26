@@ -860,7 +860,8 @@ describe("Closing end-to-end suite (Story 6.7 — UJ-1..UJ-4 & SM-1..SM-5)", () 
         toolCall(2, "bmad_queue_manage", {
           action: "add-epic",
           epicSlug: "epic-auth",
-          includeDone: false
+          includeDone: false,
+          splitPlanBuild: false
         })
       ]
     });

@@ -98,6 +98,7 @@ describe("bmad-companion test harness helpers", () => {
     const added = manageBmadTaskQueue(ws.root, {
       action: "add",
       executionMode: "separate-sessions",
+      splitPlanBuild: false,
       items: [
         {
           title: "Story 1: Env strip guard",
@@ -179,6 +180,7 @@ describe("bmad-companion test harness helpers", () => {
           const explicitAdded = manageBmadTaskQueue(wsExplicit.root, {
             action: "add",
             executionMode: "separate-sessions",
+            splitPlanBuild: false,
             items: [
               {
                 title: "Story 1: Explicit env override",

@@ -24,6 +24,7 @@ function addTwoTasks(ws, executionMode = "separate-sessions") {
   return manageBmadTaskQueue(ws.root, {
     action: "add",
     executionMode,
+    splitPlanBuild: false,
     items: [
       {
         title: "Story 2.1: Atomic tracer",
@@ -434,5 +435,81 @@ describe("bmad-companion queue handoff chain", () => {
     const resetSecond = retriedAll.taskQueue.items.find((it) => it.id === second.id);
     assert.equal(resetSecond.status, "queued");
     assert.equal(resetSecond.resultSummary, null);
+  });
+
+  it("chains Plan (Planner model) -> Stop hook ('in-progress') -> Build (Coder model) -> Stop hook ('done') without storyId collision", async () => {
+    const ws = workspaces.seed();
+    const added = manageBmadTaskQueue(ws.root, {
+      action: "add-epic",
+      epicSlug: "epic-core",
+      includeDone: false,
+      executionMode: "separate-sessions",
+      plannerModel: "new-provider/claude-opus-5-5-high",
+      builderModel: "new-provider/claude-sonnet-5-5-high"
+    });
+    assert.equal(added.taskQueue.items.length, 2);
+    const [planTask, buildTask] = added.taskQueue.items;
+
+    // 1. UserPromptSubmit with Build prompt must NOT auto-start the queued Plan task despite shared storyId
+    const wrongPromptRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      env: { CLAUDE_SESSION_ID: "sess_wrong" },
+      payload: { prompt: buildTask.effectivePrompt }
+    });
+    assertSingleJsonObjectStdout(wrongPromptRes);
+    const stateAfterBuildPrompt = loadPersistedState(ws.root);
+    assert.equal(stateAfterBuildPrompt.taskQueue.items[0].status, "queued", "build prompt must not claim plan task");
+    assert.equal(stateAfterBuildPrompt.taskQueue.items[1].status, "running", "build prompt claims build task only");
+
+    // Reset buildTask back to queued and test the true Plan -> Build handoff sequence
+    manageBmadTaskQueue(ws.root, { action: "update-item", taskId: buildTask.id, status: "queued" });
+    manageBmadTaskQueue(ws.root, { action: "start-queue", executionMode: "separate-sessions" });
+
+    const upPlanRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      env: { CLAUDE_SESSION_ID: "sess_planner_1" },
+      payload: { prompt: planTask.effectivePrompt }
+    });
+    assertSingleJsonObjectStdout(upPlanRes);
+    assert.equal(loadPersistedState(ws.root).taskQueue.activeTaskId, planTask.id);
+
+    const stopPlanRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      env: { CLAUDE_SESSION_ID: "sess_planner_1" },
+      payload: { last_assistant_message: "Wrote ready-for-dev plan and halted." }
+    });
+    const planStopFrame = assertSingleJsonObjectStdout(stopPlanRes);
+    assert.equal(planStopFrame.decision, "block");
+    assert.ok(planStopFrame.reason.includes(buildTask.id));
+    assert.ok(planStopFrame.reason.includes("new-provider/claude-sonnet-5-5-high"));
+
+    const midState = loadPersistedState(ws.root);
+    assert.equal(midState.storyOverrides[planTask.overrideKey]?.status, "in-progress", "completing Plan step must leave story in-progress");
+
+    // 2. Now run Build session and finish it -> marks story done and completes queue
+    const upBuildRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      env: { CLAUDE_SESSION_ID: "sess_builder_1" },
+      payload: { prompt: buildTask.effectivePrompt }
+    });
+    assertSingleJsonObjectStdout(upBuildRes);
+    assert.equal(loadPersistedState(ws.root).taskQueue.activeTaskId, buildTask.id);
+
+    const stopBuildRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      env: { CLAUDE_SESSION_ID: "sess_builder_1" },
+      payload: { last_assistant_message: "Implemented and verified Story 1.2." }
+    });
+    const buildStopFrame = assertSingleJsonObjectStdout(stopBuildRes);
+    assert.deepEqual(buildStopFrame, {});
+
+    const finalState = loadPersistedState(ws.root);
+    assert.equal(finalState.taskQueue.status, "completed");
+    assert.equal(finalState.storyOverrides[buildTask.overrideKey]?.status, "done");
   });
 });

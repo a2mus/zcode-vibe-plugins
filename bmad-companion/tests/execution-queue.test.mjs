@@ -30,6 +30,7 @@ describe("Epic 5 Story 5.1: Queue lifecycle tracer (add -> start-task -> complet
     // 1. ADD
     const addResult = manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       item: {
         id: "task-tracer-1",
         title: "Story 5.1: Queue lifecycle tracer",
@@ -158,6 +159,7 @@ describe("Epic 5 Story 5.1: Queue lifecycle tracer (add -> start-task -> complet
     // Add two tasks via options.items
     const added = manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       items: [
         {
           id: "step-1",
@@ -232,6 +234,7 @@ describe("Epic 5 Story 5.1: Queue lifecycle tracer (add -> start-task -> complet
     // Add a task tied to a workspace story via overrideKey
     manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       item: {
         id: "task-story-sync",
         title: "Seed Fixture Story Implementation",
@@ -316,6 +319,7 @@ describe("Epic 5 Story 5.1: Queue lifecycle tracer (add -> start-task -> complet
 
     const result = manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       id: "direct-add-1",
       title: "Direct Task",
       prompt: '/bmad-build-auto "Direct task prompt"',
@@ -339,6 +343,7 @@ describe("Epic 5 Story 5.2: 14-action queue contract + per-task model/reviewMode
     // 1. add with heterogeneous per-task models and reviewModes
     const added = manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       items: [
         {
           id: "t-none",
@@ -409,6 +414,7 @@ describe("Epic 5 Story 5.2: 14-action queue contract + per-task model/reviewMode
 
     manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       items: [
         { id: "rev-1", title: "One", prompt: '/bmad-build-auto "One"', reviewMode: "none" },
         { id: "rev-2", title: "Two", prompt: '/bmad-build-auto "Two"', reviewMode: "quick" },
@@ -474,6 +480,7 @@ describe("Epic 5 Story 5.2: 14-action queue contract + per-task model/reviewMode
       action: "add-epic",
       epicSlug: "epic-core",
       includeDone: false,
+      splitPlanBuild: false,
       model: "new-provider/epic-model"
     });
     assert.equal(epicOpenOnly.action, "add-epic");
@@ -487,6 +494,7 @@ describe("Epic 5 Story 5.2: 14-action queue contract + per-task model/reviewMode
       action: "add-epic",
       epicSlug: "epic-core",
       includeDone: true,
+      splitPlanBuild: false,
       reviewMode: "quick"
     });
     assert.equal(epicWithDone.taskQueue.items.length, 2);
@@ -510,6 +518,7 @@ describe("Epic 5 Story 5.2: 14-action queue contract + per-task model/reviewMode
 
     manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       items: [
         { id: "q-1", title: "First", prompt: '/bmad-build-auto "First"' },
         { id: "q-2", title: "Second", prompt: '/bmad-build-auto "Second"' },
@@ -787,7 +796,8 @@ describe("Epic 5 Story 5.3: Review-mode prompt shaping (none/quick/thorough)", (
       action: "add-epic",
       epicSlug: "epic-core",
       reviewMode: "thorough",
-      includeDone: true
+      includeDone: true,
+      splitPlanBuild: false
     });
 
     assert.ok(addedEpic.taskQueue.items.length > 0);
@@ -879,6 +889,7 @@ describe("Epic 5 Story 5.4: Dual execution engine generation (.dwf.ts + step-upd
     manageBmadTaskQueue(ws.root, {
       action: "add",
       executionMode: "dynamic-workflow",
+      splitPlanBuild: false,
       items: [
         {
           id: "t-done",
@@ -986,6 +997,7 @@ describe("Epic 5 Story 5.4: Dual execution engine generation (.dwf.ts + step-upd
 
     manageBmadTaskQueue(ws.root, {
       action: "add",
+      splitPlanBuild: false,
       items: [
         {
           id: "sep-done",
@@ -1173,7 +1185,7 @@ describe("Epic 5 Story 5.5: Queue MCP tool contract + storyOverrides sync", () =
     const mcpRes = await runMcpServer({
       workspaceRoot: ws.root,
       requests: [
-        queueToolCall(1, { action: "add-epic", epicSlug: "epic-core", includeDone: false }),
+        queueToolCall(1, { action: "add-epic", epicSlug: "epic-core", includeDone: false, splitPlanBuild: false }),
         queueToolCall(2, { action: "start-queue", executionMode: "dynamic-workflow" }),
         queueToolCall(3, { action: "start-task", taskId: "qtask-epic-core-1-2", sessionId: "sess-mcp-55" }),
         queueToolCall(4, {
@@ -1241,6 +1253,7 @@ describe("Epic 5 Story 5.5: Queue MCP tool contract + storyOverrides sync", () =
       requests: [
         queueToolCall(1, {
           action: "add",
+          splitPlanBuild: false,
           items: [
             {
               id: "task-review-gate",
@@ -1304,7 +1317,7 @@ describe("Epic 5 Story 5.5: Queue MCP tool contract + storyOverrides sync", () =
     const mcpRes = await runMcpServer({
       workspaceRoot: ws.root,
       requests: [
-        queueToolCall(1, { action: "add-epic", epicSlug: "epic-core", includeDone: false }),
+        queueToolCall(1, { action: "add-epic", epicSlug: "epic-core", includeDone: false, splitPlanBuild: false }),
         queueToolCall(2, { action: "start-task", taskId: "qtask-epic-core-1-2" }),
         queueToolCall(3, { action: "bogus-action" }),
         queueToolCall(4, { action: "complete-task", taskId: "qtask-epic-core-1-2", storyStatus: "invalid-status" }),
@@ -1332,5 +1345,205 @@ describe("Epic 5 Story 5.5: Queue MCP tool contract + storyOverrides sync", () =
     assert.equal(afterGet.taskQueue.items[0].status, "running");
   });
 });
+
+describe("Two-Model Plan -> Build Auto-Split (default ON)", () => {
+  it("defaults splitPlanBuild to true, splits add-epic stories interleaved with Planner/Builder models, and leaves non-build skills single-step", () => {
+    const emptyView = buildTaskQueueView(null, [], []);
+    assert.equal(emptyView.splitPlanBuild, true);
+    assert.equal(emptyView.plannerModel, null);
+    assert.equal(emptyView.builderModel, null);
+
+    const ws = workspaces.seed();
+    // Add a second open story so interleaving (Plan 1 -> Build 1 -> Plan 2 -> Build 2) is verified
+    ws.write(
+      "_bmad-output/initiative-demo/tickets/epic-core/tickets/tickets.toml",
+      [
+        "[[entry]]",
+        "id = 1",
+        'title = "Seed Fixture"',
+        'status = "done"',
+        "",
+        "[[entry]]",
+        "id = 2",
+        'title = "Verify Scan"',
+        'status = "in-progress"',
+        "",
+        "[[entry]]",
+        "id = 3",
+        'title = "Polish UI"',
+        'status = "backlog"'
+      ].join("\n")
+    );
+
+    const configured = manageBmadTaskQueue(ws.root, {
+      action: "set-split-config",
+      plannerModel: "new-provider/claude-opus-5-5-high",
+      builderModel: "new-provider/claude-sonnet-5-5-high"
+    });
+    assert.equal(configured.taskQueue.splitPlanBuild, true);
+    assert.equal(configured.taskQueue.plannerModel, "new-provider/claude-opus-5-5-high");
+    assert.equal(configured.taskQueue.builderModel, "new-provider/claude-sonnet-5-5-high");
+
+    const epicRes = manageBmadTaskQueue(ws.root, {
+      action: "add-epic",
+      epicSlug: "epic-core",
+      includeDone: false,
+      reviewMode: "quick"
+    });
+
+    // Interleaved order: Plan 1.2 -> Build 1.2 -> Plan 1.3 -> Build 1.3
+    assert.equal(epicRes.taskQueue.items.length, 4);
+    assert.deepEqual(
+      epicRes.taskQueue.items.map((it) => [it.taskPhase, it.storyId, it.model, it.reviewMode]),
+      [
+        ["plan", "1.2", "new-provider/claude-opus-5-5-high", "none"],
+        ["build", "1.2", "new-provider/claude-sonnet-5-5-high", "quick"],
+        ["plan", "1.3", "new-provider/claude-opus-5-5-high", "none"],
+        ["build", "1.3", "new-provider/claude-sonnet-5-5-high", "quick"]
+      ]
+    );
+    assert.match(epicRes.taskQueue.items[0].effectivePrompt, /Halt after planning\./);
+    assert.match(epicRes.taskQueue.items[0].effectivePrompt, /route:\s*full,\s*review:\s*none/i);
+    assert.match(epicRes.taskQueue.items[1].effectivePrompt, /review:\s*quick/i);
+
+    // Non-build skills stay single-step even when splitPlanBuild is ON
+    const mixedAdd = manageBmadTaskQueue(ws.root, {
+      action: "add",
+      items: [
+        {
+          id: "review-only",
+          title: "Code Review",
+          skill: "/bmad-code-review",
+          prompt: '/bmad-code-review "Audit epic-core"',
+          model: "new-provider/claude-opus-5-5-high",
+          reviewMode: "quick"
+        },
+        {
+          id: "rec-build",
+          title: "Build Extra Feature",
+          skill: "/bmad-build",
+          prompt: '/bmad-build "Implement extra feature"',
+          model: "new-provider/custom-coder",
+          reviewMode: "thorough"
+        }
+      ]
+    });
+    const reviewItem = mixedAdd.taskQueue.items.find((it) => it.id === "review-only");
+    const recPlan = mixedAdd.taskQueue.items.find((it) => it.id === "rec-build-plan");
+    const recBuild = mixedAdd.taskQueue.items.find((it) => it.id === "rec-build-build");
+    assert.ok(reviewItem && !reviewItem.taskPhase, "non-build skill must stay single-step");
+    assert.ok(recPlan && recPlan.taskPhase === "plan" && recPlan.model === "new-provider/claude-opus-5-5-high");
+    assert.ok(recBuild && recBuild.taskPhase === "build" && recBuild.model === "new-provider/custom-coder" && recBuild.reviewMode === "thorough");
+
+    // set-review-mode applyToAll updates build items but keeps plan steps at reviewMode: none
+    const reviewUpdated = manageBmadTaskQueue(ws.root, {
+      action: "set-review-mode",
+      reviewMode: "thorough",
+      applyToAll: true
+    });
+    assert.equal(reviewUpdated.taskQueue.items.find((it) => it.id === "qtask-epic-core-1-2-plan").reviewMode, "none");
+    assert.equal(reviewUpdated.taskQueue.items.find((it) => it.id === "qtask-epic-core-1-2-build").reviewMode, "thorough");
+  });
+
+  it("shapes plan prompts idempotently, keeps storyOverrides in-progress on plan completion, and generates phase-aware .dwf.ts + updater", () => {
+    const shapedOnce = buildEffectiveTaskPrompt({
+      prompt: '/bmad-build "Plan ticket 8.2: 3-tab shell"',
+      taskPhase: "plan",
+      reviewMode: "thorough"
+    });
+    const shapedTwice = buildEffectiveTaskPrompt({
+      prompt: shapedOnce,
+      taskPhase: "plan",
+      reviewMode: "thorough"
+    });
+    assert.equal(shapedOnce, shapedTwice, "plan prompt shaping must be idempotent");
+    assert.match(shapedOnce, /^\/bmad-build-auto "/);
+    assert.match(shapedOnce, /Halt after planning\./);
+    assert.match(shapedOnce, /route:\s*full,\s*review:\s*none/i);
+
+    const ws = workspaces.seed();
+    const added = manageBmadTaskQueue(ws.root, {
+      action: "add-epic",
+      epicSlug: "epic-core",
+      includeDone: false,
+      plannerModel: "new-provider/claude-opus-5-5-high",
+      builderModel: "new-provider/claude-sonnet-5-5-high"
+    });
+    const [planItem, buildItem] = added.taskQueue.items;
+    assert.equal(planItem.taskPhase, "plan");
+    assert.equal(buildItem.taskPhase, "build");
+
+    // Check generated .dwf.ts has distinct phase-tagged agent names & planning-only instructions
+    const dwfSource = readFileSync(added.generatedWorkflow.workflowFullPath, "utf8");
+    assertParseableWorkflowTs(dwfSource);
+    assert.ok(dwfSource.includes("Task 1 (plan-1.2)"));
+    assert.ok(dwfSource.includes("Task 2 (build-1.2)"));
+    assert.ok(dwfSource.includes("HALT without implementing code"));
+
+    // Completing Plan step via queue-step-updater keeps storyOverrides at in-progress
+    execFileSync(process.execPath, [added.generatedWorkflow.updaterRelPath, "start", planItem.id, planItem.overrideKey], { cwd: ws.root });
+    execFileSync(process.execPath, [added.generatedWorkflow.updaterRelPath, "done", planItem.id, planItem.overrideKey, "Plan written ready-for-dev"], { cwd: ws.root });
+    const afterPlanUpdater = loadPersistedState(ws.root);
+    assert.equal(afterPlanUpdater.storyOverrides[planItem.overrideKey].status, "in-progress");
+
+    // Reset and test manageBmadTaskQueue complete-task on plan vs build
+    manageBmadTaskQueue(ws.root, { action: "update-item", taskId: planItem.id, status: "queued" });
+    manageBmadTaskQueue(ws.root, { action: "start-task", taskId: planItem.id });
+    const afterPlanComplete = manageBmadTaskQueue(ws.root, {
+      action: "complete-task",
+      taskId: planItem.id,
+      summary: "Plan ready-for-dev"
+    });
+    assert.equal(afterPlanComplete.taskQueue.status, "running", "queue continues to Build step");
+    assert.equal(loadPersistedState(ws.root).storyOverrides[planItem.overrideKey].status, "in-progress");
+
+    manageBmadTaskQueue(ws.root, { action: "start-task", taskId: buildItem.id });
+    const afterBuildComplete = manageBmadTaskQueue(ws.root, {
+      action: "complete-task",
+      taskId: buildItem.id,
+      summary: "Implemented and verified"
+    });
+    assert.equal(afterBuildComplete.taskQueue.status, "completed");
+    assert.equal(loadPersistedState(ws.root).storyOverrides[buildItem.overrideKey].status, "done");
+  });
+
+  it("supports set-split-config and default split add-epic over MCP stdio", async () => {
+    const ws = workspaces.seed();
+    const mcpRes = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [
+        queueToolCall(1, {
+          action: "set-split-config",
+          splitPlanBuild: true,
+          plannerModel: "new-provider/claude-opus-5-5-high",
+          builderModel: "new-provider/claude-sonnet-5-5-high"
+        }),
+        queueToolCall(2, { action: "add-epic", epicSlug: "epic-core", includeDone: false }),
+        queueToolCall(3, {
+          action: "set-split-config",
+          splitPlanBuild: false,
+          plannerModel: ""
+        })
+      ]
+    });
+
+    assertStrictJsonRpcStdout(mcpRes);
+    assert.equal(mcpRes.responses.length, 3);
+
+    const added = assertQueueToolContractShape(mcpRes.responses[1], "add-epic", { expectWorkflow: true });
+    assert.equal(added.taskQueue.items.length, 2);
+    assert.equal(added.taskQueue.items[0].taskPhase, "plan");
+    assert.equal(added.taskQueue.items[0].model, "new-provider/claude-opus-5-5-high");
+    assert.equal(added.taskQueue.items[1].taskPhase, "build");
+    assert.equal(added.taskQueue.items[1].model, "new-provider/claude-sonnet-5-5-high");
+    assert.match(mcpRes.responses[1].result.content[0].text, /Plan → Build Split:\*\* `on`/);
+
+    const toggledOff = assertQueueToolContractShape(mcpRes.responses[2], "set-split-config", { expectWorkflow: true });
+    assert.equal(toggledOff.taskQueue.splitPlanBuild, false);
+    assert.equal(toggledOff.taskQueue.plannerModel, null);
+    assert.match(mcpRes.responses[2].result.content[0].text, /Plan → Build Split:\*\* `off`/);
+  });
+});
+
 
 

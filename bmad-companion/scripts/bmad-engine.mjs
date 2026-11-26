@@ -2589,6 +2589,7 @@ function normalizeComparablePrompt(text) {
     .replace(/^\/bmad-build-auto\b/i, "/bmad-build")
     .replace(EXECUTION_POLICY_RE, "")
     .replace(ROUTE_HINT_RE, "")
+    .replace(PLAN_HALT_RE, "")
     .replace(/\s+/g, " ")
     .trim();
   return (hasQuote ? `${str}"` : str).toLowerCase();
@@ -3709,6 +3710,7 @@ const VALID_QUEUE_ACTIONS = [
   "retry-failed",
   "set-review-mode",
   "set-execution-mode",
+  "set-split-config",
   "reorder",
   "remove",
   "clear",
@@ -3720,11 +3722,13 @@ const VALID_QUEUE_ACTIONS = [
 ];
 const VALID_REVIEW_MODES = ["none", "quick", "thorough"];
 const VALID_EXECUTION_MODES = ["dynamic-workflow", "separate-sessions"];
+const VALID_TASK_PHASES = ["plan", "build"];
 const VALID_TASK_STATUSES = ["queued", "running", "done", "failed", "skipped"];
 const VALID_STORY_STATUSES = ["done", "review", "in-progress", "backlog"];
 
 const DEFAULT_REVIEW_MODE = "none";
 const DEFAULT_EXECUTION_MODE = "dynamic-workflow";
+const DEFAULT_SPLIT_PLAN_BUILD = true;
 const FALLBACK_QUEUE_MODEL_ID = "new-provider/claude-sonnet-5-5-high";
 
 // Generated queue workflow artifacts, workspace-root relative.
@@ -3738,6 +3742,7 @@ const WORKFLOW_REGENERATION_ACTIONS = [
   "start-queue",
   "generate-workflow",
   "set-execution-mode",
+  "set-split-config",
   "add",
   "add-epic",
   "update-item",
@@ -3749,6 +3754,8 @@ const WORKFLOW_REGENERATION_ACTIONS = [
 // Prompt grammar shared by buildEffectiveTaskPrompt and normalizeComparablePrompt.
 const EXECUTION_POLICY_RE = /\s*\[Execution Policy:[^\]]*\]/gi;
 const ROUTE_HINT_RE = /\s*\(route:\s*(?:oneshot|full),\s*review:\s*(?:none|quick|thorough)[^)]*\)/gi;
+const PLAN_HALT_RE = /\s*Halt after planning\.?/gi;
+const PLAN_ROUTE_HINT = " (route: full, review: none — planning step only; write ready-for-dev plan and halt)";
 
 // Prompt shaping keyed by normalized reviewMode.
 const EXECUTION_POLICY_SUFFIX_BY_REVIEW_MODE = {
@@ -3776,12 +3783,38 @@ function normalizeExecutionMode(value) {
   return VALID_EXECUTION_MODES.includes(value) ? value : DEFAULT_EXECUTION_MODE;
 }
 
+function normalizeTaskPhase(value) {
+  return VALID_TASK_PHASES.includes(value) ? value : null;
+}
+
+function isBuildQueueCandidate(prompt, skill = "") {
+  const p = String(prompt || "").trim();
+  const s = String(skill || "").trim();
+  return /^\/bmad-build(?:-auto)?\b/i.test(p) || /^\/?bmad-build(?:-auto)?$/i.test(s);
+}
+
 function resolveDefaultModelId(availableModels = []) {
   return (
     availableModels.find((m) => m.current)?.id ||
     availableModels[0]?.id ||
     FALLBACK_QUEUE_MODEL_ID
   );
+}
+
+function resolveQueueSplitModels(rawQueue, availableModels = []) {
+  const defaultModelId = resolveDefaultModelId(availableModels);
+  const recommendedPlanner =
+    recommendModelForBmadSkill("bmad-architecture", availableModels, "deep-reasoning")?.modelId || defaultModelId;
+  const recommendedBuilder =
+    recommendModelForBmadSkill("/bmad-build-auto", availableModels, "agentic-coding")?.modelId || defaultModelId;
+  const rawPlanner = typeof rawQueue?.plannerModel === "string" ? rawQueue.plannerModel.trim() : "";
+  const rawBuilder = typeof rawQueue?.builderModel === "string" ? rawQueue.builderModel.trim() : "";
+  return {
+    plannerModel: rawPlanner || null,
+    builderModel: rawBuilder || null,
+    effectivePlannerModel: rawPlanner || recommendedPlanner,
+    effectiveBuilderModel: rawBuilder || recommendedBuilder
+  };
 }
 
 function extractTaskPromptText(item) {
@@ -3801,6 +3834,9 @@ function createDefaultTaskQueueState() {
     status: "idle",
     executionMode: DEFAULT_EXECUTION_MODE,
     defaultReviewMode: DEFAULT_REVIEW_MODE,
+    splitPlanBuild: DEFAULT_SPLIT_PLAN_BUILD,
+    plannerModel: null,
+    builderModel: null,
     activeTaskId: null,
     workflowPath: null,
     updatedAt: null,
@@ -3824,7 +3860,8 @@ function recommendationMatchesCompletedItem(rec, completedItem) {
 export function buildEffectiveTaskPrompt(item, defaultReviewMode = DEFAULT_REVIEW_MODE) {
   const basePrompt = typeof item === "string" ? item.trim() : extractTaskPromptText(item);
   const rawReviewMode = item && typeof item === "object" ? item.reviewMode : null;
-  const reviewMode = normalizeReviewMode(rawReviewMode, defaultReviewMode);
+  const taskPhase = item && typeof item === "object" ? normalizeTaskPhase(item.taskPhase) : null;
+  const reviewMode = taskPhase === "plan" ? "none" : normalizeReviewMode(rawReviewMode, defaultReviewMode);
   if (!basePrompt) return "";
 
   const isBuildSkill = /^\/bmad-build(?:-auto)?\b/i.test(basePrompt);
@@ -3832,23 +3869,48 @@ export function buildEffectiveTaskPrompt(item, defaultReviewMode = DEFAULT_REVIE
     const cleanPrompt = basePrompt
       .replace(EXECUTION_POLICY_RE, "")
       .replace(ROUTE_HINT_RE, "")
+      .replace(PLAN_HALT_RE, "")
       .trim();
     return `${cleanPrompt} ${EXECUTION_POLICY_SUFFIX_BY_REVIEW_MODE[reviewMode]}`;
   }
 
   // Upgrade /bmad-build to /bmad-build-auto when running unattended in a queue,
-  // then strip all prior route hints and execution policies inside or outside quotes.
+  // then strip all prior route hints, halt directives, and execution policies.
   const normalized = basePrompt
     .replace(/^\/bmad-build\b(?!-auto)/i, "/bmad-build-auto")
     .replace(ROUTE_HINT_RE, "")
     .replace(EXECUTION_POLICY_RE, "")
+    .replace(PLAN_HALT_RE, "")
     .trim();
+
+  if (taskPhase === "plan") {
+    if (normalized.endsWith('"')) {
+      const inner = normalized.slice(0, -1).trimEnd();
+      const sep = /[.!?]$/.test(inner) ? " " : ". ";
+      return `${inner}${sep}Halt after planning.${PLAN_ROUTE_HINT}"`;
+    }
+    const sep = /[.!?]$/.test(normalized) ? " " : ". ";
+    return `${normalized}${sep}Halt after planning.${PLAN_ROUTE_HINT}`;
+  }
 
   const routeHint = ROUTE_HINT_BY_REVIEW_MODE[reviewMode];
   if (normalized.endsWith('"')) {
     return `${normalized.slice(0, -1).trimEnd()}${routeHint}"`;
   }
   return `${normalized}${routeHint}`;
+}
+
+function buildPlanStepPrompt(rawPrompt) {
+  const upgraded = String(rawPrompt || "")
+    .trim()
+    .replace(/^\/bmad-build\b(?!-auto)/i, "/bmad-build-auto");
+  if (/^\/bmad-build-auto\s+"/i.test(upgraded)) {
+    return upgraded.replace(/^(\/bmad-build-auto\s+)"(?:Plan(?::|\s+)\s*)?/i, '$1"Plan: ');
+  }
+  if (/^\/bmad-build-auto\b/i.test(upgraded)) {
+    return upgraded.replace(/^(\/bmad-build-auto)\s*(?:Plan(?::|\s+)\s*)?/i, "$1 Plan: ");
+  }
+  return upgraded;
 }
 
 /**
@@ -3877,6 +3939,13 @@ export function buildTaskQueueView(rawQueue, allStories = [], availableModels = 
   const defaultModelId = resolveDefaultModelId(availableModels);
   const defaultReviewMode = normalizeReviewMode(q.defaultReviewMode);
   const executionMode = normalizeExecutionMode(q.executionMode);
+  const splitPlanBuild = typeof q.splitPlanBuild === "boolean" ? q.splitPlanBuild : DEFAULT_SPLIT_PLAN_BUILD;
+  const {
+    plannerModel,
+    builderModel,
+    effectivePlannerModel,
+    effectiveBuilderModel
+  } = resolveQueueSplitModels(q, availableModels);
 
   const storyMapByOverride = new Map();
   const storyMapByEpicAndId = new Map();
@@ -3889,8 +3958,15 @@ export function buildTaskQueueView(rawQueue, allStories = [], availableModels = 
 
   const rawItems = Array.isArray(q.items) ? q.items : [];
   const items = rawItems.map((it, idx) => {
-    const reviewMode = normalizeReviewMode(it.reviewMode, defaultReviewMode);
-    const model = String(it.model || it.recommendedModel || defaultModelId).trim() || defaultModelId;
+    const taskPhase = normalizeTaskPhase(it.taskPhase);
+    const reviewMode = taskPhase === "plan" ? "none" : normalizeReviewMode(it.reviewMode, defaultReviewMode);
+    const fallbackItemModel =
+      taskPhase === "plan"
+        ? effectivePlannerModel
+        : taskPhase === "build"
+          ? effectiveBuilderModel
+          : defaultModelId;
+    const model = String(it.model || it.recommendedModel || fallbackItemModel).trim() || fallbackItemModel;
     const matchedStory =
       (it.overrideKey && storyMapByOverride.get(it.overrideKey)) ||
       (it.epicSlug && it.storyId && storyMapByEpicAndId.get(`${it.epicSlug}::${String(it.storyId)}`)) ||
@@ -3907,10 +3983,11 @@ export function buildTaskQueueView(rawQueue, allStories = [], availableModels = 
       title: it.title || (matchedStory ? `Story ${matchedStory.id}: ${matchedStory.title}` : `Task ${idx + 1}`),
       skill: it.skill || "/bmad-build-auto",
       prompt,
-      effectivePrompt: buildEffectiveTaskPrompt({ ...it, prompt, reviewMode }, defaultReviewMode),
+      effectivePrompt: buildEffectiveTaskPrompt({ ...it, prompt, reviewMode, taskPhase }, defaultReviewMode),
       model,
       modelShort: model.split("/").pop(),
       reviewMode,
+      ...(taskPhase ? { taskPhase } : {}),
       status,
       storyId: it.storyId || matchedStory?.id || null,
       overrideKey: it.overrideKey || matchedStory?.overrideKey || null,
@@ -3949,6 +4026,11 @@ export function buildTaskQueueView(rawQueue, allStories = [], availableModels = 
     status: overallStatus,
     executionMode,
     defaultReviewMode,
+    splitPlanBuild,
+    plannerModel,
+    builderModel,
+    effectivePlannerModel,
+    effectiveBuilderModel,
     activeTaskId: activeTask ? activeTask.id : null,
     activeTask,
     nextQueuedTask: queuedItems[0] || null,
@@ -4032,6 +4114,7 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
     `    .replace(/^\\/bmad-build-auto\\b/i, "/bmad-build")`,
     `    .replace(/\\s*\\[Execution Policy:[^\\]]*\\]/gi, "")`,
     `    .replace(/\\s*\\(route:\\s*(?:oneshot|full),\\s*review:\\s*(?:none|quick|thorough)[^)]*\\)/gi, "")`,
+    `    .replace(/\\s*Halt after planning\\.?/gi, "")`,
     `    .replace(/\\s+/g, " ")`,
     `    .trim();`,
     `  return (hasQuote ? (str + '"') : str).toLowerCase();`,
@@ -4059,11 +4142,16 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
     `    target.status = action === "done" ? "done" : "failed";`,
     `    target.completedAt = now;`,
     `    if (summaryText) target.resultSummary = summaryText;`,
+    `    const isPlanStep = target.taskPhase === "plan";`,
     `    if (action === "done" && overrideKey) {`,
     `      state.storyOverrides = state.storyOverrides || {};`,
-    `      state.storyOverrides[overrideKey] = { status: "done", reason: summaryText || ("Completed via BMAD Queue (" + target.title + ")"), updatedAt: now };`,
+    `      state.storyOverrides[overrideKey] = {`,
+    `        status: isPlanStep ? "in-progress" : "done",`,
+    `        reason: isPlanStep ? (summaryText || ("Plan ready via BMAD Queue (" + target.title + ")")) : (summaryText || ("Completed via BMAD Queue (" + target.title + ")")),`,
+    `        updatedAt: now`,
+    `      };`,
     `    }`,
-    `    if (action === "done" && state.agentAdvisorOverride && Array.isArray(state.agentAdvisorOverride.recommendations)) {`,
+    `    if (action === "done" && !isPlanStep && state.agentAdvisorOverride && Array.isArray(state.agentAdvisorOverride.recommendations)) {`,
     `      const targetPrompt = normPrompt(target.prompt || target.effectivePrompt || "");`,
     `      const targetTitle = String(target.title || "").trim().toLowerCase();`,
     `      state.agentAdvisorOverride.recommendations = state.agentAdvisorOverride.recommendations.filter((r) => {`,
@@ -4160,18 +4248,32 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
   const taskBlocks = targetItems.map((it, idx) => {
     const stepNum = idx + 1;
     const modelVar = modelVarByModelId.get(it.model);
+    const taskPhase = normalizeTaskPhase(it.taskPhase);
+    const isPlanTask = taskPhase === "plan";
+    const phaseTag = taskPhase ? `${taskPhase}-` : "";
     const phaseLabel = `Task ${stepNum}: ${String(it.title).replace(/["\\]/g, "").slice(0, 68)}`;
-    const agentName = `Task ${stepNum} (${String(it.storyId || it.id).replace(/["\\]/g, "")})`;
+    const agentName = `Task ${stepNum} (${phaseTag}${String(it.storyId || it.id).replace(/["\\]/g, "")})`;
     const reviewPolicyDesc = REVIEW_POLICY_DESC_BY_REVIEW_MODE[it.reviewMode];
 
-    const askInstruction = [
-      `Execute BMAD Queue Task #${stepNum}: ${it.title}`,
-      `Command / Intent: ${it.effectivePrompt}`,
-      it.verifyCommand ? `Verification Gate: ${it.verifyCommand}` : `Verification Gate: Run the repository's syntax and test verification commands.`,
-      `Execution Policy: ${reviewPolicyDesc}`,
-      `Tracker Sync (Required): After verification passes, update the repository's BMAD tracker (for BMAD v7, create or update \`plan-<ticketId>-*.md\` with \`status: done\` in the epic's \`tickets/\` folder or run \`tickets.py mark\`; for BMAD v6, set the story to \`done\` in \`sprint-status.yaml\`) so progress persists across sessions.`,
-      `Return a concise structured outcome confirming what files changed and which verification command passed.`
-    ].join("\n");
+    const askInstruction = isPlanTask
+      ? [
+          `Execute BMAD Queue Planning Task #${stepNum}: ${it.title}`,
+          `Command / Intent: ${it.effectivePrompt}`,
+          `Planning Policy: Investigate the codebase, write or update the story's plan file with frontmatter status: ready-for-dev, verify it meets the Ready for Development standard, and HALT without implementing code or marking the ticket done.`,
+          `Return a concise structured outcome confirming the plan file path and ready-for-dev status.`
+        ].join("\n")
+      : [
+          `Execute BMAD Queue Task #${stepNum}: ${it.title}`,
+          `Command / Intent: ${it.effectivePrompt}`,
+          it.verifyCommand ? `Verification Gate: ${it.verifyCommand}` : `Verification Gate: Run the repository's syntax and test verification commands.`,
+          `Execution Policy: ${reviewPolicyDesc}`,
+          `Tracker Sync (Required): After verification passes, update the repository's BMAD tracker (for BMAD v7, create or update \`plan-<ticketId>-*.md\` with \`status: done\` in the epic's \`tickets/\` folder or run \`tickets.py mark\`; for BMAD v6, set the story to \`done\` in \`sprint-status.yaml\`) so progress persists across sessions.`,
+          `Return a concise structured outcome confirming what files changed and which verification command passed.`
+        ].join("\n");
+
+    const agentSystem = isPlanTask
+      ? "You are a BMAD planning architect running an isolated planning step from the BMAD Companion Queue. Investigate the codebase, produce a complete ready-for-dev plan, and stop before implementing code."
+      : "You are a BMAD execution specialist running an isolated task from the BMAD Companion Queue. Implement the requested story or workflow task cleanly, run its verification commands, and report truthful evidence.";
 
     return [
       `// --- Queued Task ${stepNum}: ${it.title} ---`,
@@ -4181,7 +4283,7 @@ export function generateQueueWorkflowFiles(workspaceRoot, queueView) {
       `report({ taskId: ${JSON.stringify(it.id)}, title: ${JSON.stringify(it.title)}, status: "running", model: ${JSON.stringify(it.modelShort)}, reviewMode: ${JSON.stringify(it.reviewMode)}, summary: "Running in isolated subagent session..." }, "queue");`,
       `const outcome_${stepNum} = await agent(${JSON.stringify(agentName)}, {`,
       modelVar ? `  model: ${modelVar},` : ``,
-      `  system: "You are a BMAD execution specialist running an isolated task from the BMAD Companion Queue. Implement the requested story or workflow task cleanly, run its verification commands, and report truthful evidence."`,
+      `  system: ${JSON.stringify(agentSystem)}`,
       `}).ask<TaskOutcome>(${JSON.stringify(askInstruction)});`,
       `await world.run("node", [${JSON.stringify(updaterRelPath)}, outcome_${stepNum}.passed ? "done" : "fail", ${JSON.stringify(it.id)}, ${JSON.stringify(it.overrideKey || "")}, outcome_${stepNum}.summary]);`,
       `report({ taskId: ${JSON.stringify(it.id)}, title: ${JSON.stringify(it.title)}, status: outcome_${stepNum}.passed ? "done" : "failed", model: ${JSON.stringify(it.modelShort)}, reviewMode: ${JSON.stringify(it.reviewMode)}, summary: outcome_${stepNum}.summary }, "queue");`,
@@ -4314,6 +4416,61 @@ function isSafeStoryOverrideKey(overrideKey) {
   );
 }
 
+function stripPhaseTitlePrefix(title) {
+  return String(title || "").replace(/^(?:Plan|Build):\s*/i, "").trim();
+}
+
+function findMatchingQueueItemIndex(items, candidate) {
+  const candPhase = normalizeTaskPhase(candidate?.taskPhase);
+  return items.findIndex((it) => {
+    const itPhase = normalizeTaskPhase(it?.taskPhase);
+    if (candPhase !== itPhase) return false;
+    if (candidate?.overrideKey && it.overrideKey === candidate.overrideKey) return true;
+    if (candidate?.storyId && it.storyId === candidate.storyId) return true;
+    if (candidate?.prompt && it.prompt === candidate.prompt) return true;
+    return false;
+  });
+}
+
+function pruneStaleOppositePhaseItems(items, { overrideKey, storyId, prompt, targetSplit }) {
+  return items.filter((it) => {
+    if (it.status !== "queued") return true;
+    const itPhase = normalizeTaskPhase(it.taskPhase);
+    const sameWork = Boolean(
+      (overrideKey && it.overrideKey === overrideKey) ||
+      (storyId && it.storyId === storyId) ||
+      (prompt && it.prompt === prompt)
+    );
+    if (!sameWork) return true;
+    if (targetSplit && !itPhase) return false;
+    if (!targetSplit && itPhase) return false;
+    return true;
+  });
+}
+
+function upsertQueueItem(items, entry, { overwriteAll = false } = {}) {
+  const existingIdx = findMatchingQueueItemIndex(items, entry);
+  if (existingIdx >= 0) {
+    const prev = items[existingIdx];
+    if (overwriteAll) {
+      items[existingIdx] = { ...prev, ...entry };
+    } else {
+      const wasDone = prev.status === "done";
+      items[existingIdx] = {
+        ...prev,
+        model: entry.model,
+        reviewMode: entry.reviewMode,
+        prompt: entry.prompt || prev.prompt,
+        ...(entry.taskPhase ? { taskPhase: entry.taskPhase } : {}),
+        status: wasDone ? "queued" : prev.status,
+        ...(wasDone ? { forceQueued: true } : {})
+      };
+    }
+  } else {
+    items.push(entry);
+  }
+}
+
 export function manageBmadTaskQueue(workspaceRoot, options = {}) {
   const rawAction = options?.action;
   const action =
@@ -4335,15 +4492,26 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
       ? options.executionMode
       : currentView.executionMode;
   let defaultReviewMode = currentView.defaultReviewMode;
+  let splitPlanBuild = currentView.splitPlanBuild;
+  let plannerModel = currentView.plannerModel;
+  let builderModel = currentView.builderModel;
   let activeTaskId = currentView.activeTaskId;
   const storyOverrides = { ...(persisted.storyOverrides || {}) };
   let advisorOverrideUpdate;
   let workflowCompletedAt;
 
   const defaultModelId = resolveDefaultModelId(scan.availableModels);
+  const effectiveSplitModels = resolveQueueSplitModels(
+    {
+      plannerModel: options.plannerModel !== undefined ? (String(options.plannerModel || "").trim() || null) : plannerModel,
+      builderModel: options.builderModel !== undefined ? (String(options.builderModel || "").trim() || null) : builderModel
+    },
+    scan.availableModels
+  );
 
   switch (action) {
   case "add": {
+    const splitActive = typeof options.splitPlanBuild === "boolean" ? options.splitPlanBuild : splitPlanBuild;
     const incoming = Array.isArray(options.items)
       ? options.items
       : options.item
@@ -4354,71 +4522,190 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     for (const raw of incoming) {
       if (!raw) continue;
       const prompt = extractTaskPromptText(raw);
-      const title = String(raw.title || prompt.slice(0, 60) || "BMAD Task").trim();
-      const existingIdx = items.findIndex(
-        (it) =>
-          (raw.overrideKey && it.overrideKey === raw.overrideKey) ||
-          (raw.storyId && it.storyId === raw.storyId) ||
-          (prompt && it.prompt === prompt)
-      );
+      const rawTitle = String(raw.title || prompt.slice(0, 60) || "BMAD Task").trim();
+      const skill = raw.skill || "/bmad-build-auto";
+      const explicitPhase = normalizeTaskPhase(raw.taskPhase);
       const revMode = normalizeReviewMode(raw.reviewMode, defaultReviewMode);
-      const newItem = {
-        id: raw.id || `qtask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        title,
-        skill: raw.skill || "/bmad-build-auto",
-        prompt,
-        model: raw.model || raw.recommendedModel || defaultModelId,
-        reviewMode: revMode,
-        status: "queued",
-        storyId: raw.storyId || null,
-        overrideKey: raw.overrideKey || null,
-        epicSlug: raw.epicSlug || null,
-        verifyCommand: raw.verifyCommand || ""
-      };
-      if (existingIdx >= 0) {
-        const wasDone = items[existingIdx].status === "done";
-        items[existingIdx] = {
-          ...items[existingIdx],
-          model: newItem.model,
-          reviewMode: newItem.reviewMode,
-          prompt: newItem.prompt || items[existingIdx].prompt,
-          status: wasDone ? "queued" : items[existingIdx].status,
-          ...(wasDone ? { forceQueued: true } : {})
-        };
+      const canSplit = splitActive && !explicitPhase && isBuildQueueCandidate(prompt, skill);
+
+      if (canSplit) {
+        const cleanTitle = stripPhaseTitlePrefix(rawTitle) || "BMAD Task";
+        const baseId = raw.id || `qtask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+        const planPrompt = buildPlanStepPrompt(prompt);
+        const buildPrompt = prompt;
+        const planModel =
+          String(raw.plannerModel || options.plannerModel || effectiveSplitModels.effectivePlannerModel).trim() ||
+          effectiveSplitModels.effectivePlannerModel;
+        const buildModel =
+          String(
+            raw.builderModel ||
+              options.builderModel ||
+              raw.model ||
+              raw.recommendedModel ||
+              effectiveSplitModels.effectiveBuilderModel
+          ).trim() || effectiveSplitModels.effectiveBuilderModel;
+
+        items = pruneStaleOppositePhaseItems(items, {
+          overrideKey: raw.overrideKey || null,
+          storyId: raw.storyId || null,
+          prompt: buildPrompt,
+          targetSplit: true
+        });
+
+        upsertQueueItem(items, {
+          id: `${baseId}-plan`,
+          title: `Plan: ${cleanTitle}`,
+          skill: "/bmad-build-auto",
+          prompt: planPrompt,
+          model: planModel,
+          reviewMode: "none",
+          taskPhase: "plan",
+          status: "queued",
+          storyId: raw.storyId || null,
+          overrideKey: raw.overrideKey || null,
+          epicSlug: raw.epicSlug || null,
+          verifyCommand: raw.verifyCommand || ""
+        });
+        upsertQueueItem(items, {
+          id: `${baseId}-build`,
+          title: `Build: ${cleanTitle}`,
+          skill,
+          prompt: buildPrompt,
+          model: buildModel,
+          reviewMode: revMode,
+          taskPhase: "build",
+          status: "queued",
+          storyId: raw.storyId || null,
+          overrideKey: raw.overrideKey || null,
+          epicSlug: raw.epicSlug || null,
+          verifyCommand: raw.verifyCommand || ""
+        });
       } else {
-        items.push(newItem);
+        if (!explicitPhase) {
+          items = pruneStaleOppositePhaseItems(items, {
+            overrideKey: raw.overrideKey || null,
+            storyId: raw.storyId || null,
+            prompt,
+            targetSplit: false
+          });
+        }
+        const newItem = {
+          id: raw.id || `qtask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+          title: rawTitle,
+          skill,
+          prompt,
+          model: raw.model || raw.recommendedModel || (explicitPhase === "plan" ? effectiveSplitModels.effectivePlannerModel : defaultModelId),
+          reviewMode: explicitPhase === "plan" ? "none" : revMode,
+          ...(explicitPhase ? { taskPhase: explicitPhase } : {}),
+          status: "queued",
+          storyId: raw.storyId || null,
+          overrideKey: raw.overrideKey || null,
+          epicSlug: raw.epicSlug || null,
+          verifyCommand: raw.verifyCommand || ""
+        };
+        upsertQueueItem(items, newItem);
       }
     }
     if (status === "completed") status = "idle";
     break;
   }
   case "add-epic": {
+    const splitActive = typeof options.splitPlanBuild === "boolean" ? options.splitPlanBuild : splitPlanBuild;
     const targetEpicSlug = String(options.epicSlug || "").trim();
     const epic = scan.epics.find((e) => e.slug === targetEpicSlug || e.id === targetEpicSlug || String(e.number) === targetEpicSlug);
     if (epic) {
       const epicReviewMode = normalizeReviewMode(options.reviewMode, defaultReviewMode);
       const storiesToQueue = epic.stories.filter((s) => options.includeDone || s.smartStatus !== "done");
       for (const st of storiesToQueue) {
-        const storyPrompt = `/bmad-build-auto "Implement ticket ${st.id} (${st.title}) in ${epic.slug}: ${st.verify || st.description || "satisfy all acceptance criteria and tests"}"`;
-        const existingIdx = items.findIndex((it) => it.overrideKey === st.overrideKey || it.storyId === st.id);
-        const entry = {
-          id: `qtask-${epic.slug}-${String(st.id).replace(/\./g, "-")}`,
-          title: `Story ${st.id}: ${st.title}`,
-          skill: "/bmad-build-auto",
-          prompt: storyPrompt,
-          model: options.model || st.recommendedModel?.modelId || defaultModelId,
-          reviewMode: epicReviewMode,
-          status: "queued",
-          storyId: st.id,
-          overrideKey: st.overrideKey,
-          epicSlug: epic.slug,
-          verifyCommand: st.verify || "",
-          ...(options.includeDone && st.smartStatus === "done" ? { forceQueued: true } : {})
-        };
-        if (existingIdx >= 0) {
-          items[existingIdx] = { ...items[existingIdx], ...entry };
+        const storyIdSlug = String(st.id).replace(/\./g, "-");
+        const baseTaskId = `qtask-${epic.slug}-${storyIdSlug}`;
+        const buildPrompt = `/bmad-build-auto "Implement ticket ${st.id} (${st.title}) in ${epic.slug}: ${st.verify || st.description || "satisfy all acceptance criteria and tests"}"`;
+        const forceDone = Boolean(options.includeDone && st.smartStatus === "done");
+
+        if (splitActive) {
+          const planPrompt = `/bmad-build-auto "Plan ticket ${st.id} (${st.title}) in ${epic.slug}: ${st.verify || st.description || "investigate codebase and produce a ready-for-dev plan"}"`;
+          const planModel =
+            String(options.plannerModel || effectiveSplitModels.effectivePlannerModel).trim() ||
+            effectiveSplitModels.effectivePlannerModel;
+          const buildModel =
+            String(
+              options.builderModel ||
+                options.model ||
+                effectiveSplitModels.builderModel ||
+                st.recommendedModel?.modelId ||
+                effectiveSplitModels.effectiveBuilderModel
+            ).trim() || effectiveSplitModels.effectiveBuilderModel;
+
+          items = pruneStaleOppositePhaseItems(items, {
+            overrideKey: st.overrideKey,
+            storyId: st.id,
+            prompt: buildPrompt,
+            targetSplit: true
+          });
+
+          upsertQueueItem(
+            items,
+            {
+              id: `${baseTaskId}-plan`,
+              title: `Plan: Story ${st.id}: ${st.title}`,
+              skill: "/bmad-build-auto",
+              prompt: planPrompt,
+              model: planModel,
+              reviewMode: "none",
+              taskPhase: "plan",
+              status: "queued",
+              storyId: st.id,
+              overrideKey: st.overrideKey,
+              epicSlug: epic.slug,
+              verifyCommand: st.verify || "",
+              ...(forceDone ? { forceQueued: true } : {})
+            },
+            { overwriteAll: true }
+          );
+          upsertQueueItem(
+            items,
+            {
+              id: `${baseTaskId}-build`,
+              title: `Build: Story ${st.id}: ${st.title}`,
+              skill: "/bmad-build-auto",
+              prompt: buildPrompt,
+              model: buildModel,
+              reviewMode: epicReviewMode,
+              taskPhase: "build",
+              status: "queued",
+              storyId: st.id,
+              overrideKey: st.overrideKey,
+              epicSlug: epic.slug,
+              verifyCommand: st.verify || "",
+              ...(forceDone ? { forceQueued: true } : {})
+            },
+            { overwriteAll: true }
+          );
         } else {
-          items.push(entry);
+          items = pruneStaleOppositePhaseItems(items, {
+            overrideKey: st.overrideKey,
+            storyId: st.id,
+            prompt: buildPrompt,
+            targetSplit: false
+          });
+          upsertQueueItem(
+            items,
+            {
+              id: baseTaskId,
+              title: `Story ${st.id}: ${st.title}`,
+              skill: "/bmad-build-auto",
+              prompt: buildPrompt,
+              model: options.model || st.recommendedModel?.modelId || defaultModelId,
+              reviewMode: epicReviewMode,
+              status: "queued",
+              storyId: st.id,
+              overrideKey: st.overrideKey,
+              epicSlug: epic.slug,
+              verifyCommand: st.verify || "",
+              ...(forceDone ? { forceQueued: true } : {})
+            },
+            { overwriteAll: true }
+          );
         }
       }
       if (status === "completed") status = "idle";
@@ -4476,7 +4763,9 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     if (VALID_REVIEW_MODES.includes(options.reviewMode)) {
       defaultReviewMode = options.reviewMode;
       if (options.applyToAll !== false) {
-        items = items.map((it) => (it.status === "done" ? it : { ...it, reviewMode: defaultReviewMode }));
+        items = items.map((it) =>
+          it.status === "done" || it.taskPhase === "plan" ? it : { ...it, reviewMode: defaultReviewMode }
+        );
       }
     }
     break;
@@ -4484,6 +4773,33 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
   case "set-execution-mode": {
     if (VALID_EXECUTION_MODES.includes(options.executionMode)) {
       executionMode = options.executionMode;
+    }
+    break;
+  }
+  case "set-split-config": {
+    if (typeof options.splitPlanBuild === "boolean") {
+      splitPlanBuild = options.splitPlanBuild;
+    }
+    const plannerProvided = options.plannerModel !== undefined;
+    const builderProvided = options.builderModel !== undefined;
+    if (plannerProvided) {
+      plannerModel = String(options.plannerModel || "").trim() || null;
+    }
+    if (builderProvided) {
+      builderModel = String(options.builderModel || "").trim() || null;
+    }
+    if (options.applyToExisting !== false && (plannerProvided || builderProvided)) {
+      const nextModels = resolveQueueSplitModels({ plannerModel, builderModel }, scan.availableModels);
+      items = items.map((it) => {
+        if (it.status !== "queued") return it;
+        if (plannerProvided && it.taskPhase === "plan") {
+          return { ...it, model: nextModels.effectivePlannerModel };
+        }
+        if (builderProvided && it.taskPhase === "build") {
+          return { ...it, model: nextModels.effectiveBuilderModel };
+        }
+        return it;
+      });
     }
     break;
   }
@@ -4580,11 +4896,16 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     items = items.map((it) => {
       if (it.id !== targetId) return it;
       completedItem = it;
+      const isPlanStep = it.taskPhase === "plan";
       if (isSafeStoryOverrideKey(it.overrideKey)) {
         if (outcomeStatus === "done") {
           storyOverrides[it.overrideKey] = {
-            status: requestedStoryStatus || "done",
-            reason: options.summary || `Completed via BMAD Companion Task Queue (${it.title})`,
+            status: requestedStoryStatus || (isPlanStep ? "in-progress" : "done"),
+            reason:
+              options.summary ||
+              (isPlanStep
+                ? `Plan ready for build via BMAD Companion Task Queue (${it.title})`
+                : `Completed via BMAD Companion Task Queue (${it.title})`),
             updatedAt: now
           };
         } else {
@@ -4604,6 +4925,7 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
     });
     if (completedItem) {
       const hasQueued = items.some((it) => it.status === "queued");
+      const isPlanStep = completedItem.taskPhase === "plan";
       // Never promote the next task here: it becomes `running` only when its
       // session is launched via start-task. Keeping it `queued` makes the
       // ledger honest and lets the Stop-hook handoff or the panel resume it.
@@ -4619,6 +4941,7 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
         else if (status !== "paused") status = "running";
         if (
           outcomeStatus === "done" &&
+          !isPlanStep &&
           persisted.agentAdvisorOverride &&
           Array.isArray(persisted.agentAdvisorOverride.recommendations)
         ) {
@@ -4654,6 +4977,9 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
       status,
       executionMode,
       defaultReviewMode,
+      splitPlanBuild,
+      plannerModel,
+      builderModel,
       activeTaskId,
       workflowPath: QUEUE_WORKFLOW_REL_PATH,
       updatedAt: new Date().toISOString(),
@@ -4676,6 +5002,9 @@ export function manageBmadTaskQueue(workspaceRoot, options = {}) {
       status: updatedQueueView.status,
       executionMode: updatedQueueView.executionMode,
       defaultReviewMode: updatedQueueView.defaultReviewMode,
+      splitPlanBuild: updatedQueueView.splitPlanBuild,
+      plannerModel: updatedQueueView.plannerModel,
+      builderModel: updatedQueueView.builderModel,
       activeTaskId: updatedQueueView.activeTaskId,
       workflowPath: updatedQueueView.workflowPath,
       updatedAt: updatedQueueView.updatedAt,

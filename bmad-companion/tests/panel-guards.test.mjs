@@ -2327,6 +2327,111 @@ describe("Epic 8 Story 8.4: Work tab current-focus hero, Action Window & RD-8 co
     assert.equal(hooks.isOverlayOpen(), false);
     assert.equal(env.elements.get("toastText").textContent, "🗑️ Removed task from queue");
   });
+
+  it("renders Queue Plan/Build controls & pills, dispatches set-split-config, and preserves in-progress status when marking a Plan step done", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+
+    const hooks = env.getTestHooks();
+    hooks.switchTab("queue");
+
+    hooks.renderWorkspaceState(
+      env.buildSampleState({
+        availableModels: [
+          { id: "prov/opus-planner", modelId: "opus-planner", providerName: "Prov" },
+          { id: "prov/sonnet-coder", modelId: "sonnet-coder", providerName: "Prov" }
+        ],
+        taskQueue: {
+          status: "idle",
+          executionMode: "separate-sessions",
+          defaultReviewMode: "none",
+          splitPlanBuild: true,
+          plannerModel: "prov/opus-planner",
+          builderModel: "prov/sonnet-coder",
+          effectivePlannerModel: "prov/opus-planner",
+          effectiveBuilderModel: "prov/sonnet-coder",
+          activeTask: null,
+          nextQueuedTask: {
+            id: "q-1-plan",
+            title: "Plan: Story 1.1",
+            taskPhase: "plan",
+            status: "queued"
+          },
+          counts: { total: 2, running: 0, queued: 2, done: 0, failed: 0, progressPct: 0 },
+          items: [
+            {
+              id: "q-1-plan",
+              title: "Plan: Story 1.1",
+              taskPhase: "plan",
+              status: "queued",
+              model: "prov/opus-planner",
+              modelShort: "opus-planner",
+              reviewMode: "none",
+              effectivePrompt: '/bmad-build-auto "Plan ticket 1.1. Halt after planning."',
+              storyId: "1.1",
+              overrideKey: "epic-core#1"
+            },
+            {
+              id: "q-1-build",
+              title: "Build: Story 1.1",
+              taskPhase: "build",
+              status: "queued",
+              model: "prov/sonnet-coder",
+              modelShort: "sonnet-coder",
+              reviewMode: "none",
+              effectivePrompt: '/bmad-build-auto "Implement ticket 1.1"',
+              storyId: "1.1",
+              overrideKey: "epic-core#1"
+            }
+          ]
+        }
+      })
+    );
+
+    const queueListHtml = env.elements.get("queueItemsList").innerHTML;
+    assert.match(queueListHtml, /🧠 PLAN/);
+    assert.match(queueListHtml, /💻 BUILD/);
+    assert.equal(env.elements.get("queueSplitPlanBuildToggle").checked, true);
+    assert.equal(env.elements.get("queueSplitStatusPill").textContent, "ON · 2 Models");
+    assert.equal(env.elements.get("queuePlannerModelSelect").value, "prov/opus-planner");
+    assert.equal(env.elements.get("queueBuilderModelSelect").value, "prov/sonnet-coder");
+
+    // Toggle split OFF -> dispatches bmad_queue_manage set-split-config
+    const toggle = env.elements.get("queueSplitPlanBuildToggle");
+    toggle.checked = false;
+    toggle.dispatchEvent({ type: "change", target: toggle });
+    await env.flushMicrotasks();
+    const splitCalls = env.toolCalls.filter(
+      (c) => c.params?.name === "bmad_queue_manage" && c.params?.arguments?.action === "set-split-config"
+    );
+    assert.ok(splitCalls.length >= 1);
+    assert.equal(splitCalls[0].params.arguments.splitPlanBuild, false);
+
+    // Changing planner model dispatches set-split-config with applyToExisting: true
+    const plannerSel = env.elements.get("queuePlannerModelSelect");
+    plannerSel.value = "prov/opus-planner";
+    plannerSel.dispatchEvent({ type: "change", target: plannerSel });
+    await env.flushMicrotasks();
+    const modelSplitCall = env.toolCalls.filter(
+      (c) =>
+        c.params?.name === "bmad_queue_manage" &&
+        c.params?.arguments?.action === "set-split-config" &&
+        c.params?.arguments?.plannerModel === "prov/opus-planner"
+    );
+    assert.equal(modelSplitCall.length, 1);
+    assert.equal(modelSplitCall[0].params.arguments.applyToExisting, true);
+
+    // Clicking Complete Active & Continue while nextQueuedTask is a Plan step sends storyStatus: "in-progress"
+    env.elements.get("btnCompleteActiveTask").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    const completeCalls = env.toolCalls.filter(
+      (c) => c.params?.name === "bmad_queue_manage" && c.params?.arguments?.action === "complete-task"
+    );
+    const lastComplete = completeCalls[completeCalls.length - 1];
+    assert.equal(lastComplete.params.arguments.taskId, "q-1-plan");
+    assert.equal(lastComplete.params.arguments.storyStatus, "in-progress");
+  });
 });
+
 
 

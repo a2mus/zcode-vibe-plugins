@@ -151,6 +151,7 @@ describe("Epic 6 Story 6.5: Stop hook turn synthesis + queue auto-advance + opti
     const added = manageBmadTaskQueue(ws.root, {
       action: "add",
       executionMode: "separate-sessions",
+      splitPlanBuild: false,
       items: [
         {
           title: "Story 1: Upgraded /bmad-build prompt",

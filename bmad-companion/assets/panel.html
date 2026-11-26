@@ -1280,6 +1280,34 @@
               </div>
             </div>
 
+            <div style="margin-top: 8px; padding: 8px 10px; border-radius: 6px; background: var(--bg-primary); border: 1px solid var(--border-subtle);">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+                <label for="queueSplitPlanBuildToggle" class="text-caption" style="display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; color: var(--text-primary);">
+                  <input type="checkbox" class="queue-cb" id="queueSplitPlanBuildToggle" checked />
+                  <span>🧠→💻 Auto-split build tasks into Plan → Build (2 models)</span>
+                </label>
+                <span class="pill pill-purple" id="queueSplitStatusPill">ON · 2 Models</span>
+              </div>
+              <div id="queueSplitModelsRow" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+                <div>
+                  <label for="queuePlannerModelSelect" class="label-caps">
+                    🧠 Planner Model (Plan Step)
+                  </label>
+                  <select class="model-select" id="queuePlannerModelSelect" aria-label="Planner Model for Plan Step" style="width: 100%;">
+                    <option value="">🤖 Auto (Deep Reasoning)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="queueBuilderModelSelect" class="label-caps">
+                    💻 Coder Model (Build Step)
+                  </label>
+                  <select class="model-select" id="queueBuilderModelSelect" aria-label="Coder Model for Build Step" style="width: 100%;">
+                    <option value="">🤖 Auto (Agentic Coding)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
             <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center;">
               <button type="button" class="btn btn-primary" id="btnRunQueueWorkflow" title="Compile .zcode/workflows/bmad-task-queue.dwf.ts with per-task models and world.run state updates, then launch it via CreateWorkflow">
                 ⚡ Run Queue via ZCode Workflow (.dwf.ts)
@@ -1954,6 +1982,16 @@
             .join("");
         }
 
+        function buildSplitRoleSelectOptions(selectedModelId, autoLabel, recommendedModelId) {
+          const models = currentState?.availableModels || [];
+          const recSuffix = recommendedModelId ? ` (${shortModelName(recommendedModelId)})` : "";
+          const autoOption = `<option value="" ${!selectedModelId ? "selected" : ""}>${escapeHtml(autoLabel + recSuffix)}</option>`;
+          if (!models.length && !selectedModelId) {
+            return autoOption;
+          }
+          return autoOption + buildModelSelectOptions(selectedModelId || "", recommendedModelId || "");
+        }
+
         async function refreshState(options = {}) {
           const { isBackground = false } = options;
           if (isRefreshing) return;
@@ -2419,10 +2457,11 @@
             const it = target;
             const isDone = it.status === "done";
             const isFailed = it.status === "failed";
+            const phaseLabel = it.taskPhase ? `Phase: ${it.taskPhase.toUpperCase()} · ` : "";
             titleEl.textContent = it.title || "Queued Task";
             bodyEl.innerHTML = `
               <div class="overlay-meta-text" id="overlay-q-meta" style="margin-bottom:8px;">
-                Status: ${escapeHtml(it.status || "queued")} · Model: ${escapeHtml(it.model || "host-default")} · Review: ${escapeHtml(it.reviewMode || "none")}
+                ${escapeHtml(phaseLabel)}Status: ${escapeHtml(it.status || "queued")} · Model: ${escapeHtml(it.model || "host-default")} · Review: ${escapeHtml(it.reviewMode || "none")}
               </div>
               <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:6px;margin-bottom:8px;">
                 <div>
@@ -2483,9 +2522,10 @@
 
             bindSingleListener(document.getElementById("overlay-q-done"), "click", async () => {
               pendingWorkspaceState = null;
+              const isPlanStep = it.taskPhase === "plan";
               await manageQueue(
-                { action: "complete-task", taskId: it.id, storyStatus: "done" },
-                "✓ Task marked Done & next task promoted"
+                { action: "complete-task", taskId: it.id, storyStatus: isPlanStep ? "in-progress" : "done" },
+                isPlanStep ? "✓ Plan marked Done — ready for Build step" : "✓ Task marked Done & next task promoted"
               );
             });
 
@@ -2658,10 +2698,17 @@
 
         function isPromptOrStoryInQueue(promptText, overrideKey) {
           const items = currentState?.taskQueue?.items || [];
-          return items.find(
+          const matches = items.filter(
             (it) =>
               (overrideKey && it.overrideKey === overrideKey) ||
               (promptText && (it.prompt === promptText || it.effectivePrompt === promptText))
+          );
+          if (!matches.length) return undefined;
+          return (
+            matches.find((it) => it.status === "running") ||
+            matches.find((it) => it.status === "queued") ||
+            matches.find((it) => it.status === "failed") ||
+            matches[0]
           );
         }
 
@@ -2679,9 +2726,10 @@
           return null;
         }
 
-        async function completeTaskAndContinue(taskId, toastMessage, fallbackMode) {
+        async function completeTaskAndContinue(taskId, toastMessage, fallbackMode, taskPhase) {
+          const storyStatus = taskPhase === "plan" ? "in-progress" : "done";
           const updated = await manageQueue(
-            { action: "complete-task", taskId, storyStatus: "done" },
+            { action: "complete-task", taskId, storyStatus },
             toastMessage
           );
           const mode = updated?.taskQueue?.executionMode || fallbackMode || "separate-sessions";
@@ -2697,6 +2745,9 @@
             status: "idle",
             executionMode: "dynamic-workflow",
             defaultReviewMode: "none",
+            splitPlanBuild: true,
+            plannerModel: null,
+            builderModel: null,
             counts: { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 },
             items: []
           };
@@ -2770,7 +2821,14 @@
 
               document.getElementById("bannerBtnOpenQueue")?.addEventListener("click", () => switchTab("queue"));
               document.getElementById("bannerBtnCompleteActive")?.addEventListener("click", async () => {
-                await completeTaskAndContinue(active.id, `✓ Completed ${active.title}; continuing queue…`, q.executionMode);
+                await completeTaskAndContinue(
+                  active.id,
+                  active.taskPhase === "plan"
+                    ? `✓ Plan ready for ${active.title}; continuing to Build…`
+                    : `✓ Completed ${active.title}; continuing queue…`,
+                  q.executionMode,
+                  active.taskPhase
+                );
               });
               document.getElementById("bannerBtnRunWorkflow")?.addEventListener("click", async () => {
                 await launchQueueExecution(q.executionMode || "dynamic-workflow");
@@ -2803,6 +2861,39 @@
           const revSel = document.getElementById("queueDefaultReviewSelect");
           if (revSel && q.defaultReviewMode) {
             revSel.value = q.defaultReviewMode;
+          }
+
+          const splitToggle = document.getElementById("queueSplitPlanBuildToggle");
+          const splitEnabled = q.splitPlanBuild !== false;
+          if (splitToggle) {
+            splitToggle.checked = splitEnabled;
+          }
+          const splitPill = document.getElementById("queueSplitStatusPill");
+          if (splitPill) {
+            splitPill.textContent = splitEnabled ? "ON · 2 Models" : "OFF · Single Step";
+            splitPill.className = `pill ${splitEnabled ? "pill-purple" : "pill-accent"}`;
+          }
+          const splitModelsRow = document.getElementById("queueSplitModelsRow");
+          if (splitModelsRow) {
+            splitModelsRow.style.display = splitEnabled ? "grid" : "none";
+          }
+          const plannerSel = document.getElementById("queuePlannerModelSelect");
+          if (plannerSel) {
+            plannerSel.innerHTML = buildSplitRoleSelectOptions(
+              q.plannerModel || "",
+              "🤖 Auto (Deep Reasoning)",
+              q.effectivePlannerModel || ""
+            );
+            plannerSel.value = q.plannerModel || "";
+          }
+          const builderSel = document.getElementById("queueBuilderModelSelect");
+          if (builderSel) {
+            builderSel.innerHTML = buildSplitRoleSelectOptions(
+              q.builderModel || "",
+              "🤖 Auto (Agentic Coding)",
+              q.effectiveBuilderModel || ""
+            );
+            builderSel.value = q.builderModel || "";
           }
 
           const qBadge = document.getElementById("queueStatusBadge");
@@ -2855,6 +2946,12 @@
           if (spotlightEl) {
             if (q.activeTask) {
               const act = q.activeTask;
+              const actPhasePill =
+                act.taskPhase === "plan"
+                  ? `<span class="pill pill-purple">🧠 PLAN</span>`
+                  : act.taskPhase === "build"
+                    ? `<span class="pill pill-accent">💻 BUILD</span>`
+                    : "";
               spotlightEl.innerHTML = `
                 <div class="queue-active-spotlight" data-overlay-trigger="active-spotlight:${escapeHtml(act.id)}">
                   <div class="section-header">
@@ -2862,6 +2959,7 @@
                       <span class="pulse-dot"></span>🟢 ACTIVE TASK NOW RUNNING
                     </div>
                     <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                      ${actPhasePill}
                       <span class="pill pill-purple">🤖 ${escapeHtml(act.model || "host-default")}</span>
                       <span class="pill pill-accent">review: ${escapeHtml(act.reviewMode || "none")}</span>
                     </div>
@@ -2913,6 +3011,7 @@
                       <span class="story-title" style="min-width:0;overflow-wrap:anywhere;">${escapeHtml(it.title)}</span>
                     </div>
                     <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;flex-wrap:wrap;">
+                      ${it.taskPhase === "plan" ? `<span class="pill pill-purple">🧠 PLAN</span>` : it.taskPhase === "build" ? `<span class="pill pill-accent">💻 BUILD</span>` : ""}
                       ${it.storyId ? `<span class="pill pill-purple">Story ${escapeHtml(it.storyId)}</span>` : ""}
                       ${stPill}
                     </div>
@@ -3019,9 +3118,12 @@
 
           listEl.querySelectorAll("[data-q-done]").forEach((btn) => {
             btn.addEventListener("click", async () => {
+              const taskId = btn.getAttribute("data-q-done");
+              const item = (currentState?.taskQueue?.items || []).find((i) => i.id === taskId);
+              const isPlanStep = item?.taskPhase === "plan";
               await manageQueue(
-                { action: "complete-task", taskId: btn.getAttribute("data-q-done"), storyStatus: "done" },
-                "✓ Task marked Done & next task promoted"
+                { action: "complete-task", taskId, storyStatus: isPlanStep ? "in-progress" : "done" },
+                isPlanStep ? "✓ Plan marked Done — ready for Build step" : "✓ Task marked Done & next task promoted"
               );
             });
           });
@@ -4212,6 +4314,36 @@
           );
         });
 
+        document.getElementById("queueSplitPlanBuildToggle")?.addEventListener("change", async (e) => {
+          const splitPlanBuild = Boolean(e.target.checked);
+          await manageQueue(
+            { action: "set-split-config", splitPlanBuild },
+            splitPlanBuild
+              ? "🧠→💻 Auto-split enabled: new build tasks split into Plan + Build steps"
+              : "📋 Auto-split disabled: new build tasks enqueue as single steps"
+          );
+        });
+
+        document.getElementById("queuePlannerModelSelect")?.addEventListener("change", async (e) => {
+          const plannerModel = e.target.value;
+          await manageQueue(
+            { action: "set-split-config", plannerModel, applyToExisting: true },
+            plannerModel
+              ? `🧠 Planner model set to ${shortModelName(plannerModel)}`
+              : "🧠 Planner model reset to Auto (Deep Reasoning)"
+          );
+        });
+
+        document.getElementById("queueBuilderModelSelect")?.addEventListener("change", async (e) => {
+          const builderModel = e.target.value;
+          await manageQueue(
+            { action: "set-split-config", builderModel, applyToExisting: true },
+            builderModel
+              ? `💻 Coder model set to ${shortModelName(builderModel)}`
+              : "💻 Coder model reset to Auto (Agentic Coding)"
+          );
+        });
+
         document.getElementById("btnQueueEntireEpic")?.addEventListener("click", async () => {
           const picker = document.getElementById("queueEpicPicker");
           const slug = picker?.value;
@@ -4249,8 +4381,11 @@
           }
           await completeTaskAndContinue(
             target.id,
-            `✓ Marked "${target.title}" Done; continuing queue…`,
-            currentState?.taskQueue?.executionMode
+            target.taskPhase === "plan"
+              ? `✓ Plan "${target.title}" ready; continuing to Build…`
+              : `✓ Marked "${target.title}" Done; continuing queue…`,
+            currentState?.taskQueue?.executionMode,
+            target.taskPhase
           );
         });
 

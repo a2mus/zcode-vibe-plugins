@@ -548,6 +548,24 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
         /<label[^>]*for="queueEpicPicker"[^>]*>[\s\S]*?<\/label>[\s\S]*?<select[^>]*id="queueEpicPicker"/,
         "queueEpicPicker must have an explicitly associated label via for/id"
       );
+
+      assert.match(
+        PANEL_HTML,
+        /<label[^>]*for="queueSplitPlanBuildToggle"[^>]*>[\s\S]*?<input[^>]*id="queueSplitPlanBuildToggle"/,
+        "queueSplitPlanBuildToggle must be wrapped in an associated label via for/id"
+      );
+
+      assert.match(
+        PANEL_HTML,
+        /<label[^>]*for="queuePlannerModelSelect"[^>]*>[\s\S]*?<\/label>\s*<select[^>]*id="queuePlannerModelSelect"/,
+        "queuePlannerModelSelect must have an explicitly associated label via for/id"
+      );
+
+      assert.match(
+        PANEL_HTML,
+        /<label[^>]*for="queueBuilderModelSelect"[^>]*>[\s\S]*?<\/label>\s*<select[^>]*id="queueBuilderModelSelect"/,
+        "queueBuilderModelSelect must have an explicitly associated label via for/id"
+      );
     });
 
     it("associates recommendation Action Window command textarea and model select with <label> via for/id (RD-9)", () => {

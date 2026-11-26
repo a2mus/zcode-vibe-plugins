@@ -386,6 +386,7 @@ const TOOLS = [
             "retry-failed",
             "set-review-mode",
             "set-execution-mode",
+            "set-split-config",
             "reorder",
             "remove",
             "clear",
@@ -409,6 +410,7 @@ const TOOLS = [
               prompt: { type: "string" },
               model: { type: "string", description: "Selected model ID (providerId/modelId) for this task." },
               reviewMode: { type: "string", enum: ["none", "quick", "thorough"] },
+              taskPhase: { type: "string", enum: ["plan", "build"], description: "Optional explicit phase tag ('plan' or 'build') when bypassing automatic split." },
               storyId: { type: "string" },
               overrideKey: { type: "string" },
               epicSlug: { type: "string" },
@@ -444,6 +446,22 @@ const TOOLS = [
         applyToAll: {
           type: "boolean",
           description: "When action='set-review-mode', apply the new reviewMode to all queued items (default true)."
+        },
+        splitPlanBuild: {
+          type: "boolean",
+          description: "When true (default), automatically split queued build tasks/stories into interleaved Plan (Planner model) and Build (Coder model) steps."
+        },
+        plannerModel: {
+          type: "string",
+          description: "Default Planner model ID (providerId/modelId) for auto-split Plan steps, or empty string for Auto (Deep Reasoning)."
+        },
+        builderModel: {
+          type: "string",
+          description: "Default Coder/Builder model ID (providerId/modelId) for auto-split Build steps, or empty string for Auto (Agentic Coding)."
+        },
+        applyToExisting: {
+          type: "boolean",
+          description: "When action='set-split-config', update existing queued Plan/Build items with the new Planner/Builder model (default true)."
         },
         executionMode: {
           type: "string",
@@ -638,7 +656,7 @@ async function handleToolCall(name, args = {}) {
     const summaryLines = [
       `# BMAD Companion Task Queue (${res.action})`,
       `- **Queue Status:** ${q.status.toUpperCase()} (${q.counts.done}/${q.counts.total} complete · ${q.counts.queued} in queue · ${q.counts.running} active${q.counts.failed > 0 ? ` · ${q.counts.failed} failed` : ""})`,
-      `- **Execution Mode:** \`${q.executionMode}\` · **Default Review Gate:** \`${q.defaultReviewMode}\``,
+      `- **Execution Mode:** \`${q.executionMode}\` · **Default Review Gate:** \`${q.defaultReviewMode}\` · **Plan → Build Split:** \`${q.splitPlanBuild ? "on" : "off"}\``,
       q.activeTask
         ? `- 🟢 **Active Task:** **${q.activeTask.title}** (\`${q.activeTask.model}\` · review: \`${q.activeTask.reviewMode}\`)`
         : `- ⏸ **Active Task:** None`,

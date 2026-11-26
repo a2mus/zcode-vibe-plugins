@@ -56,8 +56,15 @@ function buildStoryRefRegex(storyId) {
 
 // Prompt-match predicate shared by the user-prompt auto-start scan and the
 // stop auto-complete check: prefix-includes on the item prompt (or shaped
-// effectivePrompt), or a ticket/story reference to the item's storyId.
+// effectivePrompt), or a ticket/story reference to the item's storyId,
+// disambiguating Plan vs Build steps when both share a storyId.
+const PROMPT_IS_PLAN_RE =
+  /\bHalt after planning\.?|planning step only|^\s*\/bmad-build(?:-auto)?\s+"Plan(?::|\s+ticket|\s+story)/i;
+
 function taskItemMatchesPrompt(item, promptText, prefixLen) {
+  const promptIsPlan = PROMPT_IS_PLAN_RE.test(promptText);
+  if (item.taskPhase === "plan" && !promptIsPlan) return false;
+  if (item.taskPhase === "build" && promptIsPlan) return false;
   return Boolean(
     (item.prompt && promptText.includes(item.prompt.slice(0, prefixLen))) ||
       (item.effectivePrompt && promptText.includes(item.effectivePrompt.slice(0, prefixLen))) ||
@@ -285,10 +292,11 @@ async function handleStop({ payload, workspaceRoot, currentSessionId, captureSes
         ownsTask &&
         taskItemMatchesPrompt(activeItem, lastPrompt, AUTO_COMPLETE_PROMPT_PREFIX_LEN)
       ) {
+        const isPlanStep = activeItem.taskPhase === "plan";
         const completed = manageBmadTaskQueue(workspaceRoot, {
           action: "complete-task",
           taskId: activeItem.id,
-          storyStatus: "done",
+          storyStatus: isPlanStep ? "in-progress" : "done",
           summary: assistantMsg ? assistantMsg.replace(/\s+/g, " ").slice(0, 140) : "Completed in session"
         });
         completedScan = completed?.scan || null;
