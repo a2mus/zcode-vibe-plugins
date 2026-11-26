@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { relative, resolve } from "node:path";
 import { format } from "node:util";
 import {
+  CONVERSATION_LIMITS,
   buildSessionStartContext,
   buildTaskSessionLaunchInstructions,
   loadPersistedState,
@@ -42,6 +43,12 @@ const QUEUE_ORCHESTRATOR_PROMPT_RE = /Execute the active @bmad-companion Task Qu
 const AUTO_START_PROMPT_PREFIX_LEN = 45;
 const AUTO_COMPLETE_PROMPT_PREFIX_LEN = 40;
 
+// AD-18: bounded conversation snippet capture — whitespace-normalized and
+// hard-capped at capture time (the gateway merge re-enforces the same caps).
+function captureSnippet(text, maxChars) {
+  return String(text || "").replace(/\s+/g, " ").trim().slice(0, maxChars);
+}
+
 // `\b(?:ticket|story) <id>\b` reference matcher for a queue item's storyId.
 function buildStoryRefRegex(storyId) {
   return new RegExp(`\\b(?:ticket|story)\\s+${String(storyId).replace(/\./g, "\\.")}\\b`, "i");
@@ -79,8 +86,9 @@ async function tryOptionalAiTurnSynthesis(promptText, assistantText, scanOrFacto
     const sys = [
       "You are the BMAD-METHOD AI Companion for a software workspace.",
       "Given the latest user prompt, assistant response, available models, and BMAD workspace metrics, return strict JSON with:",
-      '{ "headline": "1-sentence insight", "turnSummary": "1-2 sentence summary of what just happened", "recommendations": [ { "skill": "/bmad-ux", "fullCommand": "/bmad-ux \\"concrete contextual prompt for this project\\"", "title": "Short title", "rationale": "Why this next", "recommendedModel": "providerId/modelId", "modelReason": "Why this model fits best", "phase": "2-planning", "priority": "high" } ] }',
-      "Every fullCommand MUST include both the /bmad-* skill and a specific double-quoted prompt tailored to the project."
+      '{ "headline": "1-sentence insight", "turnSummary": "1-2 sentence summary of what just happened", "focusSummary": "optional 1-2 plain everyday sentences on what was just done and what matters now", "recommendations": [ { "skill": "/bmad-ux", "fullCommand": "/bmad-ux \\"concrete contextual prompt for this project\\"", "title": "Short title", "rationale": "Why this next", "recommendedModel": "providerId/modelId", "modelReason": "Why this model fits best", "phase": "2-planning", "priority": "high" } ] }',
+      "Every fullCommand MUST include both the /bmad-* skill and a specific double-quoted prompt tailored to the project.",
+      "focusSummary MUST be plain human language: no /bmad-* commands, no phase codes, no tracker filenames, no BMAD jargon."
     ].join("\n");
 
     const userMsg = JSON.stringify({
@@ -136,9 +144,9 @@ function handleSessionStart({ workspaceRoot }) {
   return { additionalContext: buildSessionStartContext(scan) };
 }
 
-// UserPromptSubmit (R20): store the prompt, reset touched files, and auto
-// start-task a matching queued task.
-function handleUserPrompt({ payload, workspaceRoot, currentSessionId }) {
+// UserPromptSubmit (R20): store the prompt, reset touched files, capture the
+// conversation's promptSnippet (AD-18), and auto start-task a matching queued task.
+function handleUserPrompt({ payload, workspaceRoot, currentSessionId, captureSessionId }) {
   let promptText = payload.prompt || payload.user_prompt || "";
   if (!promptText && payload.transcript_path) {
     try {
@@ -148,10 +156,24 @@ function handleUserPrompt({ payload, workspaceRoot, currentSessionId }) {
     } catch {}
   }
   const cleanPrompt = String(promptText || "").slice(0, 4000);
+  const promptAt = new Date().toISOString();
   savePersistedState(workspaceRoot, {
     lastUserPrompt: cleanPrompt,
-    lastUserPromptAt: new Date().toISOString(),
-    recentTouchedFiles: []
+    lastUserPromptAt: promptAt,
+    recentTouchedFiles: [],
+    // AD-18: record this conversation's prompt snippet only when a sessionId
+    // is known (env first, payload.session_id fallback) — no fallback entries.
+    ...(captureSessionId
+      ? {
+          recentConversations: [
+            {
+              sessionId: captureSessionId,
+              updatedAt: promptAt,
+              promptSnippet: captureSnippet(cleanPrompt, CONVERSATION_LIMITS.promptSnippetChars)
+            }
+          ]
+        }
+      : {})
   });
 
   // If this prompt matches a queued task (and is not the queue orchestrator command itself), mark it active
@@ -198,10 +220,11 @@ function handlePostTool({ payload, workspaceRoot }) {
   return {};
 }
 
-// Stop (R22): count the turn, store the assistant message, auto-complete a
-// running single-session task (with queue handoff), and optionally run the
+// Stop (R22): count the turn, store the assistant message, capture the
+// conversation's outcomeSnippet/completedAt/touchedCount (AD-18), auto-complete
+// a running single-session task (with queue handoff), and optionally run the
 // bounded LLM turn synthesis.
-async function handleStop({ payload, workspaceRoot, currentSessionId }) {
+async function handleStop({ payload, workspaceRoot, currentSessionId, captureSessionId }) {
   const state = loadPersistedState(workspaceRoot);
   let rawAssistantMsg = payload.last_assistant_message || payload.responseText || "";
   if (!rawAssistantMsg && payload.transcript_path) {
@@ -213,11 +236,28 @@ async function handleStop({ payload, workspaceRoot, currentSessionId }) {
   }
   const assistantMsg = String(rawAssistantMsg || "").slice(0, 6000);
   const nextTurnCount = (state.turnCount || 0) + 1;
+  const stopAt = new Date().toISOString();
 
   savePersistedState(workspaceRoot, {
     lastAssistantMessage: assistantMsg,
-    lastTurnAnalyzedAt: new Date().toISOString(),
-    turnCount: nextTurnCount
+    lastTurnAnalyzedAt: stopAt,
+    turnCount: nextTurnCount,
+    // AD-18: stamp this conversation's outcome only when a sessionId is known.
+    // An empty outcomeSnippet never blanks a previously recorded snippet
+    // (field-preserving gateway merge).
+    ...(captureSessionId
+      ? {
+          recentConversations: [
+            {
+              sessionId: captureSessionId,
+              updatedAt: stopAt,
+              completedAt: stopAt,
+              outcomeSnippet: captureSnippet(assistantMsg, CONVERSATION_LIMITS.outcomeSnippetChars),
+              touchedCount: (state.recentTouchedFiles || []).length
+            }
+          ]
+        }
+      : {})
   });
 
   // Auto-complete active queued task when a single-task session finishes,
@@ -278,11 +318,21 @@ async function handleStop({ payload, workspaceRoot, currentSessionId }) {
     () => completedScan || scanBmadWorkspace(workspaceRoot)
   );
   if (aiSynth && Array.isArray(aiSynth.recommendations) && aiSynth.recommendations.length > 0) {
+    // AD-18: an optional plain-language focusSummary rides on the same override
+    // with source "stop-synthesis"; the engine jargon-validates it at scan time.
+    const synthFocus = typeof aiSynth.focusSummary === "string" ? aiSynth.focusSummary.trim() : "";
     savePersistedState(workspaceRoot, {
       agentAdvisorOverride: {
         headline: aiSynth.headline,
         turnSummary: aiSynth.turnSummary,
         recommendations: aiSynth.recommendations,
+        ...(synthFocus
+          ? {
+              focusSummary: synthFocus,
+              focusSummarySource: "stop-synthesis",
+              ...(captureSessionId ? { focusSummarySessionId: captureSessionId } : {})
+            }
+          : {}),
         updatedAt: new Date().toISOString()
       }
     });
@@ -305,6 +355,10 @@ async function main() {
   const currentSessionId = String(
     process.env.CLAUDE_SESSION_ID || process.env.ZCODE_SESSION_ID || ""
   );
+  // AD-18: conversation capture accepts payload.session_id as a fallback when
+  // no env sessionId is present. Queue ownership checks keep using the
+  // env-only currentSessionId so sibling-session semantics are unchanged.
+  const captureSessionId = currentSessionId || String(payload.session_id || "");
   const workspaceRoot = resolve(
     payload.cwd ||
       process.env.ZCODE_PROJECT_DIR ||
@@ -314,7 +368,7 @@ async function main() {
 
   // Unknown modes fall back to a no-op {} frame without state side effects.
   const handler = HOOK_HANDLERS[mode];
-  const frame = handler ? await handler({ payload, workspaceRoot, currentSessionId }) : {};
+  const frame = handler ? await handler({ payload, workspaceRoot, currentSessionId, captureSessionId }) : {};
   emitHookFrame(frame);
 }
 

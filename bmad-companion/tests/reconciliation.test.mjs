@@ -1118,4 +1118,109 @@ describe("reconcile MCP tool contract (Epic 3 Story 3.4)", () => {
   });
 });
 
+describe("Epic 7 Story 7.3: OQ-C bounded reconcile walk + OQ-F explicit override clear", () => {
+  it("OQ-C: a depth-4 tracker is reconciled while a depth-5 tracker stays untouched (SCAN_LIMITS envelope)", () => {
+    // Depth convention matches artifact-discovery: levels below _bmad-output/.
+    // The depth-4 tracker is reachable by both the scanner and the reconcile
+    // walk; the depth-5 tracker is beyond SCAN_LIMITS.maxDepth for both.
+    const yamlD4 = "_bmad-output/a/b/c/d/sprint-status.yaml";
+    const yamlD5 = "_bmad-output/a/b/c/d/e/sprint-status.yaml";
+    const ws = workspaces.create({
+      files: {
+        [yamlD4]: [
+          "development_status:",
+          "  epic-1: in-progress",
+          "  1-1-deep-four: backlog",
+          "  1-9-still-open: backlog"
+        ].join("\n") + "\n",
+        "_bmad-output/a/b/c/d/1-1-deep-four.md": "---\nstatus: done\n---\n",
+        [yamlD5]: [
+          "development_status:",
+          "  epic-1: in-progress",
+          "  1-2-deep-five: backlog"
+        ].join("\n") + "\n",
+        "_bmad-output/a/b/c/d/e/1-2-deep-five.md": "---\nstatus: done\n---\n"
+      }
+    });
+
+    const yamlD5Before = ws.read(yamlD5);
+    const result = reconcileWorkspaceTrackers(ws.root);
+
+    assert.equal(result.changesCount, 1, "only the depth-4 tracker key is reconciled");
+    assert.equal(result.changes[0].key, "1-1-deep-four");
+    assert.deepEqual(result.updatedFiles, [yamlD4]);
+    assert.match(ws.read(yamlD4), /1-1-deep-four: done/);
+    assert.equal(ws.exists(`${yamlD4}.bak`), true);
+
+    // Depth-5 tracker: byte-for-byte untouched, no backup, no audit mention.
+    assert.equal(ws.read(yamlD5), yamlD5Before);
+    assert.equal(ws.exists(`${yamlD5}.bak`), false);
+    assert.ok(!result.changes.some((c) => c.file === yamlD5));
+  });
+
+  it("OQ-F: live reconcile clears only reconciled storyOverrides keys via explicit replace; unrelated keys and later partial merges survive", () => {
+    const ws = workspaces.seedDualMetric();
+
+    // epic-core#1 is reconciled this run (story 1.1 has done evidence).
+    // epic-core#2 matches the tracker status (no change) and epic-other#9 maps
+    // to no scanned story, so both are unrelated to any reconciled key.
+    savePersistedState(ws.root, {
+      storyOverrides: {
+        "epic-core#1": { status: "done", reason: "Verified by AI companion", updatedAt: "2026-11-25T09:00:00.000Z" },
+        "epic-core#2": { status: "in-progress", reason: "Unrelated in-progress evidence", updatedAt: "2026-11-25T09:00:00.000Z" },
+        "epic-other#9": { status: "done", reason: "Unrelated epic evidence", updatedAt: "2026-11-25T09:00:00.000Z" }
+      }
+    });
+
+    const result = reconcileWorkspaceTrackers(ws.root);
+    assert.ok(result.changesCount >= 1);
+    assert.ok(result.changes.some((c) => c.key === "1-1-seed-fixture"));
+    assert.ok(!result.changes.some((c) => c.key === "1-2-verify-scan"), "story 1.2 needs no change");
+
+    const state = readJsonFile(ws.statePath);
+    assert.equal(state.storyOverrides["epic-core#1"], undefined, "reconciled override key cleared");
+    assert.equal(state.storyOverrides["epic-core#2"].status, "in-progress", "unrelated override survives");
+    assert.equal(state.storyOverrides["epic-other#9"].status, "done", "unrelated override survives");
+    assert.equal(typeof state.lastReconciledAt, "string");
+
+    // A subsequent plain partial merge still preserves existing keys (AD-3).
+    savePersistedState(ws.root, {
+      storyOverrides: {
+        "epic-core#3": { status: "in-progress", reason: "New evidence", updatedAt: "2026-11-25T10:00:00.000Z" }
+      }
+    });
+    const afterMerge = readJsonFile(ws.statePath);
+    assert.deepEqual(
+      Object.keys(afterMerge.storyOverrides).sort(),
+      ["epic-core#2", "epic-core#3", "epic-other#9"]
+    );
+
+    // An empty storyOverrides partial remains a no-op (never a blanket clear).
+    savePersistedState(ws.root, { storyOverrides: {} });
+    assert.deepEqual(
+      Object.keys(readJsonFile(ws.statePath).storyOverrides).sort(),
+      ["epic-core#2", "epic-core#3", "epic-other#9"]
+    );
+  });
+
+  it("OQ-F: dryRun reconcile writes zero state/tracker files even with overrides present", () => {
+    const ws = workspaces.seedDualMetric();
+    savePersistedState(ws.root, {
+      storyOverrides: {
+        "epic-core#1": { status: "done", reason: "Verified by AI companion", updatedAt: "2026-11-25T09:00:00.000Z" }
+      }
+    });
+    const stateBefore = ws.read(".zcode/bmad-companion/state.json");
+    const yamlRel = "_bmad-output/implementation-artifacts/sprint-status.yaml";
+    const yamlBefore = ws.read(yamlRel);
+
+    const result = reconcileWorkspaceTrackers(ws.root, { dryRun: true });
+    assert.ok(result.changesCount >= 1);
+    assert.equal(ws.read(".zcode/bmad-companion/state.json"), stateBefore, "dryRun must not rewrite state.json");
+    assert.equal(ws.read(yamlRel), yamlBefore);
+    assert.equal(ws.exists(".zcode/bmad-companion/reconciliation-log.json"), false);
+    assert.equal(ws.exists(`${yamlRel}.bak`), false);
+  });
+});
+
 

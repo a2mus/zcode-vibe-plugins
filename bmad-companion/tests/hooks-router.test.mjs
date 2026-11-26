@@ -1,14 +1,18 @@
 import { afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { join } from "node:path";
 
 import {
   loadPersistedState,
   manageBmadTaskQueue,
   savePersistedState,
-  scanBmadWorkspace
+  scanBmadWorkspace,
+  updateAdvisorState
 } from "../scripts/bmad-engine.mjs";
 import {
+  REPO_ROOT,
   assertSingleJsonObjectStdout,
   createTempWorkspaceTracker,
   readJsonFile,
@@ -555,5 +559,385 @@ describe("Epic 6 Story 6.5: Stop hook turn synthesis + queue auto-advance + opti
     assert.equal(afterTools.recentTouchedFiles.length, 15);
     assert.equal(afterTools.recentTouchedFiles[0], "docs/file-4.md");
     assert.equal(afterTools.recentTouchedFiles[14], "docs/file-18.md");
+  });
+});
+
+describe("Epic 7 Story 7.1: rolling 3-conversation memory (AD-3 / AD-18)", () => {
+  it("savePersistedState upserts by sessionId: moves to index 0, preserves non-empty snippets, dedups, and caps at 3 newest-first", () => {
+    const ws = workspaces.create();
+
+    savePersistedState(ws.root, {
+      recentConversations: [
+        { sessionId: "s1", promptSnippet: "first prompt", outcomeSnippet: "first outcome", completedAt: "2026-11-25T10:00:00.000Z" }
+      ]
+    });
+    savePersistedState(ws.root, {
+      recentConversations: [{ sessionId: "s2", promptSnippet: "second prompt" }]
+    });
+    savePersistedState(ws.root, {
+      recentConversations: [{ sessionId: "s3", promptSnippet: "third prompt" }]
+    });
+
+    // Upsert s2 with a new promptSnippet only: moves to index 0, outcomeSnippet
+    // (absent here) would be preserved if present, no duplicate sessionId.
+    savePersistedState(ws.root, {
+      recentConversations: [{ sessionId: "s2", promptSnippet: "second prompt refined" }]
+    });
+    let buffer = loadPersistedState(ws.root).recentConversations;
+    assert.deepEqual(buffer.map((c) => c.sessionId), ["s2", "s3", "s1"]);
+    assert.equal(buffer[0].promptSnippet, "second prompt refined");
+
+    // A 4th session evicts the oldest (s1); newest is index 0; no duplicates.
+    savePersistedState(ws.root, {
+      recentConversations: [{ sessionId: "s4", promptSnippet: "fourth prompt" }]
+    });
+    buffer = loadPersistedState(ws.root).recentConversations;
+    assert.deepEqual(buffer.map((c) => c.sessionId), ["s4", "s2", "s3"]);
+    assert.equal(new Set(buffer.map((c) => c.sessionId)).size, buffer.length);
+
+    // Field preservation: an empty/omitted snippet never blanks a recorded one,
+    // and completedAt survives a prompt-only partial update.
+    savePersistedState(ws.root, {
+      recentConversations: [{ sessionId: "s4", promptSnippet: "", outcomeSnippet: "   " }]
+    });
+    buffer = loadPersistedState(ws.root).recentConversations;
+    assert.equal(buffer[0].sessionId, "s4");
+    assert.equal(buffer[0].promptSnippet, "fourth prompt");
+
+    // Omitted recentConversations leaves the array untouched.
+    const beforeOmitted = JSON.stringify(buffer);
+    savePersistedState(ws.root, { lastUserPrompt: "unrelated write" });
+    assert.equal(JSON.stringify(loadPersistedState(ws.root).recentConversations), beforeOmitted);
+
+    // Entries without a sessionId are skipped (no fallback entries).
+    savePersistedState(ws.root, {
+      recentConversations: [{ promptSnippet: "no session" }, { sessionId: "", promptSnippet: "empty session" }]
+    });
+    assert.equal(JSON.stringify(loadPersistedState(ws.root).recentConversations), beforeOmitted);
+  });
+
+  it("hook capture: user-prompt records promptSnippet <=300, Stop records outcomeSnippet <=400 + completedAt + touchedCount, within the <=350ms budget and one stdout line", async () => {
+    const ws = workspaces.create();
+    const longPrompt = "P".repeat(500);
+    const longOutcome = "O".repeat(700);
+
+    const promptRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: longPrompt },
+      env: { ZCODE_SESSION_ID: "sess_capture_1" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(promptRes), {});
+    let state = readJsonFile(ws.statePath);
+    assert.equal(state.recentConversations.length, 1);
+    assert.equal(state.recentConversations[0].sessionId, "sess_capture_1");
+    assert.equal(state.recentConversations[0].promptSnippet.length, 300);
+    assert.equal(state.recentConversations[0].promptSnippet, "P".repeat(300));
+    assert.equal(state.recentConversations[0].outcomeSnippet ?? "", "");
+
+    // Two touched files before Stop -> touchedCount reflects recentTouchedFiles.
+    for (const rel of ["docs/a.md", "docs/b.md"]) {
+      await runHookRunner({
+        workspaceRoot: ws.root,
+        mode: "post-tool",
+        payload: { tool_input: { file_path: rel } }
+      });
+    }
+
+    const t0 = performance.now();
+    const stopRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: longOutcome },
+      env: { ZCODE_SESSION_ID: "sess_capture_1" }
+    });
+    const elapsed = performance.now() - t0;
+    assert.deepEqual(assertSingleJsonObjectStdout(stopRes), {});
+    assert.ok(elapsed <= 350, `C11: deterministic Stop with capture must stay <= 350ms, took ${elapsed.toFixed(1)}ms`);
+
+    state = readJsonFile(ws.statePath);
+    assert.equal(state.recentConversations.length, 1, "same session upserts, never duplicates");
+    const entry = state.recentConversations[0];
+    assert.equal(entry.sessionId, "sess_capture_1");
+    assert.equal(entry.promptSnippet, "P".repeat(300), "Stop must not blank the recorded promptSnippet");
+    assert.equal(entry.outcomeSnippet.length, 400);
+    assert.equal(entry.outcomeSnippet, "O".repeat(400));
+    assert.ok(!Number.isNaN(Date.parse(entry.completedAt)));
+    assert.equal(entry.touchedCount, 2);
+    assert.equal(state.turnCount, 1);
+  });
+
+  it("hook capture accepts payload.session_id fallback, and skips conversation capture (only) when no sessionId is known", async () => {
+    const ws = workspaces.create();
+
+    // payload.session_id fallback (env stripped by runHookRunner).
+    const fallbackRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "fallback session prompt", session_id: "sess_payload_1" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(fallbackRes), {});
+    let state = readJsonFile(ws.statePath);
+    assert.equal(state.recentConversations.length, 1);
+    assert.equal(state.recentConversations[0].sessionId, "sess_payload_1");
+    assert.equal(state.recentConversations[0].promptSnippet, "fallback session prompt");
+
+    // No sessionId anywhere: other state writes proceed, zero conversation entries.
+    const noSessionRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "No session turn." }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(noSessionRes), {});
+    state = readJsonFile(ws.statePath);
+    assert.equal(state.turnCount, 1);
+    assert.equal(state.lastAssistantMessage, "No session turn.");
+    assert.equal(state.recentConversations.length, 1, "no fallback entry may be created without a sessionId");
+    assert.equal(state.recentConversations[0].sessionId, "sess_payload_1");
+  });
+
+  it("acceptance: a 4th session's hook evicts the oldest of 3 recorded conversations, newest first, no duplicate sessionId", async () => {
+    const ws = workspaces.create();
+    for (const sessionId of ["sess_a", "sess_b", "sess_c"]) {
+      const res = await runHookRunner({
+        workspaceRoot: ws.root,
+        mode: "user-prompt",
+        payload: { prompt: `prompt for ${sessionId}` },
+        env: { ZCODE_SESSION_ID: sessionId }
+      });
+      assert.deepEqual(assertSingleJsonObjectStdout(res), {});
+    }
+    let buffer = readJsonFile(ws.statePath).recentConversations;
+    assert.deepEqual(buffer.map((c) => c.sessionId), ["sess_c", "sess_b", "sess_a"]);
+
+    const fourth = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "prompt for sess_d" },
+      env: { ZCODE_SESSION_ID: "sess_d" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(fourth), {});
+    buffer = readJsonFile(ws.statePath).recentConversations;
+    assert.deepEqual(buffer.map((c) => c.sessionId), ["sess_d", "sess_c", "sess_b"]);
+    assert.equal(new Set(buffer.map((c) => c.sessionId)).size, 3);
+  });
+});
+
+describe("Epic 7 Story 7.2: same-turn-safe focus freshness + Stop focus synthesis (AD-18)", () => {
+  it("a fresh advisor focusSummary survives same-session Stop seconds later, then expires when a different session completes", async () => {
+    const ws = workspaces.create();
+
+    // Turn starts in sess_focus_1.
+    await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "Improve the checkout flow" },
+      env: { ZCODE_SESSION_ID: "sess_focus_1" }
+    });
+
+    // Advisor writes a jargon-free focusSummary mid-turn, bound to sess_focus_1.
+    updateAdvisorState(ws.root, {
+      focusSummary: "The checkout flow now validates payment details before submitting the order.",
+      sessionId: "sess_focus_1"
+    });
+
+    // Stop fires seconds later for the SAME session: override must survive.
+    const sameStop = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "Checkout validation implemented and verified." },
+      env: { ZCODE_SESSION_ID: "sess_focus_1" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(sameStop), {});
+    let focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+    assert.equal(focus.source, "advisor-override");
+    assert.equal(focus.text, "The checkout flow now validates payment details before submitting the order.");
+    assert.equal(focus.basisLabel, "Current focus");
+    assert.equal(focus.conversationCount, 1);
+
+    // A DIFFERENT session completes later: override expires -> deterministic.
+    await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "Unrelated follow-up in another chat" },
+      env: { ZCODE_SESSION_ID: "sess_focus_2" }
+    });
+    const otherStop = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "Other session finished its own work." },
+      env: { ZCODE_SESSION_ID: "sess_focus_2" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(otherStop), {});
+    focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+    assert.equal(focus.source, "deterministic");
+    assert.equal(focus.conversationCount, 2);
+    assert.ok(!focus.text.includes("checkout flow now validates"), "expired override text must not surface");
+  });
+
+  it("a newer prompt in the SAME session expires the focus override (lastUserPromptAt freshness branch)", async () => {
+    const ws = workspaces.create();
+    await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "First request in this chat" },
+      env: { ZCODE_SESSION_ID: "sess_newprompt_1" }
+    });
+    updateAdvisorState(ws.root, {
+      focusSummary: "The first request was handled and its result is verified.",
+      sessionId: "sess_newprompt_1"
+    });
+    let focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+    assert.equal(focus.source, "advisor-override");
+
+    // A newer prompt starts in the same session: the override must expire even
+    // though no other conversation has completed.
+    await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "A newer request in the same chat" },
+      env: { ZCODE_SESSION_ID: "sess_newprompt_1" }
+    });
+    focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+    assert.equal(focus.source, "deterministic");
+    assert.ok(!focus.text.includes("first request was handled"), "expired override text must not surface");
+    assert.equal(focus.conversationCount, 1, "same session upserts, count stays honest");
+  });
+
+  it("an unbound focusSummary (no sessionId) survives same-session Stop, then expires on a newer prompt", async () => {
+    const ws = workspaces.create();
+
+    await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "Improve the search page" },
+      env: { ZCODE_SESSION_ID: "sess_unbound_1" }
+    });
+
+    // Advisor writes a focusSummary WITHOUT a sessionId binding.
+    updateAdvisorState(ws.root, {
+      focusSummary: "The search page now filters results as you type."
+    });
+    assert.equal(
+      loadPersistedState(ws.root).agentAdvisorOverride.focusSummarySessionId ?? null,
+      null,
+      "no binding may be invented for an unbound focusSummary"
+    );
+
+    // Same-session Stop stamps completedAt > updatedAt on its own entry; the
+    // unbound summary must survive (no conversation binding to compare against).
+    const stopRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "Search filtering implemented and verified." },
+      env: { ZCODE_SESSION_ID: "sess_unbound_1" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(stopRes), {});
+    let focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+    assert.equal(focus.source, "advisor-override");
+    assert.equal(focus.text, "The search page now filters results as you type.");
+
+    // Newer-prompt expiry still applies to unbound summaries.
+    await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "A newer prompt in the same chat" },
+      env: { ZCODE_SESSION_ID: "sess_unbound_1" }
+    });
+    focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+    assert.equal(focus.source, "deterministic");
+  });
+
+  it("Stop LLM focusSummary persists with source stop-synthesis; jargon-laden focusSummary falls back to deterministic text", async () => {
+    const ws = workspaces.create();
+    await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "Tidy the settings page" },
+      env: { ZCODE_SESSION_ID: "sess_synth_1" }
+    });
+
+    let focusPayload = "The settings page now saves changes instantly and confirms each update.";
+    const llm = await startStubLlmServer((_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  headline: "Settings turn synthesized",
+                  turnSummary: "Settings page work completed.",
+                  focusSummary: focusPayload,
+                  recommendations: [
+                    {
+                      skill: "/bmad-code-review",
+                      fullCommand: '/bmad-code-review "Review the settings page changes"',
+                      title: "Review Settings Changes",
+                      rationale: "Verify the settings save flow.",
+                      phase: "4-implementation",
+                      priority: "high"
+                    }
+                  ]
+                })
+              }
+            }
+          ]
+        })
+      );
+    });
+
+    try {
+      const res = await runHookRunner({
+        workspaceRoot: ws.root,
+        mode: "stop",
+        payload: { last_assistant_message: "Settings page saves instantly now." },
+        env: {
+          ZCODE_SESSION_ID: "sess_synth_1",
+          BMAD_COMPANION_OPENAI_KEY: "sk-focus-synth",
+          BMAD_COMPANION_OPENAI_BASE_URL: llm.baseUrl
+        }
+      });
+      assert.deepEqual(assertSingleJsonObjectStdout(res), {});
+
+      const state = readJsonFile(ws.statePath);
+      assert.equal(state.agentAdvisorOverride.focusSummary, focusPayload);
+      assert.equal(state.agentAdvisorOverride.focusSummarySource, "stop-synthesis");
+      assert.equal(state.agentAdvisorOverride.focusSummarySessionId, "sess_synth_1");
+
+      let focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+      assert.equal(focus.source, "stop-synthesis");
+      assert.equal(focus.text, focusPayload);
+
+      // Second turn: jargon-laden focusSummary must be rejected at scan time.
+      focusPayload = "Run /bmad-build in 4-implementation and update sprint-status.yaml for epic-core#1.";
+      const jargonRes = await runHookRunner({
+        workspaceRoot: ws.root,
+        mode: "stop",
+        payload: { last_assistant_message: "Settings follow-up turn completed." },
+        env: {
+          ZCODE_SESSION_ID: "sess_synth_1",
+          BMAD_COMPANION_OPENAI_KEY: "sk-focus-synth",
+          BMAD_COMPANION_OPENAI_BASE_URL: llm.baseUrl
+        }
+      });
+      assert.deepEqual(assertSingleJsonObjectStdout(jargonRes), {});
+      focus = scanBmadWorkspace(ws.root).turnAnalysis.currentFocus;
+      assert.equal(focus.source, "deterministic");
+      assert.ok(!/\/bmad-|4-implementation|sprint-status\.yaml|epic-core#1/.test(focus.text));
+      assert.ok(focus.text.length > 0);
+    } finally {
+      await llm.close();
+    }
+  });
+});
+
+describe("Epic 7 Story 7.3: OQ-E PostToolUse matcher alignment", () => {
+  it("hooks.json PostToolUse matcher is Write|Edit|MultiEdit (FR-21), not the legacy Edit|Write|Bash", () => {
+    const hooksConfig = JSON.parse(readFileSync(join(REPO_ROOT, "hooks", "hooks.json"), "utf8"));
+    const postToolUse = hooksConfig.hooks.PostToolUse;
+    assert.ok(Array.isArray(postToolUse) && postToolUse.length > 0);
+    assert.equal(postToolUse[0].matcher, "Write|Edit|MultiEdit");
+    assert.ok(!postToolUse[0].matcher.includes("Bash"), "Bash must not trigger artifact tracking");
   });
 });

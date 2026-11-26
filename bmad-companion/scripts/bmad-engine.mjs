@@ -1416,6 +1416,7 @@ export function loadPersistedState(workspaceRoot) {
     lastAssistantMessage: "",
     lastTurnAnalyzedAt: null,
     recentTouchedFiles: [],
+    recentConversations: [],
     turnCount: 0,
     agentAdvisorOverride: null,
     storyOverrides: {},
@@ -1424,7 +1425,65 @@ export function loadPersistedState(workspaceRoot) {
   };
 }
 
-export function savePersistedState(workspaceRoot, partial) {
+// AD-18 rolling 3-conversation memory: hard snippet caps applied at capture
+// (hook-runner) and to incoming snippet fields in the gateway merge; existing
+// non-empty snippets are preserved (never blanked by an omitted/empty partial).
+export const CONVERSATION_LIMITS = Object.freeze({
+  maxConversations: 3,
+  promptSnippetChars: 300,
+  outcomeSnippetChars: 400
+});
+
+const CONVERSATION_SNIPPET_FIELDS = Object.freeze({
+  promptSnippet: CONVERSATION_LIMITS.promptSnippetChars,
+  outcomeSnippet: CONVERSATION_LIMITS.outcomeSnippetChars
+});
+
+// Field-preserving upsert/dedup/cap merge for recentConversations (AD-3/AD-18):
+// keyed by sessionId, updated sessions move to index 0, the array is capped at
+// 3 newest-first entries, existing non-empty snippets are never blanked by an
+// omitted/empty partial field, and an omitted partial array leaves the buffer
+// untouched. Entries without a sessionId are skipped (no fallback entries).
+function mergeRecentConversations(currentEntries, incomingEntries) {
+  const currentList = Array.isArray(currentEntries) ? currentEntries : [];
+  if (!Array.isArray(incomingEntries)) return currentList;
+
+  const bySessionId = new Map();
+  const order = [];
+  for (const entry of currentList) {
+    const sessionId = entry && typeof entry === "object" ? String(entry.sessionId || "") : "";
+    if (!sessionId || bySessionId.has(sessionId)) continue;
+    bySessionId.set(sessionId, { ...entry, sessionId });
+    order.push(sessionId);
+  }
+
+  for (const entry of incomingEntries) {
+    const sessionId = entry && typeof entry === "object" ? String(entry.sessionId || "") : "";
+    if (!sessionId) continue;
+    const mergedEntry = { ...(bySessionId.get(sessionId) || { sessionId }) };
+    for (const [field, value] of Object.entries(entry)) {
+      if (field === "sessionId" || value === undefined) continue;
+      const snippetCap = CONVERSATION_SNIPPET_FIELDS[field];
+      if (snippetCap !== undefined) {
+        const snippet = String(value ?? "").slice(0, snippetCap);
+        if (!snippet.trim() && mergedEntry[field]) continue;
+        mergedEntry[field] = snippet;
+      } else {
+        mergedEntry[field] = value;
+      }
+    }
+    bySessionId.set(sessionId, mergedEntry);
+    const existingIndex = order.indexOf(sessionId);
+    if (existingIndex >= 0) order.splice(existingIndex, 1);
+    order.unshift(sessionId);
+  }
+
+  return order
+    .slice(0, CONVERSATION_LIMITS.maxConversations)
+    .map((sessionId) => bySessionId.get(sessionId));
+}
+
+export function savePersistedState(workspaceRoot, partial, options = {}) {
   const current = loadPersistedState(workspaceRoot);
   const merged = {
     ...current,
@@ -1439,8 +1498,18 @@ export function savePersistedState(workspaceRoot, partial) {
           ...partial.taskQueue
         }
       : current.taskQueue || createDefaultTaskQueueState(),
-    updatedAt: new Date().toISOString()
+    recentConversations: mergeRecentConversations(current.recentConversations, partial.recentConversations)
   };
+  // OQ-F: keys listed in options.replaceKeys are replaced wholesale with the
+  // partial's value (explicit clear/replace). Every other caller keeps the
+  // default field-preserving merge semantics above.
+  const replaceKeys = Array.isArray(options.replaceKeys) ? options.replaceKeys : [];
+  for (const key of replaceKeys) {
+    if (typeof key === "string" && Object.prototype.hasOwnProperty.call(partial, key)) {
+      merged[key] = partial[key];
+    }
+  }
+  merged.updatedAt = new Date().toISOString();
   const file = getStateFilePath(workspaceRoot, { ensureDir: true });
   const json = JSON.stringify(merged, null, 2);
   const tmpFile = `${file}.tmp.${process.pid}.${Date.now()}`;
@@ -1506,8 +1575,12 @@ export function updateAdvisorState(workspaceRoot, args = {}) {
   const hasHeadline = typeof args.headline === "string" && args.headline.trim().length > 0;
   const hasTurnSummary = typeof args.turnSummary === "string" && args.turnSummary.trim().length > 0;
   const hasRecommendations = Array.isArray(args.recommendations);
+  // AD-18: optional plain-language focus override rides on agentAdvisorOverride
+  // (additive fields) so existing workflow/queue staleness applies automatically.
+  const hasFocusSummary = typeof args.focusSummary === "string" && args.focusSummary.trim().length > 0;
+  const focusSessionId = typeof args.sessionId === "string" ? args.sessionId.trim() : "";
   let nextAdvisorOverride;
-  if (hasHeadline || hasTurnSummary || hasRecommendations) {
+  if (hasHeadline || hasTurnSummary || hasRecommendations || hasFocusSummary) {
     const existingOverride =
       current.agentAdvisorOverride && typeof current.agentAdvisorOverride === "object"
         ? current.agentAdvisorOverride
@@ -1517,6 +1590,15 @@ export function updateAdvisorState(workspaceRoot, args = {}) {
       ...(hasHeadline ? { headline: args.headline } : {}),
       ...(hasTurnSummary ? { turnSummary: args.turnSummary } : {}),
       ...(hasRecommendations ? { recommendations: args.recommendations } : {}),
+      ...(hasFocusSummary
+        ? {
+            focusSummary: args.focusSummary.trim(),
+            focusSummarySource: "advisor-override",
+            // A replacement focusSummary without a sessionId must not inherit
+            // the previous conversation binding via the existingOverride spread.
+            focusSummarySessionId: focusSessionId || null
+          }
+        : {}),
       updatedAt: now
     };
   }
@@ -1530,6 +1612,11 @@ export function updateAdvisorState(workspaceRoot, args = {}) {
     ...(nextAdvisorOverride ? { agentAdvisorOverride: nextAdvisorOverride } : {}),
     storyOverrides,
     ...(hostModels !== null ? { hostModels } : {}),
+    // AD-18: upsert a conversation entry only when a sessionId is provided —
+    // never create fallback dated entries (one chat must not occupy two slots).
+    ...(focusSessionId
+      ? { recentConversations: [{ sessionId: focusSessionId, updatedAt: now }] }
+      : {}),
     lastTurnAnalyzedAt: now
   });
 
@@ -2453,7 +2540,8 @@ export function scanBmadWorkspace(workspaceRoot) {
       lastLaunchedSession: persisted.lastLaunchedSession || null,
       aiSummaryHeadline:
         activeAdvisorOverride?.headline ||
-        buildTurnHeadline(persisted.lastUserPrompt, persisted.lastAssistantMessage, projectName, smartOverallPct, totalStories)
+        buildTurnHeadline(persisted.lastUserPrompt, persisted.lastAssistantMessage, projectName, smartOverallPct, totalStories),
+      currentFocus: buildCurrentFocus(persisted, activeAdvisorOverride)
     },
     recommendations,
     smartInsights,
@@ -2526,6 +2614,34 @@ function isAdvisorOverrideStale(persisted) {
       return true;
     }
   }
+
+  // AD-18 same-turn-safe focus freshness: a focusSummary expires only when a
+  // DIFFERENT conversation completes after it was written, or a newer prompt
+  // starts after it. A Stop firing seconds after bmad_update_advisor in the
+  // same session must not kill the summary just written.
+  if (typeof override.focusSummary === "string" && override.focusSummary.trim()) {
+    const focusSessionId = String(override.focusSummarySessionId || "");
+    // An unbound focusSummary (no sessionId) has no conversation to compare
+    // against, so skip the completion-expiry loop entirely — otherwise its own
+    // session's Stop would always look "different" and kill the fresh summary.
+    if (focusSessionId) {
+      const conversations = Array.isArray(persisted.recentConversations) ? persisted.recentConversations : [];
+      for (const entry of conversations) {
+        const completedMs = parseIsoMs(entry?.completedAt);
+        if (
+          Number.isFinite(completedMs) &&
+          completedMs > overrideMs &&
+          String(entry?.sessionId || "") !== focusSessionId
+        ) {
+          return true;
+        }
+      }
+    }
+    const promptMs = parseIsoMs(persisted.lastUserPromptAt);
+    if (Number.isFinite(promptMs) && promptMs > overrideMs) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -2590,6 +2706,159 @@ function buildTurnHeadline(lastUserPrompt, lastAssistantMessage, projectName, sm
   return `Analyzed latest prompt result for ${projectName} (${totalStories > 0 ? `${smartOverallPct}% stories complete` : "onboarding mode"}) — launch the next step in a new session below.`;
 }
 
+// ---------------------------------------------------------------------------
+// Plain-language Work copy (AD-8 / AD-18 / RD-9).
+// One shared jargon filter guards every Work-facing string: currentFocus.text,
+// plainTitle, and plainSummary must never carry /bmad-* commands, BMAD tokens,
+// phase codes, tracker filenames, or epic-slug#num override keys.
+// ---------------------------------------------------------------------------
+
+const BMAD_JARGON_PATTERN = [
+  "\\/bmad-[a-z0-9-]+", // slash commands
+  "\\bbmad(?:-[a-z0-9-]+)?\\b", // bare BMAD / bmad-* tokens
+  "\\b[1-4]-(?:analysis|planning|solutioning|implementation)\\b", // phase codes
+  "\\bsprint-status\\.ya?ml\\b", // tracker filenames
+  "\\btickets\\.toml\\b",
+  "\\bskills-lock\\.json\\b",
+  "\\b[a-z0-9-]+#[a-z0-9.]+\\b" // epic-slug#num override keys
+].join("|");
+const BMAD_JARGON_STRIP_RE = new RegExp(BMAD_JARGON_PATTERN, "gi");
+const BMAD_JARGON_TEST_RE = new RegExp(BMAD_JARGON_PATTERN, "i");
+
+export function containsBmadJargon(text) {
+  return BMAD_JARGON_TEST_RE.test(String(text || ""));
+}
+
+export function stripBmadJargon(text) {
+  return String(text || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(BMAD_JARGON_STRIP_RE, " ")
+    .replace(/\(\s*\)/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Collapse a raw snippet into one plain sentence bounded to maxChars, cutting
+// at a word boundary so the hero never shows a mid-word truncation.
+function plainSentenceFrom(text, maxChars) {
+  const clean = stripBmadJargon(String(text || "").replace(/\s+/g, " "));
+  if (!clean) return "";
+  if (clean.length <= maxChars) return clean;
+  const cut = clean.slice(0, maxChars);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > 40 ? cut.slice(0, lastSpace) : cut).replace(/[,;:\s]+$/, "")}…`;
+}
+
+function ensureSentenceEnding(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return "";
+  return /[.!?…]$/.test(clean) ? clean : `${clean}.`;
+}
+
+// AD-18: currentFocus.text is capped at the first 2 sentences. Simple boundary
+// split on [.!?…] followed by whitespace (or end of string).
+function firstTwoSentences(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return "";
+  return clean.split(/(?<=[.!?…])\s+/).slice(0, 2).join(" ");
+}
+
+// Recommendation plain copy only (AD-8): keep whole grammatical sentences.
+// Drop any sentence containing a jargon token and any parenthetical containing
+// an artifact filename (.md/.toml/.yaml/.yml/.json), instead of stripping
+// tokens mid-sentence and leaving ungrammatical fragments. Current-focus
+// snippet stripping (plainSentenceFrom) is intentionally left unchanged.
+const ARTIFACT_FILENAME_PAREN_RE = /\([^)]*\.(?:md|toml|ya?ml|json)\b[^)]*\)/gi;
+
+function plainSentencesFrom(text, maxChars) {
+  const clean = String(text || "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(ARTIFACT_FILENAME_PAREN_RE, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return "";
+  const kept = [];
+  for (const sentence of clean.split(/(?<=[.!?…])\s+/)) {
+    const trimmed = sentence.trim();
+    if (!trimmed || containsBmadJargon(trimmed)) continue;
+    const candidate = kept.length > 0 ? `${kept.join(" ")} ${trimmed}` : trimmed;
+    if (candidate.length > maxChars) {
+      if (kept.length === 0) {
+        // Bound an overlong first sentence at a word boundary.
+        const cut = trimmed.slice(0, maxChars);
+        const lastSpace = cut.lastIndexOf(" ");
+        return `${(lastSpace > 40 ? cut.slice(0, lastSpace) : cut).replace(/[,;:\s]+$/, "")}…`;
+      }
+      break;
+    }
+    kept.push(trimmed);
+  }
+  return kept.join(" ");
+}
+
+// Plain-language recommendation copy (AD-8): derived from the existing
+// title/rationale as whole jargon-free sentences; original fields stay untouched.
+function buildPlainRecCopy(rec) {
+  const plainTitle =
+    plainSentencesFrom(rec.title, 90) ||
+    plainSentencesFrom(rec.rationale, 90) ||
+    "Suggested next step for your project";
+  const plainSummary =
+    plainSentencesFrom(rec.rationale, 200) ||
+    plainSentencesFrom(rec.title, 200) ||
+    "A concrete next step tailored to your workspace.";
+  return { plainTitle, plainSummary };
+}
+
+// Deterministic jargon-free current-focus synthesis (AD-18). Priority:
+// 1. fresh advisor/stop focusSummary override (jargon-validated),
+// 2. recorded conversation snippets (newest first),
+// 3. last prompt/assistant text,
+// 4. plain ready-state sentence.
+// Never reuses buildTurnHeadline strings or aiSummaryHeadline.
+function buildCurrentFocus(persisted, activeAdvisorOverride) {
+  const conversations = Array.isArray(persisted.recentConversations) ? persisted.recentConversations : [];
+  const conversationCount = conversations.length;
+  const base = { basisLabel: "Current focus", conversationCount };
+
+  const overrideFocus =
+    activeAdvisorOverride && typeof activeAdvisorOverride.focusSummary === "string"
+      ? activeAdvisorOverride.focusSummary.trim()
+      : "";
+  const overrideText = overrideFocus ? ensureSentenceEnding(plainSentenceFrom(overrideFocus, 400)) : "";
+  if (overrideText && !containsBmadJargon(overrideFocus)) {
+    const source =
+      activeAdvisorOverride.focusSummarySource === "stop-synthesis" ? "stop-synthesis" : "advisor-override";
+    return { ...base, text: firstTwoSentences(overrideText), source };
+  }
+
+  const newest = conversations[0] || null;
+  const outcome = plainSentenceFrom(newest?.outcomeSnippet, 220);
+  const prompt = plainSentenceFrom(newest?.promptSnippet, 160);
+  if (outcome || prompt) {
+    const parts = [];
+    if (outcome) parts.push(ensureSentenceEnding(outcome));
+    if (prompt) parts.push(`You asked: ${ensureSentenceEnding(prompt)}`);
+    return { ...base, text: firstTwoSentences(parts.join(" ")), source: "deterministic" };
+  }
+
+  const lastPrompt = plainSentenceFrom(persisted.lastUserPrompt, 160);
+  const lastAssistant = plainSentenceFrom(persisted.lastAssistantMessage, 220);
+  if (lastPrompt || lastAssistant) {
+    const parts = [];
+    if (lastAssistant) parts.push(ensureSentenceEnding(lastAssistant));
+    if (lastPrompt) parts.push(`You asked: ${ensureSentenceEnding(lastPrompt)}`);
+    return { ...base, text: firstTwoSentences(parts.join(" ")), source: "deterministic" };
+  }
+
+  return {
+    ...base,
+    text: "This workspace is ready for its next step. Pick a suggestion below to start a new conversation with a recommended model.",
+    source: "deterministic"
+  };
+}
+
 function buildRecommendations({
   projectName,
   techStack,
@@ -2621,6 +2890,9 @@ function buildRecommendations({
     recs.push({
       id: `rec-${recs.length + 1}`,
       ...rec,
+      // AD-8 / RD-9: every recommendation carries jargon-free Work copy while
+      // title/rationale/skill/phase stay untouched for the Action Window.
+      ...buildPlainRecCopy(rec),
       recommendedModel
     });
   }
@@ -3034,13 +3306,33 @@ export function reconcileWorkspaceTrackers(workspaceRoot, options = {}) {
     return Boolean(rel && rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel));
   }
 
-  const candidateFiles = walkFiles(workspaceRoot, workspaceRoot, 6).filter(
-    (cf) =>
-      !cf.relPath.includes("node_modules/") &&
-      !cf.relPath.startsWith(".zcode/") &&
-      !cf.relPath.startsWith(".test-home/") &&
-      isConfinedTrackerFile(cf.fullPath)
-  );
+  // OQ-C closed: the reconcile walk uses the same bounded envelope as the
+  // scanner (AD-7) instead of the legacy depth-6 root walk. The scanner walks
+  // _bmad-output/ and docs/ starting one level inside the workspace root, so
+  // those subtrees are walked from their own roots at SCAN_LIMITS.maxDepth
+  // (artifact-tree parity with the scanner); a bounded root walk at
+  // SCAN_LIMITS.maxDepth additionally covers legacy shallow trackers outside
+  // those artifact trees.
+  const candidateWalks = [
+    walkFiles(workspaceRoot, workspaceRoot, SCAN_LIMITS.maxDepth),
+    walkFiles(join(workspaceRoot, "_bmad-output"), workspaceRoot, SCAN_LIMITS.maxDepth),
+    walkFiles(join(workspaceRoot, "docs"), workspaceRoot, SCAN_LIMITS.maxDepth)
+  ];
+  const seenCandidatePaths = new Set();
+  const candidateFiles = [];
+  for (const cf of candidateWalks.flat()) {
+    if (
+      seenCandidatePaths.has(cf.fullPath) ||
+      cf.relPath.includes("node_modules/") ||
+      cf.relPath.startsWith(".zcode/") ||
+      cf.relPath.startsWith(".test-home/") ||
+      !isConfinedTrackerFile(cf.fullPath)
+    ) {
+      continue;
+    }
+    seenCandidatePaths.add(cf.fullPath);
+    candidateFiles.push(cf);
+  }
 
   // 1. Reconcile BMAD v6 YAML files (sprint-status.yaml / sprint-status.yml)
   if (target === "all" || target === "v6-yaml") {
@@ -3338,11 +3630,37 @@ export function reconcileWorkspaceTrackers(workspaceRoot, options = {}) {
       throw new Error(`Failed to append reconciliation audit log '${relative(workspaceRoot, logFile).replace(/\\/g, "/")}': ${errorMessage(err)}`);
     }
 
-    // Clean up any temporary overrides that are now natively written into the files
-    savePersistedState(workspaceRoot, {
-      storyOverrides: {},
-      lastReconciledAt: logEntry.reconciledAt
-    });
+    // OQ-F closed: clear only the storyOverrides keys actually reconciled in
+    // this run (their statuses are now natively written into the trackers).
+    // Map each change key (v6 key or epic-slug#num overrideKey) to its story
+    // overrideKey, then replace storyOverrides wholesale with the remainder so
+    // unrelated overrides survive. A plain `storyOverrides: {}` partial merge
+    // would be a silent no-op under AD-3, hence options.replaceKeys.
+    const reconciledOverrideKeys = new Set();
+    for (const change of changes) {
+      const changeKey = String(change.key || "");
+      if (!changeKey) continue;
+      if (STORY_OVERRIDE_KEY_RE.test(changeKey)) {
+        reconciledOverrideKeys.add(changeKey);
+      } else {
+        const mappedOverrideKey = storyByKey.get(changeKey)?.overrideKey;
+        if (mappedOverrideKey) reconciledOverrideKeys.add(mappedOverrideKey);
+      }
+    }
+    const remainingOverrides = {};
+    for (const [overrideKey, overrideEntry] of Object.entries(loadPersistedState(workspaceRoot).storyOverrides || {})) {
+      if (!reconciledOverrideKeys.has(overrideKey)) {
+        remainingOverrides[overrideKey] = overrideEntry;
+      }
+    }
+    savePersistedState(
+      workspaceRoot,
+      {
+        storyOverrides: remainingOverrides,
+        lastReconciledAt: logEntry.reconciledAt
+      },
+      { replaceKeys: ["storyOverrides"] }
+    );
   }
 
   const postScan = scanBmadWorkspace(workspaceRoot);

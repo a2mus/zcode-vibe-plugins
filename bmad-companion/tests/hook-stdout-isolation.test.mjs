@@ -208,4 +208,56 @@ describe("bmad-companion hook stdout-isolation harness", () => {
     assert.equal(ws.exists(".zcode/bmad-companion/reconciliation-log.json"), false);
     assert.equal(ws.exists("_bmad-output/implementation-artifacts/sprint-status.yaml.bak"), false);
   });
+
+  it("Epic 7: conversation capture keeps exactly one {} stdout line per mode (env sessionId and payload.session_id fallback)", async () => {
+    const ws = workspaces.seed();
+
+    // user-prompt with env sessionId.
+    const promptRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "user-prompt",
+      payload: { prompt: "Capture this conversation please" },
+      env: { ZCODE_SESSION_ID: "sess_iso_1" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(promptRes), {});
+
+    // stop with payload.session_id fallback (env stripped by runHookRunner).
+    const stopRes = await runHookRunner({
+      workspaceRoot: ws.root,
+      mode: "stop",
+      payload: { last_assistant_message: "Conversation captured.", session_id: "sess_iso_1" }
+    });
+    assert.deepEqual(assertSingleJsonObjectStdout(stopRes), {});
+
+    const state = readJsonFile(ws.statePath);
+    assert.equal(state.recentConversations.length, 1);
+    assert.equal(state.recentConversations[0].sessionId, "sess_iso_1");
+    assert.equal(state.recentConversations[0].promptSnippet, "Capture this conversation please");
+    assert.equal(state.recentConversations[0].outcomeSnippet, "Conversation captured.");
+    assert.equal(typeof state.recentConversations[0].completedAt, "string");
+
+    // post-tool and session-start still emit one line each and never add
+    // conversation entries.
+    assert.deepEqual(
+      assertSingleJsonObjectStdout(
+        await runHookRunner({
+          workspaceRoot: ws.root,
+          mode: "post-tool",
+          payload: { tool_input: { file_path: "docs/iso.md" } },
+          env: { ZCODE_SESSION_ID: "sess_iso_1" }
+        })
+      ),
+      {}
+    );
+    const startFrame = assertSingleJsonObjectStdout(
+      await runHookRunner({
+        workspaceRoot: ws.root,
+        mode: "session-start",
+        payload: {},
+        env: { ZCODE_SESSION_ID: "sess_iso_1" }
+      })
+    );
+    assert.ok(startFrame.additionalContext.includes("[BMAD Companion Active for"));
+    assert.equal(readJsonFile(ws.statePath).recentConversations.length, 1);
+  });
 });

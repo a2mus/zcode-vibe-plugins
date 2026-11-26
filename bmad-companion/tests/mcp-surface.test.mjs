@@ -5,12 +5,15 @@ import { readFileSync, symlinkSync } from "node:fs";
 import { relative, resolve } from "node:path";
 
 import {
+  containsBmadJargon,
   inspectWorkspaceArtifact,
   openNewConversationWithPrompt,
   openWorkspaceArtifactExternally,
   prepareNewSession,
   resolveWorkspaceArtifactPath,
-  runCommandAsync
+  runCommandAsync,
+  savePersistedState,
+  stripBmadJargon
 } from "../scripts/bmad-engine.mjs";
 import {
   PANEL_HTML_PATH,
@@ -98,6 +101,11 @@ function assertContextualRecommendation(rec, knownModelIds) {
   const modelId = rec.recommendedModel.modelId;
   assert.match(modelId, /^[^/]+\/.+$/, `recommendation ${rec.id} modelId is providerId/modelId`);
   assert.ok(knownModelIds.has(modelId), `${modelId} is one of the available models`);
+  // AD-8 / RD-9 (Epic 7 sweep): every recommendation also carries plain Work copy.
+  assert.ok(typeof rec.plainTitle === "string" && rec.plainTitle.trim().length > 0, `recommendation ${rec.id} plainTitle`);
+  assert.ok(typeof rec.plainSummary === "string" && rec.plainSummary.trim().length > 0, `recommendation ${rec.id} plainSummary`);
+  assert.ok(!containsBmadJargon(rec.plainTitle), `recommendation ${rec.id} plainTitle jargon-free`);
+  assert.ok(!containsBmadJargon(rec.plainSummary), `recommendation ${rec.id} plainSummary jargon-free`);
 }
 
 function assertScanResultShape(scan, workspaceRoot) {
@@ -135,6 +143,21 @@ function assertScanResultShape(scan, workspaceRoot) {
     scan.availableModels.map((m) => m.id).sort(),
     HOST_MODELS.map((m) => m.id).sort()
   );
+
+  // AD-18 (Epic 7 sweep): currentFocus closed schema on every scan shape.
+  const focus = scan.turnAnalysis.currentFocus;
+  assert.ok(focus && typeof focus === "object", "turnAnalysis.currentFocus present");
+  assert.equal(focus.basisLabel, "Current focus");
+  assert.ok(
+    ["advisor-override", "stop-synthesis", "deterministic"].includes(focus.source),
+    `currentFocus.source closed enum, got ${focus.source}`
+  );
+  assert.ok(
+    Number.isInteger(focus.conversationCount) && focus.conversationCount >= 0 && focus.conversationCount <= 3,
+    "currentFocus.conversationCount honest 0..3"
+  );
+  assert.ok(typeof focus.text === "string" && focus.text.trim().length > 0);
+  assert.ok(!containsBmadJargon(focus.text), "currentFocus.text jargon-free");
 }
 
 describe("bmad-companion read-only tool contract tracer", () => {
@@ -1263,5 +1286,286 @@ describe("bmad_inspect_artifact & bmad_open_artifact_file confinement + git diff
       openMethod: "xdg-open",
       error: "spawn xdg-open ENOENT"
     });
+  });
+});
+
+describe("Epic 7: focus hero engine surface (AD-8 / AD-14 / AD-18)", () => {
+  it("bmad_update_advisor exposes additive optional focusSummary/sessionId schema fields (AD-14)", async () => {
+    const ws = seedSurfaceWorkspace();
+    const res = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [{ jsonrpc: "2.0", id: 1, method: "tools/list" }]
+    });
+    assertStrictJsonRpcStdout(res);
+    const tools = res.responses[0].result.tools;
+    const advisor = tools.find((t) => t.name === "bmad_update_advisor");
+    assert.ok(advisor, "bmad_update_advisor must be listed");
+    assert.equal(advisor.inputSchema.additionalProperties, false);
+    assert.equal(advisor.inputSchema.properties.focusSummary.type, "string");
+    assert.equal(advisor.inputSchema.properties.sessionId.type, "string");
+    assert.ok(!advisor.inputSchema.required?.includes("focusSummary"), "focusSummary stays optional");
+    assert.ok(!advisor.inputSchema.required?.includes("sessionId"), "sessionId stays optional");
+    // Existing fields are untouched (additive-only change).
+    for (const legacyField of ["headline", "turnSummary", "recommendations", "hostModels", "storyStatusUpdates"]) {
+      assert.ok(advisor.inputSchema.properties[legacyField], `${legacyField} retained`);
+    }
+  });
+
+  it("accepts focusSummary/sessionId, binds the override, upserts a conversation entry only with sessionId, and never creates fallback entries", async () => {
+    const ws = seedSurfaceWorkspace();
+    const focusText = "The settings page now saves changes instantly and confirms each update.";
+
+    const res = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [
+        toolCall(1, "bmad_update_advisor", { focusSummary: focusText, sessionId: "sess_mcp_1" }),
+        toolCall(2, "bmad_update_advisor", { focusSummary: "A second plain focus sentence without any session binding." }),
+        toolCall(3, "bmad_get_state")
+      ]
+    });
+    assertStrictJsonRpcStdout(res);
+    assert.equal(res.responses.length, 3);
+    for (const frame of res.responses) {
+      assert.ok(!frame.result.isError, "additive advisor fields must be accepted");
+    }
+
+    const [withSession, withoutSession] = res.responses.map((f) => f.result.structuredContent);
+    assert.equal(withSession.turnAnalysis.currentFocus.source, "advisor-override");
+    assert.equal(withSession.turnAnalysis.currentFocus.text, focusText);
+    assert.equal(withSession.turnAnalysis.currentFocus.basisLabel, "Current focus");
+    assert.equal(withSession.turnAnalysis.currentFocus.conversationCount, 1);
+
+    const persisted = JSON.parse(ws.read(".zcode/bmad-companion/state.json"));
+    assert.equal(persisted.agentAdvisorOverride.focusSummary, "A second plain focus sentence without any session binding.");
+    assert.equal(persisted.agentAdvisorOverride.focusSummarySource, "advisor-override");
+    assert.equal(
+      persisted.agentAdvisorOverride.focusSummarySessionId,
+      null,
+      "an unbound replacement focusSummary must not inherit the previous conversation binding"
+    );
+    assert.ok(!Number.isNaN(Date.parse(persisted.agentAdvisorOverride.updatedAt)));
+    assert.equal(persisted.recentConversations.length, 1, "no sessionId -> zero new conversation entries");
+    assert.equal(persisted.recentConversations[0].sessionId, "sess_mcp_1");
+
+    // Without a session binding the fresh override still surfaces, count stays honest.
+    assert.equal(withoutSession.turnAnalysis.currentFocus.source, "advisor-override");
+    assert.equal(withoutSession.turnAnalysis.currentFocus.conversationCount, 1);
+    assert.equal(res.responses[2].result.structuredContent.turnAnalysis.currentFocus.conversationCount, 1);
+  });
+
+  it("currentFocus keeps the closed source enum, honest 0..3 counts, and rejects jargon-laden overrides with a deterministic fallback", async () => {
+    // Empty workspace: 0 conversations, deterministic ready-state text.
+    const empty = workspaces.create();
+    const emptyScan = (
+      await runMcpServer({ workspaceRoot: empty.root, requests: [toolCall(1, "bmad_get_state")] })
+    ).responses[0].result.structuredContent;
+    const emptyFocus = emptyScan.turnAnalysis.currentFocus;
+    assert.equal(emptyFocus.conversationCount, 0);
+    assert.equal(emptyFocus.source, "deterministic");
+    assert.equal(emptyFocus.basisLabel, "Current focus");
+    assert.ok(emptyFocus.text.length > 0);
+    assert.ok(!containsBmadJargon(emptyFocus.text));
+
+    // Three recorded conversations: honest count 3, deterministic snippet synthesis.
+    const seeded = workspaces.create();
+    savePersistedState(seeded.root, {
+      recentConversations: [
+        { sessionId: "c1", promptSnippet: "first request", outcomeSnippet: "First result delivered.", completedAt: "2026-11-25T10:00:00.000Z" },
+        { sessionId: "c2", promptSnippet: "second request", outcomeSnippet: "Second result delivered.", completedAt: "2026-11-25T11:00:00.000Z" },
+        { sessionId: "c3", promptSnippet: "third request", outcomeSnippet: "Third result delivered.", completedAt: "2026-11-25T12:00:00.000Z" }
+      ]
+    });
+    const seededScan = (
+      await runMcpServer({ workspaceRoot: seeded.root, requests: [toolCall(1, "bmad_get_state")] })
+    ).responses[0].result.structuredContent;
+    assert.equal(seededScan.turnAnalysis.currentFocus.conversationCount, 3);
+    assert.equal(seededScan.turnAnalysis.currentFocus.source, "deterministic");
+    assert.ok(seededScan.turnAnalysis.currentFocus.text.includes("Third result delivered"));
+    assert.ok(!containsBmadJargon(seededScan.turnAnalysis.currentFocus.text));
+
+    // Jargon-laden advisor focusSummary: rejected at scan -> deterministic fallback.
+    const jargon = workspaces.create();
+    const jargonRes = await runMcpServer({
+      workspaceRoot: jargon.root,
+      requests: [
+        toolCall(1, "bmad_update_advisor", {
+          focusSummary: "Run /bmad-build in 4-implementation and reconcile sprint-status.yaml for epic-core#1.",
+          sessionId: "sess_jargon"
+        })
+      ]
+    });
+    assertStrictJsonRpcStdout(jargonRes);
+    const jargonFocus = jargonRes.responses[0].result.structuredContent.turnAnalysis.currentFocus;
+    assert.equal(jargonFocus.source, "deterministic");
+    assert.ok(!containsBmadJargon(jargonFocus.text));
+    assert.ok(!/\/bmad-|4-implementation|sprint-status\.yaml|epic-core#1/.test(jargonFocus.text));
+
+    // Shared jargon filter: detection + stripping on the canonical token families.
+    for (const token of ["/bmad-ux", "bmad-build", "2-planning", "sprint-status.yaml", "tickets.toml", "epic-core#1"]) {
+      assert.ok(containsBmadJargon(`before ${token} after`), `${token} detected as jargon`);
+      assert.ok(!containsBmadJargon(stripBmadJargon(`before ${token} after`)), `${token} stripped`);
+    }
+    assert.ok(!containsBmadJargon("The checkout flow now validates payment details."));
+  });
+
+  it("every recommendation carries non-empty jargon-free plainTitle/plainSummary with original fields unchanged, and catalogs are retained", async () => {
+    const assertPlainCopy = (scan) => {
+      assert.ok(scan.recommendations.length >= 1);
+      for (const rec of scan.recommendations) {
+        assert.equal(typeof rec.plainTitle, "string");
+        assert.equal(typeof rec.plainSummary, "string");
+        assert.ok(rec.plainTitle.trim().length > 0, `plainTitle non-empty for ${rec.id}`);
+        assert.ok(rec.plainSummary.trim().length > 0, `plainSummary non-empty for ${rec.id}`);
+        assert.ok(!containsBmadJargon(rec.plainTitle), `plainTitle jargon-free for ${rec.id}: ${rec.plainTitle}`);
+        assert.ok(!containsBmadJargon(rec.plainSummary), `plainSummary jargon-free for ${rec.id}: ${rec.plainSummary}`);
+        // AD-14: original recommendation fields stay present and untouched.
+        assert.ok(rec.title && rec.rationale && rec.skill && rec.phase);
+      }
+      // AD-14: catalogs remain in bmad_get_state structuredContent.
+      assert.ok(Array.isArray(scan.skillsCatalog) && scan.skillsCatalog.length > 0);
+      assert.ok(Array.isArray(scan.agentsCatalog) && scan.agentsCatalog.length > 0);
+    };
+
+    // 1. Onboarding (empty workspace) recommendations.
+    const empty = workspaces.create();
+    const emptyRes = await runMcpServer({ workspaceRoot: empty.root, requests: [toolCall(1, "bmad_get_state")] });
+    assertStrictJsonRpcStdout(emptyRes);
+    assertPlainCopy(emptyRes.responses[0].result.structuredContent);
+
+    // 2. Active epic workspace + AI-override recommendations.
+    const ws = seedSurfaceWorkspace();
+    const overrideRec = {
+      skill: "/bmad-code-review",
+      fullCommand: '/bmad-code-review "Review the focus hero engine changes"',
+      title: "Review Focus Hero Engine",
+      rationale: "Verify jargon filtering and freshness gates.",
+      recommendedModel: "test/claude-sonnet-5-5-high",
+      phase: "4-implementation",
+      priority: "high"
+    };
+    const activeRes = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [
+        toolCall(1, "bmad_get_state"),
+        toolCall(2, "bmad_update_advisor", { recommendations: [overrideRec] }),
+        toolCall(3, "bmad_recommend_next")
+      ]
+    });
+    assertStrictJsonRpcStdout(activeRes);
+    assertPlainCopy(activeRes.responses[0].result.structuredContent);
+    const overrideScan = activeRes.responses[1].result.structuredContent;
+    assertPlainCopy(overrideScan);
+    const aiRec = overrideScan.recommendations.find((r) => r.badge === "AI Turn Synthesis");
+    assert.ok(aiRec, "AI override recommendation present");
+    assert.equal(aiRec.title, overrideRec.title);
+    assert.equal(aiRec.rationale, overrideRec.rationale);
+    assert.equal(aiRec.skill, overrideRec.skill);
+    assert.equal(aiRec.phase, overrideRec.phase);
+    assert.ok(aiRec.plainTitle.length > 0 && aiRec.plainSummary.length > 0);
+    // recommend_next recommendations carry the same plain copy.
+    for (const rec of activeRes.responses[2].result.structuredContent.recommendations) {
+      assert.ok(rec.plainTitle && rec.plainSummary);
+      assert.ok(!containsBmadJargon(rec.plainTitle) && !containsBmadJargon(rec.plainSummary));
+    }
+  });
+
+  it("currentFocus.text caps at the first two sentences on both override and deterministic paths", async () => {
+    // Override path: a 3-sentence focusSummary keeps only the first two.
+    const ws = workspaces.create();
+    const res = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [
+        toolCall(1, "bmad_update_advisor", {
+          focusSummary: "First plain sentence. Second plain sentence. Third plain sentence."
+        })
+      ]
+    });
+    assertStrictJsonRpcStdout(res);
+    const overrideFocus = res.responses[0].result.structuredContent.turnAnalysis.currentFocus;
+    assert.equal(overrideFocus.source, "advisor-override");
+    assert.equal(overrideFocus.text, "First plain sentence. Second plain sentence.");
+
+    // Deterministic path: a multi-sentence outcome plus the "You asked:"
+    // sentence must also cap at two sentences total.
+    const det = workspaces.create();
+    savePersistedState(det.root, {
+      recentConversations: [
+        {
+          sessionId: "det-1",
+          promptSnippet: "what changed",
+          outcomeSnippet: "Alpha done. Beta done. Gamma done.",
+          completedAt: "2026-11-25T12:00:00.000Z"
+        }
+      ]
+    });
+    const detRes = await runMcpServer({ workspaceRoot: det.root, requests: [toolCall(1, "bmad_get_state")] });
+    assertStrictJsonRpcStdout(detRes);
+    const detFocus = detRes.responses[0].result.structuredContent.turnAnalysis.currentFocus;
+    assert.equal(detFocus.source, "deterministic");
+    assert.equal(detFocus.text, "Alpha done. Beta done.");
+  });
+
+  it("plain copy drops whole jargon sentences and filename parentheticals, keeping grammatical remainders", async () => {
+    const FILENAME_PAREN_RE = /\([^)]*\.(?:md|toml|ya?ml|json)\b[^)]*\)/i;
+    const ws = seedSurfaceWorkspace();
+
+    // The two cited rationale sources, verbatim, through the same addRec funnel.
+    const uxRationale =
+      "Your recent activity relates to UI/UX components. Use /bmad-ux with a concrete prompt to evolve DESIGN.md and EXPERIENCE.md alongside the UI views.";
+    const remediationRationale =
+      "Smart AI scan detected 3 test failure(s) in report-test-suite.md. BMAD quality gate requires 100% passing tests before completing stories or reconciling trackers.";
+    const res = await runMcpServer({
+      workspaceRoot: ws.root,
+      requests: [
+        toolCall(1, "bmad_update_advisor", {
+          recommendations: [
+            {
+              skill: "/bmad-ux",
+              fullCommand: '/bmad-ux "Enhance the UI/UX design of the application"',
+              title: "Refine & Synchronize UX Design Specifications",
+              rationale: uxRationale,
+              phase: "2-planning",
+              priority: "high"
+            },
+            {
+              skill: "/bmad-build",
+              fullCommand: '/bmad-build "Remediate 3 failing test(s) reported in report-test-suite.md"',
+              title: "Remediate Test Failures: 3 failing test(s) in report-test-suite.md",
+              rationale: remediationRationale,
+              phase: "4-implementation",
+              priority: "high"
+            }
+          ]
+        })
+      ]
+    });
+    assertStrictJsonRpcStdout(res);
+    const recs = res.responses[0].result.structuredContent.recommendations;
+
+    const uxRec = recs.find((r) => r.rationale === uxRationale);
+    assert.ok(uxRec);
+    assert.equal(uxRec.plainSummary, "Your recent activity relates to UI/UX components.");
+    assert.ok(!uxRec.plainSummary.includes("Use with a concrete prompt"), "no mid-sentence stripping fragment");
+    assert.ok(!uxRec.plainSummary.includes("DESIGN.md"));
+
+    const remRec = recs.find((r) => r.rationale === remediationRationale);
+    assert.ok(remRec);
+    assert.equal(remRec.plainSummary, "Smart AI scan detected 3 test failure(s) in report-test-suite.md.");
+    assert.ok(!remRec.plainSummary.includes("quality gate requires"), "jargon sentence dropped whole, not mid-stripped");
+
+    // Onboarding title parentheticals with artifact filenames are dropped.
+    const empty = workspaces.create();
+    const onboardingRes = await runMcpServer({ workspaceRoot: empty.root, requests: [toolCall(1, "bmad_get_state")] });
+    assertStrictJsonRpcStdout(onboardingRes);
+    const onboardingRecs = onboardingRes.responses[0].result.structuredContent.recommendations;
+    const contextRec = onboardingRecs.find((r) => r.title === "Initialize Repository Agent Context (AGENTS.md)");
+    assert.ok(contextRec);
+    assert.equal(contextRec.plainTitle, "Initialize Repository Agent Context");
+
+    // No plain copy anywhere carries a filename parenthetical.
+    for (const rec of [...recs, ...onboardingRecs]) {
+      assert.ok(!FILENAME_PAREN_RE.test(rec.plainTitle), `plainTitle filename parenthetical: ${rec.plainTitle}`);
+      assert.ok(!FILENAME_PAREN_RE.test(rec.plainSummary), `plainSummary filename parenthetical: ${rec.plainSummary}`);
+    }
   });
 });

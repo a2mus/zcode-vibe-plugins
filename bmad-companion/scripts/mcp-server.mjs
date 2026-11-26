@@ -135,6 +135,16 @@ const TOOLS = [
           type: "string",
           description: "Summary of what the last prompt result accomplished and what BMAD step comes next."
         },
+        focusSummary: {
+          type: "string",
+          description:
+            "Optional 1-2 plain everyday sentences describing the current focus (what was just done and what matters now). Must be jargon-free: no /bmad-* commands, phase codes, or tracker filenames — jargon-laden text is rejected at scan time in favor of a deterministic fallback."
+        },
+        sessionId: {
+          type: "string",
+          description:
+            "Optional current conversation session id. When provided, the focus summary is bound to that conversation and its entry is upserted in the rolling 3-conversation memory; when omitted, no conversation entry is created."
+        },
         recommendations: {
           type: "array",
           description: "List of contextual BMAD skill + prompt + recommended model suggestions.",
