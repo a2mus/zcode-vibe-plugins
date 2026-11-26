@@ -216,6 +216,13 @@ describe("dual-progress scan tracer (Epic 3 Story 3.1)", () => {
           "status: built",
           "---"
         ].join("\n") + "\n",
+        "_bmad-output/initiative-dedupe/plan-7-focus-hero-engine.md": [
+          "---",
+          "title: 'Epic 7 focus hero engine'",
+          "ticket: ''",
+          "status: built",
+          "---"
+        ].join("\n") + "\n",
         "_bmad-output/initiative-dedupe/tickets/epic-panel-polling-safety/tickets/tickets.toml": [
           "[[entry]]",
           "id = 3",
@@ -269,7 +276,11 @@ describe("dual-progress scan tracer (Epic 3 Story 3.1)", () => {
         "_bmad-output/initiative-dedupe/tickets/epic-hooks-model-router/tickets/tickets.toml": [
           "[[entry]]",
           "id = 2",
-          'title = "4-tier model scorer"'
+          'title = "4-tier model scorer"',
+          "",
+          "[[entry]]",
+          "id = 7",
+          'title = "Refactor sweep"'
         ].join("\n") + "\n"
       }
     });
@@ -294,6 +305,10 @@ describe("dual-progress scan tracer (Epic 3 Story 3.1)", () => {
     const story62 = epic6.stories.find((s) => s.id === "6.2");
     assert.equal(story62.planPath, null, "story 6.2 must not match unrelated initiative CI plan ending in -2.md");
     assert.equal(story62.smartStatus, "backlog");
+
+    const story67 = epic6.stories.find((s) => s.id === "6.7");
+    assert.equal(story67.planPath, null, "story 6.7 must not match initiative-root epic plan plan-7-focus-hero-engine.md");
+    assert.equal(story67.smartStatus, "backlog");
   });
 });
 

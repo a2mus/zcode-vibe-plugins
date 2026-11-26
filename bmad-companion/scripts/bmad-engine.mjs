@@ -1838,11 +1838,15 @@ export function scanBmadWorkspace(workspaceRoot) {
             const text = safeReadText(join(pf.dir, pf.name), 1500);
             const fm = parseFrontmatter(text);
             const containerStr = String(fm.container || "");
-            const matchesContainer = !containerStr || containerStr.endsWith(spec.slug);
+            const isInEpicFolder = pf.dir === epicFolder || pf.dir === epicTicketsDir;
+            const matchesContainer = isInEpicFolder
+              ? !containerStr || containerStr.endsWith(spec.slug)
+              : Boolean(containerStr && containerStr.endsWith(spec.slug));
+            const hasExplicitTicket = fm.ticket !== undefined && String(fm.ticket).trim() !== "";
             return (
-              (matchesContainer && Number(fm.ticket) === Number(entry.id)) ||
+              (matchesContainer && hasExplicitTicket && Number(fm.ticket) === Number(entry.id)) ||
               pf.name.startsWith(`plan-${spec.num}-${entry.id}-`) ||
-              pf.name.startsWith(`plan-${entry.id}-`) ||
+              (matchesContainer && pf.name.startsWith(`plan-${entry.id}-`)) ||
               (v6SlugSuffix.length >= 4 && pf.name.includes(v6SlugSuffix))
             );
           });

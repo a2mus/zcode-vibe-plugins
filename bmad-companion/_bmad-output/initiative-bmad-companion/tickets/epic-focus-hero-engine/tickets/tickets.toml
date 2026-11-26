@@ -5,6 +5,7 @@
 id = 1
 type = "story"
 title = "3-conversation ring buffer, hook capture & advisor schema tracer"
+status = "done"
 description = "Tracer bullet: builds on Wave 1's state gateway and hook/MCP lanes to add field-preserving recentConversations upsert/dedup/cap-3 merge in savePersistedState (AD-3, AD-18), bounded snippet capture in hook-runner.mjs (UserPromptSubmit/Stop within <=350ms), and optional focusSummary + sessionId fields on bmad_update_advisor (no fallback entries when sessionId is omitted, AD-14), with unit tests. Hands off recentConversations persistence to Story 2."
 verify = "Run `node --test tests/hooks-router.test.mjs tests/mcp-surface.test.mjs` and confirm recentConversations deduplicates by sessionId, preserves non-empty snippets on partial updates, caps at 3 newest-first, ignores missing sessionId in bmad_update_advisor, and keeps hook stdout single-line within <=350ms."
 covers = ["R1"]
@@ -16,6 +17,7 @@ risk = "high"
 id = 2
 type = "story"
 title = "Jargon-free currentFocus synthesis & plain recommendation copy"
+status = "done"
 description = "Builds on Story 1's recentConversations buffer to compute deterministic turnAnalysis.currentFocus ({ text, basisLabel, conversationCount, source } with closed enum, jargon filter on deterministic + AI focusSummary overrides, same-turn-safe override freshness, owner-preferred 'Current focus' label with accurate conversationCount) and optional Stop LLM focusSummary in bmad-engine.mjs/hook-runner.mjs (AD-18, AD-5), plus additive plainTitle and plainSummary on every recommendation (AD-8) while keeping skillsCatalog/agentsCatalog in bmad_get_state (AD-14), with unit tests. Hands off the frozen ScanResult payload to Epic 8."
 verify = "Run `node --test tests/hooks-router.test.mjs tests/mcp-surface.test.mjs` and confirm currentFocus strips/rejects BMAD jargon, honors same-turn-safe override freshness, emits 'Current focus' with accurate conversationCount, and every recommendation carries plainTitle/plainSummary while bmad_get_state retains skillsCatalog and agentsCatalog."
 covers = ["R2"]
@@ -27,6 +29,7 @@ risk = "medium"
 id = 3
 type = "story"
 title = "Close legacy drift OQ-C (walk depth), OQ-E (PostToolUse matcher) & OQ-F (override clear)"
+status = "done"
 description = "Builds on Story 2 and Wave 1's reconciler/hook lanes to align reconcileWorkspaceTrackers walk depth to SCAN_LIMITS.maxDepth=4 (OQ-C), set hooks/hooks.json PostToolUse matcher to 'Write|Edit|MultiEdit' matching parent R21 (OQ-E), and add explicit key-clear/replace semantics in savePersistedState so reconcileWorkspaceTrackers clears reconciled storyOverrides without breaking partial merges (OQ-F), with regression tests."
 verify = "Run `node --test tests/reconciliation.test.mjs tests/hooks-router.test.mjs tests/hook-stdout-isolation.test.mjs` and confirm walk depth <=4 during reconcile, hooks/hooks.json PostToolUse matcher is 'Write|Edit|MultiEdit', and live reconcile clears reconciled storyOverrides while unrelated savePersistedState merges still preserve keys."
 covers = ["R3"]
@@ -38,6 +41,7 @@ risk = "high"
 id = 4
 type = "story"
 title = "Refactor sweep"
+status = "done"
 description = "Cleanup only, after Stories 1-3: deduplicate conversation snippet/jargon helpers, normalize savePersistedState merge/clear paths, and tighten AD-18/AD-8/OQ-C/OQ-E/OQ-F test assertions; scope set at start from deferred findings. No new behavior."
 verify = "Run `node --test \"tests/*.test.mjs\" && node scripts/check-version-sync.mjs` green and confirm no duplicated snippet/jargon helper or regression remains across scripts/*.mjs."
 covers = []

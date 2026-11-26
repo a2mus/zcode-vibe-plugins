@@ -121,7 +121,7 @@ function createStubbedA11yEnvironment() {
       dispatchEvent(evt) {
         evt.target = evt.target || el;
         evt.currentTarget = el;
-        for (const fn of listeners.get(evt.type) || []) fn(evt);
+        for (const fn of [...(listeners.get(evt.type) || [])]) fn(evt);
         return !evt.defaultPrevented;
       },
       focus() {
@@ -159,6 +159,31 @@ function createStubbedA11yEnvironment() {
       },
       set(v) {
         innerHtmlVal = String(v ?? "");
+        for (const match of innerHtmlVal.matchAll(/<([a-z0-9-]+)\s+([^>]*id="([^"]+)"[^>]*)>/gi)) {
+          const childEl = elements.get(match[3]) || makeElement(match[3], match[1]);
+          childEl.tagName = match[1].toUpperCase();
+          for (const attr of match[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
+            childEl.setAttribute(attr[1], attr[2]);
+            if (attr[1] === "class") {
+              attr[2].split(/\s+/).filter(Boolean).forEach((c) => childEl.classList.add(c));
+            }
+            if (attr[1] === "style") {
+              const dispMatch = attr[2].match(/(?:^|;)\s*display\s*:\s*([^;]+)/i);
+              if (dispMatch) childEl.style.display = dispMatch[1].trim();
+            }
+          }
+        }
+        for (const textMatch of innerHtmlVal.matchAll(/<([a-z0-9-]+)\s+[^>]*id="([^"]+)"[^>]*>([^<]*)<\/\1>/gi)) {
+          const targetEl = elements.get(textMatch[2]);
+          if (targetEl && targetEl.tagName !== "TEXTAREA") {
+            targetEl.textContent = textMatch[3]
+              .replace(/&lt;/g, "<")
+              .replace(/&gt;/g, ">")
+              .replace(/&quot;/g, '"')
+              .replace(/&amp;/g, "&")
+              .trim();
+          }
+        }
       }
     });
 
@@ -525,11 +550,16 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       );
     });
 
-    it("associates recommendation command textarea with <label class='cmd-label'> via for/id", () => {
+    it("associates recommendation Action Window command textarea and model select with <label> via for/id (RD-9)", () => {
       assert.match(
         PANEL_HTML,
-        /<label\s+class="cmd-label"\s+for="rec-cmd-\$\{idx\}">[\s\S]*?<\/label>\s*<textarea\s+class="cmd-textarea"\s+id="rec-cmd-\$\{idx\}"/i,
-        "Recommendation cmd-textarea must be preceded by an associated label with for/id"
+        /<label\s+class="cmd-label"\s+for="overlay-rec-cmd">[\s\S]*?<\/label>\s*<textarea\s+class="cmd-textarea"\s+id="overlay-rec-cmd"/i,
+        "Work Action Window cmd-textarea (#overlay-rec-cmd) must be preceded by an associated label with for/id"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<label\s+class="label-caps"\s+for="overlay-rec-model"[^>]*>[\s\S]*?<\/label>\s*<select\s+class="model-select"\s+id="overlay-rec-model"/i,
+        "Work Action Window model-select (#overlay-rec-model) must be preceded by an associated label with for/id"
       );
     });
 
@@ -1061,6 +1091,215 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
         extractInlineScript(PANEL_HTML),
         /\.style\.fontSize\s*=/,
         "no inline script may assign .style.fontSize"
+      );
+    });
+  });
+
+  describe("Story 8.4: Work tab current-focus hero, Action Window & RD-8 counted disclosures", () => {
+    const styleText = extractStyleContent(PANEL_HTML);
+
+    it("declares the Work current-focus hero, plain '🚀 What to do next' heading, and RD-5 focal-card styling", () => {
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*class="[^"]*focus-hero[^"]*"[^>]*id="currentFocusHero"/,
+        "Work tab must render #currentFocusHero at the top"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*class="[^"]*focus-hero-text[^"]*"[^>]*id="currentFocusText"/,
+        "Work hero must declare #currentFocusText"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*class="[^"]*focus-hero-basis[^"]*"[^>]*id="currentFocusBasis"[^>]*>Current focus<\/div>/,
+        "Work hero must declare #currentFocusBasis with owner-preferred 'Current focus' label"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*id="workTabHeading"[^>]*>🚀 What to do next<\/div>/,
+        "Work tab heading must read '🚀 What to do next' (RD-3)"
+      );
+      assert.match(
+        styleText,
+        /\.focus-hero-text\s*\{[\s\S]*?font-size:\s*var\(--overlay-body-size\)/,
+        ".focus-hero-text must use var(--overlay-body-size) (15px)"
+      );
+      assert.match(
+        styleText,
+        /\.rec-card\.is-focal\s*\{[\s\S]*?border-color:\s*var\(--accent\)/,
+        "RD-5 focal point rule: .rec-card.is-focal must highlight the first next action card with var(--accent)"
+      );
+    });
+
+    it("renders collapsed-by-default RD-8 disclosures (AI notes (N), Models and providers (N), More actions (3)) as native buttons with aria-expanded and live counts", () => {
+      assert.match(
+        PANEL_HTML,
+        /<button[^>]*id="btnDisclosureAiNotes"[^>]*data-disclosure="ai-notes"[^>]*aria-expanded="false"[^>]*aria-controls="disclosureBodyAiNotes"/,
+        "AI notes disclosure must be a native button with aria-expanded='false' by default"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<button[^>]*id="btnDisclosureModelsProviders"[^>]*data-disclosure="models-providers"[^>]*aria-expanded="false"[^>]*aria-controls="disclosureBodyModelsProviders"/,
+        "Models and providers disclosure must be a native button with aria-expanded='false' by default"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      env.elements.get("storyStatusFilter").value = "all";
+      env.elements.get("skillPhaseFilter").value = "all";
+      const hooks = env.getTestHooks();
+
+      hooks.renderWorkspaceState({
+        projectName: "Work Disclosure Test",
+        metrics: { totalEpics: 1, totalStories: 4, smartDoneStories: 2, smartOverallPct: 50, declaredOverallPct: 50 },
+        turnAnalysis: {
+          aiSummaryHeadline: "Legacy /bmad-build headline with sprint-status.yaml jargon",
+          currentFocus: {
+            text: "You updated the palette tokens and verified contrast in both themes. Next up is simplifying the Work tab actions.",
+            basisLabel: "Current focus",
+            conversationCount: 3,
+            source: "deterministic"
+          }
+        },
+        providerState: {
+          activeProviders: [
+            { providerName: "Provider One", modelCount: 4, kind: "api" },
+            { providerName: "Provider Two", modelCount: 2, kind: "sub" }
+          ]
+        },
+        smartInsights: [
+          { title: "Insight 1", detail: "Detail 1", severity: "info" },
+          { title: "Insight 2", detail: "Detail 2", severity: "success" },
+          { title: "Insight 3", detail: "Detail 3", severity: "warning" }
+        ],
+        recommendations: [
+          {
+            title: "Build Story 8.4 (/bmad-build)",
+            plainTitle: "Finish the Work tab focus hero and action window",
+            rationale: "Update tickets.toml in 4-implementation",
+            plainSummary: "Render the focus summary and let each next step open in a clean action window.",
+            skill: "/bmad-build",
+            phase: "4-implementation",
+            priority: "high",
+            fullCommand: '/bmad-build "Complete Story 8.4"',
+            recommendedModel: { modelId: "prov/model-a", tier: "💻 Agentic Coding", reason: "Best fit" }
+          },
+          {
+            title: "Review UX (/bmad-ux)",
+            plainTitle: "Check visual consistency across views",
+            rationale: "Check 2-planning docs",
+            plainSummary: "Confirm colors and spacing stay calm across all tabs.",
+            skill: "/bmad-ux",
+            phase: "2-planning",
+            priority: "medium",
+            fullCommand: '/bmad-ux "Review UX"',
+            recommendedModel: { modelId: "prov/model-b", tier: "🎨 UX", reason: "UX fit" }
+          }
+        ]
+      });
+
+      // 1. Current-focus hero renders currentFocus.text + 'Current focus' label, never aiSummaryHeadline
+      assert.equal(
+        env.elements.get("currentFocusText").textContent,
+        "You updated the palette tokens and verified contrast in both themes. Next up is simplifying the Work tab actions."
+      );
+      assert.equal(env.elements.get("currentFocusBasis").textContent, "Current focus");
+      assert.equal(env.elements.get("currentFocusHero").getAttribute("data-conversation-count"), "3");
+
+      // 2. All 3 disclosures start collapsed (aria-expanded='false') with live counts
+      const aiNotesBtn = env.elements.get("btnDisclosureAiNotes");
+      const aiNotesBody = env.elements.get("disclosureBodyAiNotes");
+      const modelsBtn = env.elements.get("btnDisclosureModelsProviders");
+      const modelsBody = env.elements.get("disclosureBodyModelsProviders");
+      const moreBtn = env.elements.get("rec-more-actions-0");
+      const moreBody = env.elements.get("rec-more-body-0");
+
+      assert.equal(aiNotesBtn.getAttribute("aria-expanded"), "false");
+      assert.match(aiNotesBtn.textContent, /AI notes \(3\)$/);
+      assert.equal(aiNotesBody.style.display, "none");
+
+      assert.equal(modelsBtn.getAttribute("aria-expanded"), "false");
+      assert.match(modelsBtn.textContent, /Models and providers \(2\)$/);
+      assert.equal(modelsBody.style.display, "none");
+
+      assert.equal(moreBtn.getAttribute("aria-expanded"), "false");
+      assert.match(moreBtn.textContent, /More actions \(3\)/);
+      assert.equal(moreBody.style.display, "none");
+
+      // 3. Toggle each disclosure -> aria-expanded='true', body visible, persisted in expandedDisclosures
+      aiNotesBtn.dispatchEvent({ type: "click" });
+      assert.equal(aiNotesBtn.getAttribute("aria-expanded"), "true");
+      assert.equal(aiNotesBody.style.display, "block");
+      assert.equal(hooks.getExpandedDisclosures().has("ai-notes"), true);
+
+      modelsBtn.dispatchEvent({ type: "click" });
+      assert.equal(modelsBtn.getAttribute("aria-expanded"), "true");
+      assert.equal(modelsBody.style.display, "block");
+      assert.equal(hooks.getExpandedDisclosures().has("models-providers"), true);
+
+      moreBtn.dispatchEvent({ type: "click" });
+      assert.equal(env.elements.get("rec-more-actions-0").getAttribute("aria-expanded"), "true");
+      assert.equal(hooks.getExpandedDisclosures().has("more-actions"), true);
+    });
+
+    it("preserves focus on More actions button when toggled, restores focus to search inputs on filter clear, and keeps disabled/overlay-select contrast rules", () => {
+      assert.match(
+        styleText,
+        /\.btn:disabled\s*\{[\s\S]*?cursor:\s*not-allowed/,
+        "Disabled buttons must style cursor: not-allowed"
+      );
+      assert.match(
+        styleText,
+        /\.overlay-card\s+\.model-select\s*\{[\s\S]*?color:\s*var\(--text-primary\)/,
+        "Overlay model selects must keep crisp --text-primary ink"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      env.elements.get("storyStatusFilter").value = "all";
+      env.elements.get("skillPhaseFilter").value = "all";
+      const hooks = env.getTestHooks();
+
+      hooks.renderWorkspaceState({
+        projectName: "Ergonomics Test",
+        metrics: { totalEpics: 1, totalStories: 1, smartDoneStories: 0, smartOverallPct: 0, declaredOverallPct: 0 },
+        epics: [{ id: "1", number: 1, slug: "epic-one", title: "Epic One", stories: [{ id: "1.1", title: "Alpha", smartStatus: "backlog" }] }],
+        artifacts: [{ relPath: "docs/readme.md", name: "readme.md", kind: "doc", phaseName: "Planning", gitStatus: "committed", mtimeMs: 1000 }],
+        recommendations: [
+          {
+            title: "Task 1",
+            plainTitle: "First plain task",
+            plainSummary: "First summary",
+            skill: "/bmad-build",
+            phase: "4-implementation",
+            fullCommand: '/bmad-build "Task 1"'
+          }
+        ]
+      });
+
+      const moreBtn = env.elements.get("rec-more-actions-0");
+      moreBtn.focus();
+      moreBtn.dispatchEvent({ type: "click" });
+      assert.equal(
+        env.getActiveElement()?.id,
+        "rec-more-actions-0",
+        "Toggling More actions (3) on a Work card must preserve focus on #rec-more-actions-0"
+      );
+
+      env.elements.get("storySearch").value = "missing-story-xyz";
+      hooks.renderEpics(true);
+      env.elements.get("btnClearStoryFilters").dispatchEvent({ type: "click" });
+      assert.equal(
+        env.getActiveElement()?.id,
+        "storySearch",
+        "Clearing story filters must restore focus to #storySearch"
+      );
+
+      env.elements.get("artifactSearch").value = "missing-artifact-xyz";
+      hooks.renderArtifactsDirectory(true);
+      env.elements.get("btnClearArtifactSearch").dispatchEvent({ type: "click" });
+      assert.equal(
+        env.getActiveElement()?.id,
+        "artifactSearch",
+        "Clearing artifact search must restore focus to #artifactSearch"
       );
     });
   });

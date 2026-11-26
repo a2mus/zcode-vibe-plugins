@@ -10,6 +10,7 @@ companions:
   - _bmad-output/initiative-bmad-companion/architecture-bmad-companion/architecture-bmad-companion.md
   - _bmad-output/planning-artifacts/ux-bmad-companion/EXPERIENCE.md
 after: [epic-dual-progress-reconciliation, epic-execution-queue, epic-hooks-model-router]
+status: done
 refined: true
 risk: high
 ---

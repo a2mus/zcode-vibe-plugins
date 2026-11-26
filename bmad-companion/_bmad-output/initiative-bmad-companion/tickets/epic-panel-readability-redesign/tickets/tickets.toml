@@ -5,6 +5,7 @@
 id = 1
 type = "story"
 title = "Palette C warm charcoal tokens, radii & closed larger type ramp tracer"
+status = "done"
 description = "Tracer bullet: builds on Epic 4's contrast baseline in assets/panel.html to swap :root and body.theme-light to DESIGN.md Palette C tokens, introduce the --on-primary CSS variable (RD-2), clean up the 4px/50% radii (RD-2), implement the closed larger type ramp (14px body, >=12px panel floor, 16/15/14.5/13.5px overlay roles, mapping all 9 off-ramp sizes with zero inline font-size, RD-1/RD-6), and enforce one focal accent per tab (RD-5). Hands off the styled token foundation to Stories 2-5."
 verify = "Run `node --test tests/panel-a11y.test.mjs` (updated for Palette C tokens) and confirm every dark/light color pair reaches WCAG AA (>=4.5:1 text, >=3:1 focus), zero inline font-size styles remain, and no panel-column font role is below 12px."
 covers = ["R1"]
@@ -27,6 +28,7 @@ risk = "high"
 id = 3
 type = "story"
 title = "Unified in-iframe overlay controller, polling guard & semantic draft store"
+status = "done"
 description = "Builds on Story 2's 3-tab shell and Epic 4's polling-guard baseline to implement the single AD-17 modal overlay layer (<div role='dialog' aria-modal='true'>) in assets/panel.html with activeOverlay state, focus trap, triggerEl/triggerSelector focus restore, overlay-* non-duplicating DOM IDs, single capture-phase Escape precedence (closing open <select> first, else closing overlay), isOverlayOpen() as the 3rd clause in isUserInteractingWithForm() (AD-10), explicit-action pendingWorkspaceState clear + reconcileActiveOverlay (or missing-item toast + tab-heading focus), semantic rec:<skill>:<title> draft Maps, selectedRecKeys, unified getRecommendationBaseModelId, and aligned guard hooks in tests/panel-guards.test.mjs. Hands off the overlay controller to Stories 4-5."
 verify = "Extend `window.__bmadTestHooks` and run `node --test tests/panel-guards.test.mjs` to confirm an open overlay stashes background polls and flushes on close, Escape closes an open select before closing the overlay, explicit actions reconcile or close cleanly with toast, and prompt/model drafts survive overlay close/reopen."
 covers = ["R3"]
@@ -38,6 +40,7 @@ risk = "high"
 id = 4
 type = "story"
 title = "Work tab current-focus hero, Action Window & RD-8 counted disclosures"
+status = "done"
 description = "Builds on Story 3's overlay controller and Epic 7's turnAnalysis.currentFocus + plainTitle/plainSummary fields to render the Work current-focus hero (plain 1-2 sentences + owner-preferred 'Current focus' label, never falling back to aiSummaryHeadline, AD-18), simplified plain-language next-action cards + batch selectedRecKeys, the Work Action Window inside the unified overlay (editable prompt/model synced to userEditedPrompts/userSelectedModels, Launch/Add to Queue primary actions, More actions (3) disclosure, Technical details line, RD-9), collapsed-by-default AI notes (N) and Models and providers (N) disclosures persisted in expandedDisclosures (RD-8), and updated Work assertions in tests/panel-guards.test.mjs and tests/panel-a11y.test.mjs."
 verify = "Run `node --test tests/panel-guards.test.mjs tests/panel-a11y.test.mjs` and confirm Work renders currentFocus with the 'Current focus' label + plain action cards without BMAD jargon, clicking an action opens the Action Window with preserved drafts across polls, and the 3 disclosures toggle aria-expanded with live counts."
 covers = ["R3"]

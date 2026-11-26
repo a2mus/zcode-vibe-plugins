@@ -179,6 +179,17 @@
         background: var(--accent-soft);
       }
 
+      .btn:disabled {
+        opacity: 0.52;
+        cursor: not-allowed;
+      }
+
+      .btn:disabled:hover {
+        border-color: var(--border);
+        background: var(--bg-tertiary);
+        opacity: 0.52;
+      }
+
       .btn-primary {
         background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
         border-color: var(--primary-gradient-start);
@@ -188,6 +199,12 @@
       .btn-primary:hover {
         opacity: 0.93;
         background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
+      }
+
+      .btn-primary:disabled:hover {
+        border-color: var(--primary-gradient-start);
+        background: linear-gradient(135deg, var(--primary-gradient-start), var(--primary-gradient-end));
+        opacity: 0.52;
       }
 
       .btn-purple {
@@ -313,6 +330,10 @@
         display: flex;
       }
 
+      #toastText {
+        overflow-wrap: anywhere;
+      }
+
       .main-scroll {
         flex: 1;
         overflow-y: auto;
@@ -405,10 +426,48 @@
         padding: 10px 11px;
         margin-bottom: 9px;
         transition: border-color 0.15s;
+        cursor: pointer;
       }
 
-      .rec-card:hover {
+      .rec-card.is-focal {
         border-color: var(--accent);
+      }
+
+      .rec-card:hover,
+      .rec-card:focus-visible {
+        border-color: var(--accent);
+      }
+
+      /* RD-9 / AD-18 Work tab current-focus hero (no accent of its own; first next action carries accent). */
+      .focus-hero {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+
+      .focus-hero-text {
+        font-family: var(--font-sans);
+        font-size: var(--overlay-body-size);
+        line-height: 1.55;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+        overflow-wrap: anywhere;
+      }
+
+      .focus-hero-basis {
+        font-size: 12.5px;
+        color: var(--text-secondary);
+      }
+
+      /* RD-8 disclosure header — native button in default-button weight, same visual weight open or closed. */
+      .disclosure-section {
+        margin-top: 8px;
+      }
+
+      .disclosure-btn {
+        font-weight: 600;
       }
 
       .rec-top {
@@ -424,12 +483,14 @@
         font-weight: 600;
         font-size: 13px;
         color: var(--text-primary);
+        overflow-wrap: anywhere;
       }
 
       .rec-rationale {
         font-size: 12.5px;
         color: var(--text-secondary);
         margin: 4px 0 8px;
+        overflow-wrap: anywhere;
       }
 
       .cmd-editor-wrap {
@@ -943,6 +1004,23 @@
         word-break: break-word;
       }
 
+      .queue-failure-box {
+        color: var(--danger);
+        background: var(--danger-soft);
+        border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+        border-radius: 5px;
+        padding: 5px 7px;
+        margin-bottom: 6px;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+
+      .queue-outcome-note {
+        color: var(--success);
+        margin-bottom: 6px;
+        overflow-wrap: anywhere;
+      }
+
       .empty-state-card {
         background: var(--bg-secondary);
         border: 1px solid var(--border);
@@ -986,6 +1064,85 @@
         letter-spacing: 0.04em;
         display: block;
         margin-bottom: 3px;
+      }
+
+      .main-scroll.scroll-locked {
+        overflow-y: hidden;
+      }
+
+      /* AD-17 unified in-iframe modal overlay layer (RD-7 Focus View & RD-9 Work Action Window). */
+      .overlay-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        background: color-mix(in srgb, var(--bg-primary) 72%, transparent);
+        display: none;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 12px;
+        overflow-y: auto;
+      }
+
+      .overlay-backdrop.visible {
+        display: flex;
+      }
+
+      .overlay-card {
+        width: 100%;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        color: var(--text-primary);
+      }
+
+      .overlay-card.is-action {
+        padding: 16px 18px;
+      }
+
+      .overlay-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+
+      .overlay-title {
+        font-family: var(--font-sans);
+        font-size: var(--overlay-title-size);
+        font-weight: 700;
+        color: var(--text-primary);
+        line-height: 1.4;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .overlay-body-text {
+        font-family: var(--font-sans);
+        font-size: var(--overlay-body-size);
+        line-height: 1.55;
+        color: var(--text-primary);
+        margin-bottom: 10px;
+      }
+
+      .overlay-command-text,
+      .overlay-card .cmd-textarea {
+        font-family: var(--font-mono);
+        font-size: var(--overlay-command-size);
+        line-height: 1.5;
+      }
+
+      .overlay-meta-text {
+        font-family: var(--font-mono);
+        font-size: var(--overlay-meta-size);
+        color: var(--text-secondary);
+      }
+
+      .overlay-card .model-select {
+        font-family: var(--font-mono);
+        font-size: var(--overlay-meta-size);
+        color: var(--text-primary);
       }
     </style>
   </head>
@@ -1038,39 +1195,49 @@
       </div>
 
       <main class="main-scroll" id="mainScroll" role="main">
-        <!-- Tab 1: Advisor & Next Prompts -->
+        <!-- Tab 1: Work (Current Focus Hero, Plain Next Actions & Counted Disclosures) -->
         <section id="tab-advisor" role="tabpanel" aria-labelledby="tabBtnAdvisor" tabindex="0">
-          <div class="section-card">
-            <div class="section-header">
-              <div class="section-title">
-                <span>🧠 Post-Prompt AI State & Session Launcher</span>
-              </div>
-              <span class="pill pill-purple" id="turnBadge">Direct New-Chat</span>
-            </div>
-            <div id="providerStateBar" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:6px;"></div>
-            <div class="turn-box">
-              <div class="turn-headline" id="turnHeadline">Analyzing workspace state…</div>
-              <div class="turn-summary" id="turnSummary">
-                Clicking Launch in New Session opens a brand-new conversation directly with the prompt pre-pasted — without running anything in your current session.
-              </div>
-            </div>
+          <div class="focus-hero" id="currentFocusHero" data-focus-source="deterministic" data-conversation-count="0">
+            <div class="focus-hero-text" id="currentFocusText">This workspace is ready for its next step. Pick a suggestion below to start a new conversation with a recommended model.</div>
+            <div class="focus-hero-basis text-caption" id="currentFocusBasis">Current focus</div>
           </div>
 
           <div class="section-header" style="margin: 8px 2px 6px; flex-wrap: wrap; gap: 6px;">
-            <div class="section-title">🚀 Next BMAD Prompts (Select Multiple to Queue or Launch Directly)</div>
+            <div class="section-title" id="workTabHeading" tabindex="-1">🚀 What to do next</div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
               <button type="button" class="btn" id="btnSelectAllRecs" style="padding:2px 7px;" title="Select or deselect all recommended tasks">☑️ Select All</button>
               <button type="button" class="btn btn-purple" id="btnQueueSelectedRecs" style="padding:2px 8px;" title="Add checked recommendations with their selected models to the execution queue">➕ Add Checked to Queue</button>
-              <button type="button" class="btn btn-primary" id="btnGoToQueueFromAdvisor" style="padding:2px 8px;" title="Open the Multi-Task Queue Runner">⛓️ Open Queue</button>
+              <button type="button" class="btn" id="btnGoToQueueFromAdvisor" style="padding:2px 8px;" title="Open the Multi-Task Queue Runner">⛓️ Open Queue</button>
             </div>
           </div>
           <div id="recommendationsList"></div>
 
-          <div class="section-card" id="insightsCard" style="margin-top: 10px;">
-            <div class="section-header">
-              <div class="section-title">🔍 Smart Artifact + AI Cross-Check Insights</div>
+          <div class="disclosure-section">
+            <button type="button" class="btn disclosure-btn" id="btnDisclosureAiNotes" data-disclosure="ai-notes" aria-expanded="false" aria-controls="disclosureBodyAiNotes">▸ 🔍 AI notes (0)</button>
+            <div class="disclosure-body" id="disclosureBodyAiNotes" style="display: none;">
+              <div class="section-card" id="insightsCard" data-overlay-trigger="insights:insights" style="margin-top: 6px;">
+                <div class="section-header">
+                  <div class="section-title">🔍 AI notes</div>
+                  <span class="pill pill-purple" id="turnBadge">Direct New-Chat</span>
+                </div>
+                <div class="turn-box" style="margin-bottom: 8px;">
+                  <div class="turn-headline" id="turnHeadline">Analyzing workspace state…</div>
+                  <div class="turn-summary" id="turnSummary">
+                    Clicking Launch in New Session opens a brand-new conversation directly with the prompt pre-pasted — without running anything in your current session.
+                  </div>
+                </div>
+                <div id="insightsList"></div>
+              </div>
             </div>
-            <div id="insightsList"></div>
+          </div>
+
+          <div class="disclosure-section">
+            <button type="button" class="btn disclosure-btn" id="btnDisclosureModelsProviders" data-disclosure="models-providers" aria-expanded="false" aria-controls="disclosureBodyModelsProviders">▸ 🤖 Models and providers (0)</button>
+            <div class="disclosure-body" id="disclosureBodyModelsProviders" style="display: none;">
+              <div class="section-card" id="modelsProvidersCard" style="margin-top: 6px;">
+                <div id="providerStateBar" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -1079,7 +1246,7 @@
           <div class="section-card">
             <div class="section-header" style="flex-wrap: wrap; gap: 6px;">
               <div>
-                <div class="section-title">⛓️ Multi-Task Execution Queue & Per-Task Model Orchestrator</div>
+                <div class="section-title" id="queueTabHeading" tabindex="-1">⛓️ Multi-Task Execution Queue & Per-Task Model Orchestrator</div>
                 <div class="text-caption" style="margin-top: 2px;">
                   Queue multiple recommended tasks or an entire epic, pick an AI model & token-saving review gate per task, and run them automatically in separate sessions or as a compiled ZCode Dynamic Workflow (<code>.dwf.ts</code>).
                 </div>
@@ -1151,7 +1318,7 @@
         <section id="tab-progress" role="tabpanel" aria-labelledby="tabBtnProgress" tabindex="0" style="display: none;">
           <div class="section-card">
             <div class="section-header">
-              <div class="section-title">📈 Static Tracker vs. Smart AI Reconciliation</div>
+              <div class="section-title" id="projectTabHeading" tabindex="-1">📈 Static Tracker vs. Smart AI Reconciliation</div>
               <span class="pill pill-success" id="reconciledBadge">Smart Verified</span>
             </div>
             <div id="metricsBreakdown" class="text-caption"></div>
@@ -1163,7 +1330,7 @@
                 🔍 Preview Diff
               </button>
             </div>
-            <div id="reconciliationDiffCard" class="reconciliation-diff-card">
+            <div id="reconciliationDiffCard" class="reconciliation-diff-card" data-overlay-trigger="reconciliation-diff:reconciliation-diff">
               <div class="section-title" style="justify-content: space-between; margin-bottom: 5px;">
                 <span id="diffCardTitle">Reconciliation Preview</span>
                 <button type="button" class="btn" id="btnCloseDiff" style="padding: 1px 6px;">✕ Close</button>
@@ -1211,7 +1378,7 @@
           </div>
 
           <div class="section-header" style="margin: 6px 2px;">
-            <div class="section-title">🛠️ Contextual BMAD Skills Launcher (New Session + Model)</div>
+            <div class="section-title" id="catalogTabHeading" tabindex="-1">🛠️ Contextual BMAD Skills Launcher (New Session + Model)</div>
           </div>
           <div id="skillsCatalogList"></div>
 
@@ -1242,7 +1409,7 @@
 
           <div class="section-card">
             <div class="section-header">
-              <div class="section-title">🕒 Workspace BMAD Artifacts (Ordered by Last Modified)</div>
+              <div class="section-title" id="artifactsTabHeading" tabindex="-1">🕒 Workspace BMAD Artifacts (Ordered by Last Modified)</div>
               <span class="pill pill-accent" id="artifactCountBadge">0 files</span>
             </div>
             <div class="text-caption" style="margin-bottom: 8px;">
@@ -1255,6 +1422,17 @@
           </div>
         </section>
       </main>
+
+      <!-- AD-17 Single Unified In-Iframe Modal Overlay Layer (RD-7 Focus View & RD-9 Work Action Window) -->
+      <div class="overlay-backdrop" id="overlayLayer" role="dialog" aria-modal="true" aria-labelledby="overlayTitle" aria-hidden="true" style="display: none;">
+        <div class="overlay-card" id="overlayCard">
+          <div class="overlay-header">
+            <div class="overlay-title" id="overlayTitle">Focus View</div>
+            <button type="button" class="btn" id="overlayCloseBtn" aria-label="Close overlay" title="Close overlay">✕</button>
+          </div>
+          <div id="overlayBody"></div>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -1273,7 +1451,12 @@
         let initialEpicsExpanded = false;
         const userSelectedModels = new Map();
         const userEditedPrompts = new Map();
-        const selectedRecIndices = new Set();
+        const selectedRecKeys = new Set();
+        const expandedDisclosures = new Set();
+        let activeOverlay = null;
+        let overlayFocusableIds = [];
+        let suppressNextOverlayMissingToast = false;
+        let activeTabId = "advisor";
         const lastSectionSignatures = {
           providerBar: "",
           recommendations: "",
@@ -1289,10 +1472,16 @@
         let pendingWorkspaceState = null;
         let isRefreshing = false;
 
+        function isOverlayOpen() {
+          return activeOverlay !== null;
+        }
+
         function isUserInteractingWithForm() {
           if (Date.now() < selectOpenUntil) return true;
           const tag = tagOf(document.activeElement);
-          return tag === "TEXTAREA" || tag === "INPUT";
+          if (tag === "TEXTAREA" || tag === "INPUT") return true;
+          if (isOverlayOpen()) return true;
+          return false;
         }
 
         function flushPendingState() {
@@ -1313,19 +1502,45 @@
 
         document.addEventListener("keydown", (e) => {
           const active = document.activeElement;
-          if (!active) return;
           const tag = tagOf(active);
-          if (tag === "SELECT") {
-            if (e.key === "Escape" || e.key === "Tab") {
+
+          if (e.key === "Escape") {
+            if (Date.now() < selectOpenUntil) {
+              selectOpenUntil = 0;
+              if (typeof e.stopPropagation === "function") e.stopPropagation();
+              setTimeout(flushPendingState, 0);
+              return;
+            }
+            if (isOverlayOpen()) {
+              if (typeof e.preventDefault === "function") e.preventDefault();
+              if (typeof e.stopPropagation === "function") e.stopPropagation();
+              closeOverlay();
+              return;
+            }
+            if (tag === "SELECT") {
               selectOpenUntil = 0;
               setTimeout(flushPendingState, 0);
-            } else if (e.key === " " || e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
-              selectOpenUntil = Date.now() + 15000;
-            }
-          } else if (tag === "TEXTAREA" || tag === "INPUT") {
-            if (e.key === "Escape") {
-              if (typeof active.blur === "function") active.blur();
+            } else if (tag === "TEXTAREA" || tag === "INPUT") {
+              if (active && typeof active.blur === "function") active.blur();
               setTimeout(flushPendingState, 0);
+            }
+            return;
+          }
+
+          if (e.key === "Tab") {
+            if (Date.now() < selectOpenUntil || tag === "SELECT") {
+              selectOpenUntil = 0;
+              setTimeout(flushPendingState, 0);
+            }
+            if (isOverlayOpen()) {
+              handleOverlayTabTrap(e);
+              return;
+            }
+          }
+
+          if (tag === "SELECT") {
+            if (e.key === " " || e.key === "Enter" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+              selectOpenUntil = Date.now() + 15000;
             }
           }
         }, true);
@@ -1603,16 +1818,56 @@
           return sel ? sel.value : fallbackModelId;
         }
 
-        function wireUserEditTracking(key, serverCmd, serverModelId, cmdId, selectId) {
+        const PANEL_BMAD_JARGON_RE =
+          /\/bmad-[a-z0-9-]+|\bbmad(?:-[a-z0-9-]+)?\b|\b[1-4]-(?:analysis|planning|solutioning|implementation)\b|\bsprint-status\.ya?ml\b|\btickets\.toml\b|\bskills-lock\.json\b|\b[a-z0-9-]+#[a-z0-9.]+\b/gi;
+
+        function stripPanelBmadJargon(text) {
+          return String(text || "")
+            .replace(/```[\s\S]*?```/g, " ")
+            .replace(PANEL_BMAD_JARGON_RE, " ")
+            .replace(/\(\s*\)/g, " ")
+            .replace(/\s+([,.;:!?])/g, "$1")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+
+        function getPlainRecTitle(r) {
+          if (!r || typeof r !== "object") return "Suggested next step for your project";
+          const raw = r.plainTitle || r.title || r.headline || "";
+          return stripPanelBmadJargon(raw) || "Suggested next step for your project";
+        }
+
+        function getPlainRecSummary(r) {
+          if (!r || typeof r !== "object") return "A concrete next step tailored to your workspace.";
+          const raw = r.plainSummary || r.rationale || "";
+          return stripPanelBmadJargon(raw) || "A concrete next step tailored to your workspace.";
+        }
+
+        function bindSingleListener(el, type, handler) {
+          if (!el) return;
+          if (!el._bmadHandlers) el._bmadHandlers = {};
+          const prev = el._bmadHandlers[type];
+          if (prev && typeof el.removeEventListener === "function") {
+            el.removeEventListener(type, prev);
+          }
+          el._bmadHandlers[type] = handler;
+          el.addEventListener(type, handler);
+        }
+
+        function wireUserEditTracking(key, serverCmd, serverModelId, cmdId, selectId, displayCmd, displayModelId) {
           const ta = document.getElementById(cmdId);
           const sel = document.getElementById(selectId);
           if (ta) {
-            ta.addEventListener("input", () => {
+            if (ta.tagName !== "TEXTAREA") ta.tagName = "TEXTAREA";
+            if (displayCmd !== undefined) ta.value = displayCmd;
+            bindSingleListener(ta, "input", () => {
               userEditedPrompts.set(key, { base: serverCmd, value: ta.value });
             });
           }
           if (sel) {
-            sel.addEventListener("change", () => {
+            if (sel.tagName !== "SELECT") sel.tagName = "SELECT";
+            if (displayModelId !== undefined) sel.value = displayModelId;
+            bindSingleListener(sel, "change", () => {
               userSelectedModels.set(key, { base: serverModelId, value: sel.value });
             });
           }
@@ -1623,8 +1878,20 @@
           showToast("📋 Copied: " + cmd.slice(0, 48) + "…");
         }
 
-        function getRecOverrideKey(r, idx) {
-          return `rec:${r.skill || idx}:${r.title || idx}`;
+        function getRecOverrideKey(r) {
+          if (!r || typeof r !== "object") return "rec:unknown:untitled";
+          const skillPart = String(r.skill || r.id || "unknown").trim() || "unknown";
+          const titlePart = String(r.title || r.headline || r.plainTitle || r.fullCommand || "untitled").trim() || "untitled";
+          return `rec:${skillPart}:${titlePart}`;
+        }
+
+        function getRecommendationBaseModelId(rec) {
+          if (!rec || typeof rec !== "object") return getFallbackModelId() || "";
+          const raw =
+            typeof rec.recommendedModel === "string"
+              ? rec.recommendedModel
+              : rec.recommendedModel?.modelId || "";
+          return String(raw || getFallbackModelId() || "");
         }
 
         function getSkillOverrideKey(s) {
@@ -1709,7 +1976,91 @@
           }
         }
 
+        function renderCurrentFocusHero(turn) {
+          const cf = turn && typeof turn === "object" && turn.currentFocus && typeof turn.currentFocus === "object"
+            ? turn.currentFocus
+            : null;
+          const defaultFocusText =
+            "This workspace is ready for its next step. Pick a suggestion below to start a new conversation with a recommended model.";
+          const rawText = typeof cf?.text === "string" && cf.text.trim() ? cf.text.trim() : "";
+          const focusText = rawText ? stripPanelBmadJargon(rawText) || defaultFocusText : defaultFocusText;
+          const basisLabel =
+            typeof cf?.basisLabel === "string" && cf.basisLabel.trim() ? cf.basisLabel.trim() : "Current focus";
+          const convCount = typeof cf?.conversationCount === "number" ? cf.conversationCount : 0;
+          const focusSource = typeof cf?.source === "string" && cf.source ? cf.source : "deterministic";
+
+          const heroEl = document.getElementById("currentFocusHero");
+          const textEl = document.getElementById("currentFocusText");
+          const basisEl = document.getElementById("currentFocusBasis");
+          if (heroEl) {
+            heroEl.setAttribute("data-focus-source", focusSource);
+            heroEl.setAttribute("data-conversation-count", String(convCount));
+          }
+          if (textEl) {
+            textEl.textContent = focusText;
+          }
+          if (basisEl) {
+            basisEl.textContent = basisLabel;
+          }
+        }
+
+        function syncWorkDisclosures(state = currentState) {
+          const insightsCount = Array.isArray(state?.smartInsights) ? state.smartInsights.length : 0;
+          const providersCount = Array.isArray(state?.providerState?.activeProviders)
+            ? state.providerState.activeProviders.length
+            : 0;
+          const aiNotesOpen = expandedDisclosures.has("ai-notes");
+          const modelsOpen = expandedDisclosures.has("models-providers");
+
+          const aiBtn = document.getElementById("btnDisclosureAiNotes");
+          const aiBody = document.getElementById("disclosureBodyAiNotes");
+          if (aiBtn) {
+            aiBtn.setAttribute("aria-expanded", aiNotesOpen ? "true" : "false");
+            aiBtn.textContent = `${aiNotesOpen ? "▾" : "▸"} 🔍 AI notes (${insightsCount})`;
+          }
+          if (aiBody) {
+            aiBody.style.display = aiNotesOpen ? "block" : "none";
+          }
+
+          const modBtn = document.getElementById("btnDisclosureModelsProviders");
+          const modBody = document.getElementById("disclosureBodyModelsProviders");
+          if (modBtn) {
+            modBtn.setAttribute("aria-expanded", modelsOpen ? "true" : "false");
+            modBtn.textContent = `${modelsOpen ? "▾" : "▸"} 🤖 Models and providers (${providersCount})`;
+          }
+          if (modBody) {
+            modBody.style.display = modelsOpen ? "block" : "none";
+          }
+        }
+
+        function toggleDisclosure(key) {
+          if (!key) return false;
+          const prevFocusedId = document.activeElement?.id || "";
+          if (expandedDisclosures.has(key)) {
+            expandedDisclosures.delete(key);
+          } else {
+            expandedDisclosures.add(key);
+          }
+          syncWorkDisclosures(currentState);
+          if (key === "more-actions") {
+            if (currentState) {
+              renderRecommendations(currentState.recommendations || [], true);
+            }
+            if (isOverlayOpen()) {
+              renderOverlayContent(currentState, activeOverlay);
+              document.getElementById("overlay-btn-more-actions")?.focus();
+            } else if (prevFocusedId && prevFocusedId.startsWith("rec-more-actions-")) {
+              const restoredBtn = document.getElementById(prevFocusedId);
+              if (restoredBtn && typeof restoredBtn.focus === "function") {
+                restoredBtn.focus();
+              }
+            }
+          }
+          return expandedDisclosures.has(key);
+        }
+
         function renderWorkspaceState(state) {
+          pendingWorkspaceState = null;
           currentState = state;
           const m = state.metrics || {};
           if (!initialPhasesExpanded && Array.isArray(state.phases) && state.phases.length > 0) {
@@ -1759,6 +2110,7 @@
           document.getElementById("progressBarTrack")?.setAttribute("aria-valuenow", String(smartPct));
 
           const turn = state.turnAnalysis || {};
+          renderCurrentFocusHero(turn);
           document.getElementById("turnBadge").textContent =
             turn.turnCount > 0 ? `Turn #${turn.turnCount} · Direct New-Chat` : "Direct New-Chat";
           document.getElementById("turnHeadline").textContent =
@@ -1769,11 +2121,540 @@
           renderLiveQueueBannerAndTab();
           renderRecommendations(state.recommendations || []);
           renderInsights(state.smartInsights || []);
+          syncWorkDisclosures(state);
           renderPhases(state.phases || []);
           renderEpics();
           renderSkillsCatalog();
           renderArtifactsDirectory();
+
+          if (isOverlayOpen()) {
+            reconcileActiveOverlay(state);
+          }
         }
+
+        const INTERACTIVE_DESCENDANT_SELECTOR =
+          'button, a, input, select, textarea, label, [role="tab"], .status-pill, .pill';
+        const INTERACTIVE_TAGS = new Set(["BUTTON", "A", "INPUT", "SELECT", "TEXTAREA", "LABEL"]);
+
+        function isInteractiveDescendantClick(event, containerEl) {
+          const target = event?.target;
+          if (!target || target === containerEl) return false;
+          const tag = tagOf(target);
+          if (INTERACTIVE_TAGS.has(tag)) return true;
+          if (typeof target.getAttribute === "function" && target.getAttribute("role") === "tab") return true;
+          if (target.classList && (target.classList.contains("status-pill") || target.classList.contains("pill"))) {
+            return true;
+          }
+          if (typeof target.closest === "function") {
+            const match = target.closest(INTERACTIVE_DESCENDANT_SELECTOR);
+            if (match && match !== containerEl) return true;
+          }
+          return false;
+        }
+
+        function getActiveTabHeading() {
+          const headingIdMap = {
+            work: "workTabHeading",
+            advisor: "workTabHeading",
+            queue: "queueTabHeading",
+            project: "projectTabHeading",
+            progress: "projectTabHeading",
+            catalog: "catalogTabHeading",
+            artifacts: "artifactsTabHeading"
+          };
+          const mappedId = headingIdMap[activeTabId] || "workTabHeading";
+          const el = document.getElementById(mappedId);
+          if (el && typeof el.focus === "function") return el;
+          const panelEl = document.getElementById("tab-" + activeTabId);
+          if (panelEl && typeof panelEl.focus === "function") return panelEl;
+          return null;
+        }
+
+        function focusActiveTabHeading() {
+          const headingEl = getActiveTabHeading();
+          if (headingEl && typeof headingEl.focus === "function") {
+            headingEl.focus();
+          }
+          return headingEl;
+        }
+
+        function isElementVisibleForFocus(el) {
+          if (!el || el.hidden || (typeof el.getAttribute === "function" && el.getAttribute("aria-hidden") === "true")) {
+            return false;
+          }
+          if (el.style && el.style.display === "none") return false;
+          if (typeof window !== "undefined" && typeof window.getComputedStyle === "function") {
+            let cur = el;
+            while (cur && cur.nodeType === 1) {
+              const cs = window.getComputedStyle(cur);
+              if (cs && (cs.display === "none" || cs.visibility === "hidden")) return false;
+              cur = cur.parentElement;
+            }
+          }
+          return true;
+        }
+
+        function getOverlayFocusableElements() {
+          const overlayLayer = document.getElementById("overlayLayer");
+          if (overlayLayer && typeof overlayLayer.querySelectorAll === "function") {
+            const queried = Array.from(
+              overlayLayer.querySelectorAll(
+                'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+              )
+            ).filter(isElementVisibleForFocus);
+            if (queried.length > 0) return queried;
+          }
+          return overlayFocusableIds
+            .map((id) => document.getElementById(id))
+            .filter((el) => el && !el.disabled && el.getAttribute("disabled") === null && isElementVisibleForFocus(el));
+        }
+
+        function handleOverlayTabTrap(e) {
+          const focusables = getOverlayFocusableElements();
+          if (!focusables.length) return;
+          const active = document.activeElement;
+          const idx = focusables.indexOf(active);
+          if (e.shiftKey) {
+            if (idx <= 0) {
+              if (typeof e.preventDefault === "function") e.preventDefault();
+              const last = focusables[focusables.length - 1];
+              if (last && typeof last.focus === "function") last.focus();
+            }
+          } else {
+            if (idx === -1 || idx === focusables.length - 1) {
+              if (typeof e.preventDefault === "function") e.preventDefault();
+              const first = focusables[0];
+              if (first && typeof first.focus === "function") first.focus();
+            }
+          }
+        }
+
+        function resolveOverlayTarget(state, overlay) {
+          if (!state || !overlay) return null;
+          const { targetType, targetKey } = overlay;
+          if (targetType === "recommendation") {
+            return (state.recommendations || []).find((r) => getRecOverrideKey(r) === targetKey) || null;
+          }
+          if (targetType === "queue-item") {
+            return (state.taskQueue?.items || []).find((it) => it.id === targetKey) || null;
+          }
+          if (targetType === "active-spotlight") {
+            const act = state.taskQueue?.activeTask;
+            if (!act) return null;
+            return act.id === targetKey || targetKey === "active-spotlight" ? act : null;
+          }
+          if (targetType === "epic") {
+            return (state.epics || []).find((ep) => String(ep.id) === targetKey || ep.slug === targetKey) || null;
+          }
+          if (targetType === "story") {
+            for (const ep of state.epics || []) {
+              for (const s of ep.stories || []) {
+                if ((s.overrideKey || String(s.id)) === targetKey || String(s.id) === targetKey) {
+                  return { story: s, epic: ep };
+                }
+              }
+            }
+            return null;
+          }
+          if (targetType === "phase") {
+            return (state.phases || []).find((p) => p.id === targetKey) || null;
+          }
+          if (targetType === "artifact") {
+            const fromArts = (state.artifacts || []).find((a) => a.relPath === targetKey);
+            if (fromArts) return fromArts;
+            for (const p of state.phases || []) {
+              const fromPhase = (p.artifacts || []).find((a) => a.relPath === targetKey);
+              if (fromPhase) return fromPhase;
+            }
+            return null;
+          }
+          if (targetType === "reconciliation-diff") {
+            if (state.reconciliationDiff === null) return null;
+            return state.reconciliationDiff || { id: "reconciliation-diff" };
+          }
+          if (targetType === "insights") {
+            if (state.smartInsights === null) return null;
+            return state.smartInsights || [];
+          }
+          return null;
+        }
+
+        function renderOverlayContent(state, overlay) {
+          const titleEl = document.getElementById("overlayTitle");
+          const bodyEl = document.getElementById("overlayBody");
+          const cardEl = document.getElementById("overlayCard");
+          if (!titleEl || !bodyEl || !overlay) return;
+
+          const isAction = overlay.kind === "action" || overlay.targetType === "recommendation";
+          if (cardEl) {
+            cardEl.classList.toggle("is-action", isAction);
+          }
+
+          const target = resolveOverlayTarget(state, overlay);
+          overlayFocusableIds = ["overlayCloseBtn"];
+
+          if (overlay.targetType === "recommendation" && target) {
+            const rec = target;
+            const recKey = getRecOverrideKey(rec);
+            const plainTitle = getPlainRecTitle(rec);
+            const plainSummary = getPlainRecSummary(rec);
+            const serverCmd = rec.fullCommand || rec.customPromptText || "";
+            const displayCmd = resolveUserPrompt(recKey, serverCmd);
+            const serverModelId = getRecommendationBaseModelId(rec);
+            const displayModelId = resolveUserModel(recKey, serverModelId);
+            const recModel =
+              typeof rec.recommendedModel === "object" && rec.recommendedModel
+                ? rec.recommendedModel
+                : dynamicFitModel();
+            const qItem = isPromptOrStoryInQueue(displayCmd, null) || isPromptOrStoryInQueue(serverCmd, null);
+            const moreOpen = expandedDisclosures.has("more-actions");
+
+            titleEl.textContent = plainTitle;
+            bodyEl.innerHTML = `
+              <div class="overlay-body-text" id="overlay-rec-summary">${escapeHtml(plainSummary)}</div>
+              <div class="cmd-editor-wrap" style="margin-bottom:8px;">
+                <label class="cmd-label" for="overlay-rec-cmd">
+                  <span>Contextual BMAD Skill + Prompt (Editable)</span>
+                  <span>${escapeHtml(rec.skill || "")}</span>
+                </label>
+                <textarea class="cmd-textarea" id="overlay-rec-cmd" rows="3" aria-label="Prompt for ${escapeHtml(plainTitle)}">${escapeHtml(displayCmd)}</textarea>
+              </div>
+              <div class="model-bar" style="margin-bottom:10px;">
+                <div class="model-bar-top">
+                  <span class="pill pill-purple">${escapeHtml(recModel.tier || "🤖 Dynamic Fit")}</span>
+                  <label class="label-caps" for="overlay-rec-model" style="margin-bottom:0;">Model</label>
+                  <select class="model-select" id="overlay-rec-model" aria-label="Recommended model for ${escapeHtml(plainTitle)}">
+                    ${buildModelSelectOptions(displayModelId, serverModelId)}
+                  </select>
+                </div>
+                <div class="overlay-meta-text" id="overlay-rec-model-reason" style="margin-top:4px;">${escapeHtml(recModel.reason || "")}</div>
+              </div>
+              <div class="rec-actions" style="margin-bottom:8px;">
+                <button type="button" class="btn btn-primary" id="overlay-btn-launch">🚀 Launch in New Session</button>
+                <button type="button" class="btn btn-purple" id="overlay-btn-queue">${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Add to Queue"}</button>
+                <button type="button" class="btn disclosure-btn" id="overlay-btn-more-actions" data-disclosure="more-actions" aria-expanded="${moreOpen ? "true" : "false"}" aria-controls="overlay-more-actions-body">${moreOpen ? "▾" : "▸"} More actions (3)</button>
+              </div>
+              <div id="overlay-more-actions-body" style="display:${moreOpen ? "flex" : "none"};gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+                <button type="button" class="btn" id="overlay-btn-run-here">💬 Run Here</button>
+                <button type="button" class="btn" id="overlay-btn-attach">📎 Attach</button>
+                <button type="button" class="btn" id="overlay-btn-copy">📋 Copy</button>
+              </div>
+              <div class="overlay-meta-text" id="overlay-tech-details">Technical details: ${escapeHtml(rec.skill || "")} · ${escapeHtml(rec.phase || "anytime")}</div>
+            `;
+
+            overlayFocusableIds.push(
+              "overlay-rec-cmd",
+              "overlay-rec-model",
+              "overlay-btn-launch",
+              "overlay-btn-queue",
+              "overlay-btn-more-actions"
+            );
+            if (moreOpen) {
+              overlayFocusableIds.push("overlay-btn-run-here", "overlay-btn-attach", "overlay-btn-copy");
+            }
+
+            wireUserEditTracking(
+              recKey,
+              serverCmd,
+              serverModelId,
+              "overlay-rec-cmd",
+              "overlay-rec-model",
+              displayCmd,
+              displayModelId
+            );
+
+            bindSingleListener(document.getElementById("overlay-btn-launch"), "click", async () => {
+              const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              const chosenModel = resolveUserModel(recKey, serverModelId);
+              await launchPromptInNewSession(cmd, chosenModel, rec.skill, rec.title || rec.headline || plainTitle);
+            });
+
+            bindSingleListener(document.getElementById("overlay-btn-queue"), "click", async () => {
+              const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              const chosenModel = resolveUserModel(recKey, serverModelId);
+              const itemTitle = rec.title || rec.headline || plainTitle || "Task";
+              pendingWorkspaceState = null;
+              const updated = await manageQueue(
+                {
+                  action: "add",
+                  items: [
+                    {
+                      title: itemTitle,
+                      skill: rec.skill,
+                      prompt: cmd,
+                      model: chosenModel
+                    }
+                  ]
+                },
+                `➕ Added "${itemTitle}" [${shortModelName(chosenModel)}] to Queue`
+              );
+              if (updated) {
+                switchTab("queue");
+              }
+            });
+
+            bindSingleListener(document.getElementById("overlay-btn-more-actions"), "click", () => {
+              toggleDisclosure("more-actions");
+            });
+
+            bindSingleListener(document.getElementById("overlay-btn-run-here"), "click", async () => {
+              const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              await sendPromptToCurrentSession(cmd);
+            });
+
+            bindSingleListener(document.getElementById("overlay-btn-attach"), "click", async () => {
+              const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              const chosenModel = resolveUserModel(recKey, serverModelId);
+              await attachToChatContext(rec.title || rec.headline || plainTitle, cmd, rec.rationale || plainSummary, chosenModel);
+            });
+
+            bindSingleListener(document.getElementById("overlay-btn-copy"), "click", async () => {
+              const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              await copyWithToast(cmd);
+            });
+            return;
+          }
+
+          if ((overlay.targetType === "queue-item" || overlay.targetType === "active-spotlight") && target) {
+            const it = target;
+            const isDone = it.status === "done";
+            const isFailed = it.status === "failed";
+            titleEl.textContent = it.title || "Queued Task";
+            bodyEl.innerHTML = `
+              <div class="overlay-meta-text" id="overlay-q-meta" style="margin-bottom:8px;">
+                Status: ${escapeHtml(it.status || "queued")} · Model: ${escapeHtml(it.model || "host-default")} · Review: ${escapeHtml(it.reviewMode || "none")}
+              </div>
+              <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:6px;margin-bottom:8px;">
+                <div>
+                  <label for="overlay-q-model" class="label-caps">Assigned AI Model for this Task:</label>
+                  <select class="model-select" id="overlay-q-model" aria-label="Assigned AI Model for ${escapeHtml(it.title)}" style="width:100%;">
+                    ${buildModelSelectOptions(it.model, it.model)}
+                  </select>
+                </div>
+                <div>
+                  <label for="overlay-q-review" class="label-caps">Review & Token Gate:</label>
+                  <select class="model-select" id="overlay-q-review" aria-label="Review and Token Gate for ${escapeHtml(it.title)}" style="width:100%;">
+                    <option value="none" ${it.reviewMode === "none" ? "selected" : ""}>⚡ Minimal (Oneshot + Tests · 0 LLM Review)</option>
+                    <option value="quick" ${it.reviewMode === "quick" ? "selected" : ""}>🔍 Quick (Oneshot + 1 Quick Pass)</option>
+                    <option value="thorough" ${it.reviewMode === "thorough" ? "selected" : ""}>🛡️ Thorough (Full Multi-Lens Review)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="queue-prompt-inset overlay-command-text" id="overlay-q-prompt" style="margin-bottom:10px;">
+                ${escapeHtml(it.effectivePrompt || it.prompt || "")}
+              </div>
+              ${
+                it.resultSummary
+                  ? isFailed
+                    ? `<div class="queue-failure-box overlay-meta-text" id="overlay-q-result">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
+                    : `<div class="queue-outcome-note overlay-meta-text" id="overlay-q-result">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
+                  : ""
+              }
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button type="button" class="btn" id="overlay-q-done" ${isDone ? "disabled" : ""}>✓ Mark Done</button>
+                ${isFailed ? `<button type="button" class="btn btn-primary" id="overlay-q-retry">↻ Retry / Re-queue</button>` : ""}
+                <button type="button" class="btn btn-primary" id="overlay-q-launch">🚀 New Session</button>
+                <button type="button" class="btn" id="overlay-q-remove" style="color:var(--danger);">✕ Remove</button>
+              </div>
+            `;
+
+            overlayFocusableIds.push("overlay-q-model", "overlay-q-review");
+            if (!isDone) overlayFocusableIds.push("overlay-q-done");
+            if (isFailed) overlayFocusableIds.push("overlay-q-retry");
+            overlayFocusableIds.push("overlay-q-launch", "overlay-q-remove");
+
+            bindSingleListener(document.getElementById("overlay-q-model"), "change", async (e) => {
+              const newModel = e.target.value;
+              pendingWorkspaceState = null;
+              await manageQueue(
+                { action: "update-item", taskId: it.id, model: newModel },
+                `🤖 Updated task model to ${shortModelName(newModel)}`
+              );
+            });
+
+            bindSingleListener(document.getElementById("overlay-q-review"), "change", async (e) => {
+              const newReview = e.target.value;
+              pendingWorkspaceState = null;
+              await manageQueue(
+                { action: "update-item", taskId: it.id, reviewMode: newReview },
+                `🛡️ Updated task review mode to '${newReview}'`
+              );
+            });
+
+            bindSingleListener(document.getElementById("overlay-q-done"), "click", async () => {
+              pendingWorkspaceState = null;
+              await manageQueue(
+                { action: "complete-task", taskId: it.id, storyStatus: "done" },
+                "✓ Task marked Done & next task promoted"
+              );
+            });
+
+            bindSingleListener(document.getElementById("overlay-q-retry"), "click", async () => {
+              pendingWorkspaceState = null;
+              await manageQueue(
+                { action: "retry-failed", taskId: it.id },
+                "↻ Task reset to Queued — pick a model or run the queue to retry."
+              );
+            });
+
+            bindSingleListener(document.getElementById("overlay-q-launch"), "click", async () => {
+              pendingWorkspaceState = null;
+              await manageQueue({ action: "start-task", taskId: it.id });
+              await launchPromptInNewSession(it.effectivePrompt || it.prompt, it.model, it.skill, it.title);
+            });
+
+            bindSingleListener(document.getElementById("overlay-q-remove"), "click", async () => {
+              pendingWorkspaceState = null;
+              suppressNextOverlayMissingToast = true;
+              const updated = await manageQueue({ action: "remove", taskId: it.id }, "🗑️ Removed task from queue");
+              if (!updated) {
+                suppressNextOverlayMissingToast = false;
+              }
+            });
+            return;
+          }
+
+          titleEl.textContent =
+            target?.title ||
+            target?.story?.title ||
+            target?.name ||
+            target?.relPath ||
+            overlay.targetKey ||
+            "Focus View";
+          bodyEl.innerHTML = `<div class="overlay-body-text" id="overlay-focus-detail">${escapeHtml(
+            target?.description || target?.story?.description || target?.summary || target?.detail || overlay.targetType
+          )}</div>`;
+        }
+
+        function openOverlay(spec = {}) {
+          const targetType = String(spec.targetType || "recommendation");
+          const kind = spec.kind || (targetType === "recommendation" ? "action" : "focus");
+          const targetKey = String(spec.targetKey || "");
+          const triggerEl = spec.triggerEl || null;
+          const triggerSelector =
+            spec.triggerSelector || (targetType && targetKey ? `[data-overlay-trigger="${targetType}:${targetKey}"]` : "");
+
+          activeOverlay = {
+            kind,
+            targetType,
+            targetKey,
+            triggerEl,
+            triggerSelector
+          };
+
+          renderOverlayContent(currentState, activeOverlay);
+
+          const overlayLayer = document.getElementById("overlayLayer");
+          if (overlayLayer) {
+            overlayLayer.style.display = "flex";
+            overlayLayer.classList.add("visible");
+            overlayLayer.setAttribute("aria-hidden", "false");
+          }
+          document.getElementById("mainScroll")?.classList.add("scroll-locked");
+
+          const focusables = getOverlayFocusableElements();
+          const initialFocus = focusables[0] || document.getElementById("overlayCloseBtn") || overlayLayer;
+          if (initialFocus && typeof initialFocus.focus === "function") {
+            initialFocus.focus();
+          }
+          return activeOverlay;
+        }
+
+        function closeOverlay(options = {}) {
+          if (!activeOverlay) return;
+          const prevOverlay = activeOverlay;
+          activeOverlay = null;
+          selectOpenUntil = 0;
+
+          if (document.activeElement && typeof document.activeElement.blur === "function") {
+            const activeTag = tagOf(document.activeElement);
+            if (activeTag === "TEXTAREA" || activeTag === "INPUT" || activeTag === "SELECT") {
+              document.activeElement.blur();
+            }
+          }
+
+          const overlayLayer = document.getElementById("overlayLayer");
+          if (overlayLayer) {
+            overlayLayer.style.display = "none";
+            overlayLayer.classList.remove("visible");
+            overlayLayer.setAttribute("aria-hidden", "true");
+          }
+          const bodyEl = document.getElementById("overlayBody");
+          if (bodyEl) bodyEl.innerHTML = "";
+          overlayFocusableIds = [];
+          document.getElementById("mainScroll")?.classList.remove("scroll-locked");
+
+          if (currentState && !pendingWorkspaceState) {
+            renderRecommendations(currentState.recommendations || []);
+          }
+
+          flushPendingState();
+
+          if (!options.skipFocusRestore) {
+            if (
+              prevOverlay.triggerEl &&
+              prevOverlay.triggerEl.isConnected !== false &&
+              typeof prevOverlay.triggerEl.focus === "function"
+            ) {
+              prevOverlay.triggerEl.focus();
+            } else if (prevOverlay.triggerSelector && typeof document.querySelector === "function") {
+              const fallbackTrigger = document.querySelector(prevOverlay.triggerSelector);
+              if (fallbackTrigger && fallbackTrigger.isConnected !== false && typeof fallbackTrigger.focus === "function") {
+                fallbackTrigger.focus();
+              } else {
+                focusActiveTabHeading();
+              }
+            } else {
+              focusActiveTabHeading();
+            }
+          }
+        }
+
+        function reconcileActiveOverlay(freshState = currentState) {
+          if (!isOverlayOpen()) return false;
+          pendingWorkspaceState = null;
+          if (freshState) {
+            currentState = freshState;
+          }
+          const target = resolveOverlayTarget(currentState, activeOverlay);
+          if (!target) {
+            const suppressToast = suppressNextOverlayMissingToast;
+            suppressNextOverlayMissingToast = false;
+            closeOverlay({ skipFocusRestore: true });
+            if (!suppressToast) {
+              showToast("That item is no longer available");
+            }
+            focusActiveTabHeading();
+            return false;
+          }
+          const prevFocusedId =
+            document.activeElement?.id && String(document.activeElement.id).startsWith("overlay")
+              ? document.activeElement.id
+              : "";
+          renderOverlayContent(currentState, activeOverlay);
+          if (prevFocusedId) {
+            const restoredEl = document.getElementById(prevFocusedId);
+            if (restoredEl && !restoredEl.disabled && restoredEl.getAttribute?.("disabled") === null && typeof restoredEl.focus === "function") {
+              restoredEl.focus();
+            } else {
+              const fallbackEl = getOverlayFocusableElements()[0] || document.getElementById("overlayCloseBtn");
+              if (fallbackEl && typeof fallbackEl.focus === "function") {
+                fallbackEl.focus();
+              }
+            }
+          }
+          return true;
+        }
+
+        document.getElementById("overlayCloseBtn")?.addEventListener("click", () => {
+          closeOverlay();
+        });
+
+        document.getElementById("overlayLayer")?.addEventListener("click", (e) => {
+          if (e.target === document.getElementById("overlayLayer")) {
+            closeOverlay();
+          }
+        });
 
         function isPromptOrStoryInQueue(promptText, overrideKey) {
           const items = currentState?.taskQueue?.items || [];
@@ -1975,7 +2856,7 @@
             if (q.activeTask) {
               const act = q.activeTask;
               spotlightEl.innerHTML = `
-                <div class="queue-active-spotlight">
+                <div class="queue-active-spotlight" data-overlay-trigger="active-spotlight:${escapeHtml(act.id)}">
                   <div class="section-header">
                     <div class="section-title" style="color: var(--success);">
                       <span class="pulse-dot"></span>🟢 ACTIVE TASK NOW RUNNING
@@ -2025,7 +2906,7 @@
                     : `<span class="pill pill-accent">⏳ IN QUEUE #${idx + 1}</span>`;
 
               return `
-                <div class="queue-item-card ${isAct ? "is-active" : ""} ${isDone ? "is-done" : ""} ${isFailed ? "is-failed" : ""}">
+                <div class="queue-item-card ${isAct ? "is-active" : ""} ${isDone ? "is-done" : ""} ${isFailed ? "is-failed" : ""}" data-overlay-trigger="queue-item:${escapeHtml(it.id)}">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
                     <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
                       <span class="pill pill-purple" style="flex-shrink:0;">#${idx + 1}</span>
@@ -2060,8 +2941,8 @@
                   ${
                     it.resultSummary
                       ? isFailed
-                        ? `<div class="text-micro" style="color:var(--danger);background:var(--danger-soft);border:1px solid color-mix(in srgb, var(--danger) 30%, transparent);border-radius:5px;padding:5px 7px;margin-bottom:6px;word-break:break-word;">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
-                        : `<div class="text-micro" style="color:var(--success);margin-bottom:5px;">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
+                        ? `<div class="text-micro queue-failure-box">⚠️ Failure: ${escapeHtml(it.resultSummary)}</div>`
+                        : `<div class="text-micro queue-outcome-note">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
                       : ""
                   }
 
@@ -2191,12 +3072,10 @@
           }
         }
 
-        let lastRenderedRecListKey = "";
-
         function updateRecSelectionControls(totalRecs) {
           const selectAllBtn = document.getElementById("btnSelectAllRecs");
           const queueCheckedBtn = document.getElementById("btnQueueSelectedRecs");
-          const count = selectedRecIndices.size;
+          const count = selectedRecKeys.size;
           if (selectAllBtn) {
             selectAllBtn.disabled = totalRecs === 0;
             selectAllBtn.textContent = totalRecs > 0 && count === totalRecs ? "☐ Deselect All" : "☑️ Select All";
@@ -2207,18 +3086,29 @@
         }
 
         function renderRecommendations(recs, force = false) {
-          const recListKey = recs.map((r) => `${r.skill || ""}::${r.fullCommand || ""}`).join("\n");
-          if (lastRenderedRecListKey && lastRenderedRecListKey !== recListKey) {
-            selectedRecIndices.clear();
+          const validKeys = new Set(recs.map((r) => getRecOverrideKey(r)));
+          for (const key of [...selectedRecKeys]) {
+            if (!validKeys.has(key)) {
+              selectedRecKeys.delete(key);
+            }
           }
-          lastRenderedRecListKey = recListKey;
           updateRecSelectionControls(recs.length);
+
+          const draftDigest = recs.map((r) => {
+            const k = getRecOverrideKey(r);
+            const serverCmd = r.fullCommand || r.customPromptText || "";
+            const serverModel = getRecommendationBaseModelId(r);
+            return `${k}=>${resolveUserPrompt(k, serverCmd)}::${resolveUserModel(k, serverModel)}`;
+          });
+          const moreOpen = expandedDisclosures.has("more-actions");
 
           const recSig = JSON.stringify({
             recs,
             models: currentState?.availableModels || [],
             queueItems: (currentState?.taskQueue?.items || []).map((i) => i.prompt + ":" + i.status),
-            checked: [...selectedRecIndices]
+            checked: [...selectedRecKeys],
+            drafts: draftDigest,
+            moreOpen
           });
           if (!sectionNeedsRender("recommendations", recSig, force)) return;
 
@@ -2229,18 +3119,14 @@
           }
           container.innerHTML = recs
             .map((r, idx) => {
-              const prioClass =
-                r.priority === "high"
-                  ? "pill-danger"
-                  : r.priority === "medium"
-                    ? "pill-accent"
-                    : "pill-purple";
-              const recModel = r.recommendedModel || dynamicFitModel();
-              const recKey = getRecOverrideKey(r, idx);
-              const serverCmd = r.fullCommand || "";
+              const recKey = getRecOverrideKey(r);
+              const plainTitle = getPlainRecTitle(r);
+              const plainSummary = getPlainRecSummary(r);
+              const serverCmd = r.fullCommand || r.customPromptText || "";
               const displayCmd = resolveUserPrompt(recKey, serverCmd);
-              const serverModelId = recModel.modelId || "";
+              const serverModelId = getRecommendationBaseModelId(r);
               const displayModelId = resolveUserModel(recKey, serverModelId);
+              const hasCustomDraft = displayCmd !== serverCmd || displayModelId !== serverModelId;
               const qItem = isPromptOrStoryInQueue(displayCmd, null) || isPromptOrStoryInQueue(serverCmd, null);
               const qBadge = qItem
                 ? qItem.status === "running"
@@ -2251,51 +3137,40 @@
                       ? `<span class="pill pill-danger">⚠️ Failed</span>`
                       : `<span class="pill pill-accent">✓ In Queue</span>`
                 : "";
-              const isChecked = selectedRecIndices.has(idx);
+              const isChecked = selectedRecKeys.has(recKey);
               return `
-                <div class="rec-card">
+                <div class="rec-card${idx === 0 ? " is-focal" : ""}" id="rec-card-${idx}" tabindex="0" data-rec-card="${escapeHtml(recKey)}" data-overlay-trigger="recommendation:${escapeHtml(recKey)}" title="Click or press Enter to customize prompt, change model, or view details">
                   <div class="rec-top">
-                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;min-width:0;">
-                      <input type="checkbox" class="queue-cb" data-rec-cb="${idx}" ${isChecked ? "checked" : ""} title="Select this recommendation to add to the Execution Queue" />
-                      <span class="rec-title">${escapeHtml(r.title)}</span>
-                    </label>
-                    <div style="display:flex;gap:4px;flex-shrink:0;">
+                    <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
+                      <input type="checkbox" class="queue-cb" id="rec-cb-${idx}" data-rec-cb="${idx}" data-rec-key="${escapeHtml(recKey)}" ${isChecked ? "checked" : ""} aria-label="Select ${escapeHtml(plainTitle)} to add to the Execution Queue" title="Select this recommendation to add to the Execution Queue" />
+                      <span class="rec-title" id="rec-title-${idx}">${escapeHtml(plainTitle)}</span>
+                    </div>
+                    <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;">
                       ${qBadge}
-                      <span class="pill ${prioClass}">${escapeHtml(r.badge || r.priority)}</span>
-                      <span class="pill pill-purple">${escapeHtml(r.phase)}</span>
+                      ${hasCustomDraft ? `<span class="pill pill-purple">✎ Customized</span>` : ""}
+                      <span class="pill pill-purple" id="rec-model-pill-${idx}">🤖 ${escapeHtml(shortModelName(displayModelId))}</span>
                     </div>
                   </div>
-                  <div class="rec-rationale">${escapeHtml(r.rationale)}</div>
-                  <div class="cmd-editor-wrap">
-                    <label class="cmd-label" for="rec-cmd-${idx}">
-                      <span>Contextual BMAD Skill + Prompt (Editable)</span>
-                      <span>${escapeHtml(r.skill)}</span>
-                    </label>
-                    <textarea class="cmd-textarea" id="rec-cmd-${idx}" rows="2" aria-label="Contextual BMAD Skill and Prompt for ${escapeHtml(r.title)}">${escapeHtml(displayCmd)}</textarea>
-                  </div>
-                  <div class="model-bar">
-                    <div class="model-bar-top">
-                      <span class="pill pill-purple">${escapeHtml(recModel.tier)}</span>
-                      <select class="model-select" id="rec-model-${idx}" aria-label="Recommended model for ${escapeHtml(r.title)}" title="Recommended model for the new session or queue task">
-                        ${buildModelSelectOptions(displayModelId, serverModelId)}
-                      </select>
-                    </div>
-                    <div class="model-reason">${escapeHtml(recModel.reason)}</div>
-                  </div>
+                  <div class="rec-rationale" id="rec-summary-${idx}">${escapeHtml(plainSummary)}</div>
                   <div class="rec-actions">
-                    <button type="button" class="btn btn-purple" data-action="queue-rec" data-idx="${idx}" title="Add this task with its selected model to the Multi-Task Execution Queue">
-                      ${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Add to Queue"}
-                    </button>
-                    <button type="button" class="btn btn-primary" data-action="launch-new-rec" data-idx="${idx}" title="Open a new conversation directly with this prompt pre-pasted (does not run in the current session)">
+                    <button type="button" class="btn ${idx === 0 ? "btn-primary" : ""}" id="rec-launch-${idx}" data-action="launch-new-rec" data-idx="${idx}" title="Open a new conversation directly with this prompt pre-pasted (does not run in the current session)">
                       🚀 Launch in New Session
                     </button>
-                    <button type="button" class="btn" data-action="send-current-rec" data-idx="${idx}" title="Run in the current session instead">
+                    <button type="button" class="btn btn-purple" id="rec-queue-${idx}" data-action="queue-rec" data-idx="${idx}" title="Add this task with its selected model to the Multi-Task Execution Queue">
+                      ${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Add to Queue"}
+                    </button>
+                    <button type="button" class="btn disclosure-btn" id="rec-more-actions-${idx}" data-rec-more="${idx}" data-disclosure="more-actions" aria-expanded="${moreOpen ? "true" : "false"}" aria-controls="rec-more-body-${idx}">
+                      ${moreOpen ? "▾" : "▸"} More actions (3)
+                    </button>
+                  </div>
+                  <div id="rec-more-body-${idx}" style="display:${moreOpen ? "flex" : "none"};gap:6px;flex-wrap:wrap;margin-top:6px;">
+                    <button type="button" class="btn" id="rec-run-here-${idx}" data-action="send-current-rec" data-idx="${idx}" title="Run in the current session instead">
                       💬 Run Here
                     </button>
-                    <button type="button" class="btn" data-action="attach-rec" data-idx="${idx}">
+                    <button type="button" class="btn" id="rec-attach-${idx}" data-action="attach-rec" data-idx="${idx}">
                       📎 Attach
                     </button>
-                    <button type="button" class="btn" data-action="copy-rec" data-idx="${idx}">
+                    <button type="button" class="btn" id="rec-copy-${idx}" data-action="copy-rec" data-idx="${idx}">
                       📋 Copy
                     </button>
                   </div>
@@ -2304,31 +3179,47 @@
             })
             .join("");
 
-          container.querySelectorAll("[data-rec-cb]").forEach((cb) => {
+          function bindRecCheckbox(cb) {
+            if (!cb || cb._bmadCbBound) return;
+            cb._bmadCbBound = true;
             cb.addEventListener("change", () => {
+              const curRecs = currentState?.recommendations || [];
               const idx = Number(cb.getAttribute("data-rec-cb"));
-              if (cb.checked) selectedRecIndices.add(idx);
-              else selectedRecIndices.delete(idx);
-              updateRecSelectionControls(recs.length);
+              const recKey =
+                cb.getAttribute("data-rec-key") || (curRecs[idx] ? getRecOverrideKey(curRecs[idx]) : "");
+              if (!recKey) return;
+              if (cb.checked) selectedRecKeys.add(recKey);
+              else selectedRecKeys.delete(recKey);
+              updateRecSelectionControls(curRecs.length);
             });
-          });
+          }
 
-          recs.forEach((r, idx) => {
-            wireUserEditTracking(
-              getRecOverrideKey(r, idx),
-              r.fullCommand || "",
-              r.recommendedModel?.modelId || getFallbackModelId() || "",
-              `rec-cmd-${idx}`,
-              `rec-model-${idx}`
-            );
-          });
+          function bindRecMoreBtn(btn) {
+            if (!btn || btn._bmadMoreBound) return;
+            btn._bmadMoreBound = true;
+            btn.addEventListener("click", (e) => {
+              if (typeof e.stopPropagation === "function") e.stopPropagation();
+              toggleDisclosure("more-actions");
+            });
+          }
 
-          container.querySelectorAll("button[data-action]").forEach((btn) => {
-            btn.addEventListener("click", async () => {
+          function bindRecActionBtn(btn) {
+            if (!btn || btn._bmadActionBound) return;
+            btn._bmadActionBound = true;
+            btn.addEventListener("click", async (e) => {
+              if (typeof e.stopPropagation === "function") e.stopPropagation();
+              const curRecs = currentState?.recommendations || [];
               const idx = Number(btn.getAttribute("data-idx"));
-              const rec = recs[idx];
-              const cmd = readCmdEditor(`rec-cmd-${idx}`, rec.fullCommand, true);
-              const chosenModel = readModelEditor(`rec-model-${idx}`, rec.recommendedModel?.modelId);
+              const rec = curRecs[idx];
+              if (!rec) return;
+              const recKey = getRecOverrideKey(rec);
+              const plainTitle = getPlainRecTitle(rec);
+              const plainSummary = getPlainRecSummary(rec);
+              const serverCmd = rec.fullCommand || rec.customPromptText || "";
+              const baseModelId = getRecommendationBaseModelId(rec);
+              const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              const chosenModel = resolveUserModel(recKey, baseModelId);
+              const itemTitle = rec.title || rec.headline || plainTitle || "Task";
               const action = btn.getAttribute("data-action");
               if (action === "queue-rec") {
                 await manageQueue(
@@ -2336,25 +3227,87 @@
                     action: "add",
                     items: [
                       {
-                        title: rec.title,
+                        title: itemTitle,
                         skill: rec.skill,
                         prompt: cmd,
                         model: chosenModel
                       }
                     ]
                   },
-                  `➕ Added "${rec.title}" [${shortModelName(chosenModel)}] to Queue`
+                  `➕ Added "${itemTitle}" [${shortModelName(chosenModel)}] to Queue`
                 );
               } else if (action === "launch-new-rec") {
-                await launchPromptInNewSession(cmd, chosenModel, rec.skill, rec.title);
+                await launchPromptInNewSession(cmd, chosenModel, rec.skill, itemTitle);
               } else if (action === "send-current-rec") {
                 await sendPromptToCurrentSession(cmd);
               } else if (action === "attach-rec") {
-                await attachToChatContext(rec.title, cmd, rec.rationale, chosenModel);
+                await attachToChatContext(itemTitle, cmd, rec.rationale || plainSummary, chosenModel);
               } else if (action === "copy-rec") {
                 await copyWithToast(cmd);
               }
             });
+          }
+
+          container.querySelectorAll("[data-rec-cb]").forEach(bindRecCheckbox);
+          container.querySelectorAll("[data-rec-more]").forEach(bindRecMoreBtn);
+          container.querySelectorAll("button[data-action]").forEach(bindRecActionBtn);
+
+          recs.forEach((r, idx) => {
+            const recKey = getRecOverrideKey(r);
+            const serverCmd = r.fullCommand || r.customPromptText || "";
+            const serverModelId = getRecommendationBaseModelId(r);
+            const displayCmd = resolveUserPrompt(recKey, serverCmd);
+            const displayModelId = resolveUserModel(recKey, serverModelId);
+
+            wireUserEditTracking(
+              recKey,
+              serverCmd,
+              serverModelId,
+              `rec-cmd-${idx}`,
+              `rec-model-${idx}`,
+              displayCmd,
+              displayModelId
+            );
+
+            bindRecCheckbox(document.getElementById(`rec-cb-${idx}`));
+            bindRecMoreBtn(document.getElementById(`rec-more-actions-${idx}`));
+            [
+              `rec-launch-${idx}`,
+              `rec-queue-${idx}`,
+              `rec-run-here-${idx}`,
+              `rec-attach-${idx}`,
+              `rec-copy-${idx}`
+            ].forEach((btnId) => bindRecActionBtn(document.getElementById(btnId)));
+
+            const cardEl = document.getElementById(`rec-card-${idx}`);
+            if (cardEl) {
+              cardEl._bmadRecKey = recKey;
+              if (!cardEl._bmadCardBound) {
+                cardEl._bmadCardBound = true;
+                const openCardOverlay = () => {
+                  const targetRecKey = cardEl._bmadRecKey || cardEl.getAttribute("data-rec-card");
+                  if (!targetRecKey) return;
+                  openOverlay({
+                    kind: "action",
+                    targetType: "recommendation",
+                    targetKey: targetRecKey,
+                    triggerEl: cardEl,
+                    triggerSelector: `[data-overlay-trigger="recommendation:${targetRecKey}"]`
+                  });
+                };
+                cardEl.addEventListener("click", (e) => {
+                  if (isInteractiveDescendantClick(e, cardEl)) return;
+                  openCardOverlay();
+                });
+                cardEl.addEventListener("keydown", (e) => {
+                  if (e.target !== cardEl) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    if (typeof e.preventDefault === "function") e.preventDefault();
+                    openCardOverlay();
+                  }
+                });
+              }
+            }
           });
         }
 
@@ -2516,7 +3469,7 @@
                 : "";
 
               return `
-                <div class="phase-card">
+                <div class="phase-card" data-overlay-trigger="phase:${escapeHtml(p.id)}">
                   <button type="button" class="phase-summary-row" aria-expanded="${isExpanded ? "true" : "false"}" data-phase-toggle="${escapeHtml(p.id)}">
                     <div class="phase-top">
                       <span style="font-weight:700;">${isExpanded ? "▾" : "▸"} ${escapeHtml(p.name)}</span>
@@ -2616,7 +3569,7 @@
                       const stModelShort = s.recommendedModel?.shortName || shortModelName(stModel);
                       const qItem = isPromptOrStoryInQueue(null, s.overrideKey);
                       return `
-                        <div class="story-row">
+                        <div class="story-row" data-overlay-trigger="story:${escapeHtml(s.overrideKey || s.id)}">
                           <div class="story-head">
                             <div class="story-title">
                               <span style="font-family:var(--font-mono);color:var(--accent);">${escapeHtml(s.id)}</span>
@@ -2650,7 +3603,7 @@
               : "";
 
             htmlParts.push(`
-              <div class="epic-box">
+              <div class="epic-box" data-overlay-trigger="epic:${escapeHtml(epic.id)}">
                 <div class="epic-summary">
                   <button type="button" class="epic-toggle-btn" aria-expanded="${isExpanded ? "true" : "false"}" data-epic-toggle="${escapeHtml(epic.id)}">
                     <div class="section-title">
@@ -2682,6 +3635,7 @@
             if (searchEl) searchEl.value = "";
             if (statusEl) statusEl.value = "all";
             renderEpics(true);
+            searchEl?.focus?.();
           });
 
           container.querySelectorAll("[data-epic-toggle]").forEach((el) => {
@@ -2769,6 +3723,7 @@
                 if (searchEl) searchEl.value = "";
                 if (phaseEl) phaseEl.value = "all";
                 renderSkillsCatalog(true);
+                searchEl?.focus?.();
               });
             } else {
               skillsEl.innerHTML = skills
@@ -2963,6 +3918,7 @@
               const searchEl = document.getElementById("artifactSearch");
               if (searchEl) searchEl.value = "";
               renderArtifactsDirectory(true);
+              searchEl?.focus?.();
             });
             return;
           }
@@ -2976,7 +3932,7 @@
                     : `<span class="pill pill-success">✓ Committed</span>`;
               const isInspecting = selectedArtifactPath === a.relPath;
               return `
-                <div class="insight-item${isInspecting ? " is-inspecting" : ""}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <div class="insight-item${isInspecting ? " is-inspecting" : ""}" data-overlay-trigger="artifact:${escapeHtml(a.relPath)}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                   <button type="button" class="art-row-btn" data-open-art="${escapeHtml(a.relPath)}" aria-label="Inspect ${escapeHtml(a.relPath)}">
                     <div class="art-row-path text-mono-meta" style="font-weight:600;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                       ${escapeHtml(a.relPath)}
@@ -3122,9 +4078,25 @@
         }
 
         function switchTab(tabId, focusBtn = false) {
+          activeTabId = tabId;
+          if (isOverlayOpen()) {
+            closeOverlay({ skipFocusRestore: true });
+          }
+          const aliasMap = {
+            work: "advisor",
+            advisor: "work",
+            project: "progress",
+            progress: "project"
+          };
+          const resolvedTabId = document.getElementById("tab-" + tabId)
+            ? tabId
+            : aliasMap[tabId] && document.getElementById("tab-" + aliasMap[tabId])
+              ? aliasMap[tabId]
+              : tabId;
           const tabBtns = Array.from(document.querySelectorAll(".tab-btn"));
           tabBtns.forEach((b) => {
-            const isActive = b.getAttribute("data-tab") === tabId;
+            const btnTab = b.getAttribute("data-tab");
+            const isActive = btnTab === tabId || btnTab === resolvedTabId;
             b.classList.toggle("active", isActive);
             b.setAttribute("aria-selected", isActive ? "true" : "false");
             b.setAttribute("tabindex", isActive ? "0" : "-1");
@@ -3132,9 +4104,9 @@
               b.focus();
             }
           });
-          ["advisor", "queue", "progress", "catalog", "artifacts"].forEach((id) => {
+          ["work", "advisor", "queue", "project", "progress", "catalog", "artifacts"].forEach((id) => {
             const el = document.getElementById("tab-" + id);
-            if (el) el.style.display = id === tabId ? "block" : "none";
+            if (el) el.style.display = id === resolvedTabId ? "block" : "none";
           });
           const mainEl = document.getElementById("mainScroll");
           if (mainEl) mainEl.scrollTop = 0;
@@ -3179,41 +4151,57 @@
 
         document.getElementById("btnSelectAllRecs")?.addEventListener("click", () => {
           const recs = currentState?.recommendations || [];
-          if (selectedRecIndices.size === recs.length) {
-            selectedRecIndices.clear();
+          const allKeys = recs.map((r) => getRecOverrideKey(r));
+          const allSelected = allKeys.length > 0 && allKeys.every((k) => selectedRecKeys.has(k));
+          if (allSelected) {
+            selectedRecKeys.clear();
           } else {
-            recs.forEach((_, idx) => selectedRecIndices.add(idx));
+            allKeys.forEach((k) => selectedRecKeys.add(k));
           }
           renderRecommendations(recs, true);
         });
 
         document.getElementById("btnQueueSelectedRecs")?.addEventListener("click", async () => {
           const recs = currentState?.recommendations || [];
-          if (!selectedRecIndices.size) {
+          if (!selectedRecKeys.size) {
             showToast("⚠️ Check one or more recommended tasks first!");
             return;
           }
           const itemsToAdd = [];
-          for (const idx of selectedRecIndices) {
-            const rec = recs[idx];
-            if (!rec) continue;
+          for (const rec of recs) {
+            const recKey = getRecOverrideKey(rec);
+            if (!selectedRecKeys.has(recKey)) continue;
+            const serverCmd = rec.fullCommand || rec.customPromptText || "";
+            const baseModelId = getRecommendationBaseModelId(rec);
             itemsToAdd.push({
-              title: rec.title,
+              title: rec.title || rec.headline || rec.plainTitle || "Task",
               skill: rec.skill,
-              prompt: readCmdEditor(`rec-cmd-${idx}`, rec.fullCommand, true),
-              model: readModelEditor(`rec-model-${idx}`, rec.recommendedModel?.modelId)
+              prompt: String(resolveUserPrompt(recKey, serverCmd) || "").trim(),
+              model: resolveUserModel(recKey, baseModelId)
             });
           }
-          selectedRecIndices.clear();
-          await manageQueue(
+          if (!itemsToAdd.length) return;
+          const updated = await manageQueue(
             { action: "add", items: itemsToAdd },
             `➕ Added ${itemsToAdd.length} task(s) with selected models to Queue!`
           );
-          switchTab("queue");
+          if (updated) {
+            selectedRecKeys.clear();
+            updateRecSelectionControls(recs.length);
+            switchTab("queue");
+          }
         });
 
         document.getElementById("btnGoToQueueFromAdvisor")?.addEventListener("click", () => {
           switchTab("queue");
+        });
+
+        document.getElementById("btnDisclosureAiNotes")?.addEventListener("click", () => {
+          toggleDisclosure("ai-notes");
+        });
+
+        document.getElementById("btnDisclosureModelsProviders")?.addEventListener("click", () => {
+          toggleDisclosure("models-providers");
         });
 
         document.getElementById("queueDefaultReviewSelect")?.addEventListener("change", async (e) => {
@@ -3366,6 +4354,28 @@
         if (typeof window !== "undefined") {
           window.__bmadTestHooks = {
             isUserInteractingWithForm,
+            isOverlayOpen,
+            openOverlay,
+            closeOverlay,
+            reconcileActiveOverlay,
+            getActiveOverlay: () => activeOverlay,
+            setActiveOverlay: (val) => {
+              activeOverlay = val;
+            },
+            getOverlayFocusableElements,
+            isInteractiveDescendantClick,
+            getRecOverrideKey,
+            getRecommendationBaseModelId,
+            getSelectedRecKeys: () => selectedRecKeys,
+            getExpandedDisclosures: () => expandedDisclosures,
+            toggleDisclosure,
+            syncWorkDisclosures,
+            renderCurrentFocusHero,
+            getPlainRecTitle,
+            getPlainRecSummary,
+            stripPanelBmadJargon,
+            getActiveTabId: () => activeTabId,
+            focusActiveTabHeading,
             flushPendingState,
             refreshState,
             isPanelVisible,

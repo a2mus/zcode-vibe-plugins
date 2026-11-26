@@ -3,7 +3,7 @@ title: 'Story 8.1 — Palette C warm charcoal tokens, radii & closed larger type
 type: feature
 ticket: '1'
 created: '2026-11-26'
-status: built
+status: done
 baseline_revision: 35b8f800b02aef93a1800e33df38b66013f0dcc8
 route: full
 route_source: auto
