@@ -257,12 +257,18 @@
 
       .tabs-nav {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 2px;
         padding: 4px 6px;
         background: var(--bg-secondary);
         border-bottom: 1px solid var(--border);
         flex-shrink: 0;
+      }
+
+      .tab-purpose {
+        font-size: 12.5px;
+        color: var(--text-secondary);
+        margin-top: 2px;
       }
 
       .tab-btn {
@@ -600,39 +606,9 @@
         background: var(--bg-secondary);
         border: 1px solid var(--border);
         border-radius: var(--radius);
+        padding: 9px 11px;
         margin-bottom: 8px;
         overflow: hidden;
-      }
-
-      .phase-summary-row {
-        width: 100%;
-        border: none;
-        background: transparent;
-        color: inherit;
-        font: inherit;
-        text-align: left;
-        display: block;
-        padding: 9px 11px;
-        cursor: pointer;
-        user-select: none;
-        transition: background 0.12s;
-      }
-
-      .phase-summary-row:hover {
-        background: var(--bg-tertiary);
-      }
-
-      .agent-card {
-        background: var(--bg-secondary);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        padding: 9px 11px;
-        margin-bottom: 8px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        flex-wrap: wrap;
       }
 
       .phase-top {
@@ -642,12 +618,6 @@
         gap: 8px;
         flex-wrap: wrap;
         margin-bottom: 5px;
-      }
-
-      .phase-body {
-        padding: 8px 11px 10px;
-        border-top: 1px solid var(--border-subtle);
-        background: var(--bg-primary);
       }
 
       .phase-artifacts {
@@ -745,6 +715,7 @@
         max-height: 220px;
         overflow-y: auto;
         font-family: var(--font-mono);
+        overflow-wrap: anywhere;
       }
 
       .diff-line {
@@ -863,6 +834,8 @@
       .story-title {
         font-weight: 600;
         font-size: 13px;
+        min-width: 0;
+        overflow-wrap: anywhere;
       }
 
       .story-evidence {
@@ -871,6 +844,7 @@
         background: var(--purple-soft);
         padding: 3px 6px;
         border-radius: 4px;
+        overflow-wrap: anywhere;
       }
 
       .insight-item {
@@ -890,11 +864,13 @@
         font-weight: 600;
         font-size: 13px;
         margin-bottom: 2px;
+        overflow-wrap: anywhere;
       }
 
       .insight-detail {
         font-size: 12.5px;
         color: var(--text-secondary);
+        overflow-wrap: anywhere;
       }
 
       .artifact-preview {
@@ -905,6 +881,7 @@
         font-family: var(--font-mono);
         font-size: 12.5px;
         white-space: pre-wrap;
+        overflow-wrap: anywhere;
         max-height: 360px;
         overflow-y: auto;
         margin-top: 8px;
@@ -954,9 +931,9 @@
         .bar-smart,
         .btn,
         .rec-card,
-        .phase-summary-row,
         .epic-toggle-btn,
-        .queue-item-card {
+        .queue-item-card,
+        [data-overlay-trigger] {
           transition: none;
         }
       }
@@ -1124,6 +1101,7 @@
         line-height: 1.55;
         color: var(--text-primary);
         margin-bottom: 10px;
+        overflow-wrap: anywhere;
       }
 
       .overlay-command-text,
@@ -1137,12 +1115,95 @@
         font-family: var(--font-mono);
         font-size: var(--overlay-meta-size);
         color: var(--text-secondary);
+        overflow-wrap: anywhere;
       }
 
       .overlay-card .model-select {
         font-family: var(--font-mono);
         font-size: var(--overlay-meta-size);
         color: var(--text-primary);
+      }
+
+      [data-overlay-trigger] {
+        cursor: pointer;
+        transition: border-color 0.15s ease, background 0.15s ease;
+      }
+
+      .phase-card[data-overlay-trigger]:hover,
+      .phase-card[data-overlay-trigger]:focus-visible,
+      .epic-box[data-overlay-trigger]:hover,
+      .epic-box[data-overlay-trigger]:focus-visible,
+      .queue-item-card[data-overlay-trigger]:hover,
+      .queue-item-card[data-overlay-trigger]:focus-visible,
+      .queue-active-spotlight[data-overlay-trigger]:hover,
+      .queue-active-spotlight[data-overlay-trigger]:focus-visible,
+      #insightsCard[data-overlay-trigger]:hover,
+      #insightsCard[data-overlay-trigger]:focus-visible,
+      #reconciliationDiffCard[data-overlay-trigger]:hover,
+      #reconciliationDiffCard[data-overlay-trigger]:focus-visible,
+      #artifactsDirectoryList .insight-item[data-overlay-trigger]:hover,
+      #artifactsDirectoryList .insight-item[data-overlay-trigger]:focus-visible {
+        border-color: var(--accent);
+      }
+
+      .story-row[data-overlay-trigger]:hover,
+      .story-row[data-overlay-trigger]:focus-visible {
+        background: var(--accent-soft);
+      }
+
+      .focus-expand-btn {
+        padding: 2px 6px;
+        font-size: 12.5px;
+        line-height: 1.2;
+        flex-shrink: 0;
+      }
+
+      .overlay-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+      }
+
+      .overlay-item-row {
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-subtle);
+      }
+
+      .overlay-item-row-title {
+        font-weight: 600;
+        font-size: var(--overlay-body-size);
+        color: var(--text-primary);
+        margin-bottom: 2px;
+        overflow-wrap: anywhere;
+      }
+
+      .overlay-actions-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-top: 8px;
+      }
+
+      .queue-controls-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 8px;
+      }
+
+      .queue-item-controls-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+        gap: 6px;
+      }
+
+      .queue-controls-grid .model-select,
+      .queue-item-controls-grid .model-select {
+        min-width: 0;
+        width: 100%;
       }
     </style>
   </head>
@@ -1179,11 +1240,9 @@
       </header>
 
       <nav class="tabs-nav" id="tabsNav" role="tablist" aria-label="BMAD Navigation Tabs">
-        <button type="button" class="tab-btn active" id="tabBtnAdvisor" role="tab" aria-selected="true" aria-controls="tab-advisor" tabindex="0" data-tab="advisor" title="Next Prompts & AI Recommendations"><span class="tab-label">⚡ Next Prompts</span></button>
-        <button type="button" class="tab-btn" id="tabBtnQueue" role="tab" aria-selected="false" aria-controls="tab-queue" tabindex="-1" data-tab="queue" title="Multi-Task Execution Queue"><span class="tab-label">⛓️ Queue</span> <span class="pill pill-purple" id="queueTabCount" style="padding:0 5px;flex-shrink:0;">0</span></button>
-        <button type="button" class="tab-btn" id="tabBtnProgress" role="tab" aria-selected="false" aria-controls="tab-progress" tabindex="-1" data-tab="progress" title="Phases, Epics & Tracker Reconciliation"><span class="tab-label">📊 Phases & Epics</span></button>
-        <button type="button" class="tab-btn" id="tabBtnCatalog" role="tab" aria-selected="false" aria-controls="tab-catalog" tabindex="-1" data-tab="catalog" title="Skills & Specialist Agents Catalog"><span class="tab-label">🧭 Skills & Agents</span></button>
-        <button type="button" class="tab-btn" id="tabBtnArtifacts" role="tab" aria-selected="false" aria-controls="tab-artifacts" tabindex="-1" data-tab="artifacts" title="Workspace Artifacts & Git Diff Inspector"><span class="tab-label">🗂️ Artifacts</span></button>
+        <button type="button" class="tab-btn active" id="tabBtnWork" role="tab" aria-selected="true" aria-controls="tab-work" aria-describedby="tabDescWork" tabindex="0" data-tab="work" title="You want to know what to do next, in plain words, and start it."><span class="tab-label">⚡ Work</span></button>
+        <button type="button" class="tab-btn" id="tabBtnQueue" role="tab" aria-selected="false" aria-controls="tab-queue" aria-describedby="tabDescQueue" tabindex="-1" data-tab="queue" title="You want to see or change what is lined up to run."><span class="tab-label">⛓️ Queue</span> <span class="pill pill-purple" id="queueTabCount" style="padding:0 5px;flex-shrink:0;">0</span></button>
+        <button type="button" class="tab-btn" id="tabBtnProject" role="tab" aria-selected="false" aria-controls="tab-project" aria-describedby="tabDescProject" tabindex="-1" data-tab="project" title="You want to see where the work stands and how it is structured."><span class="tab-label">📊 Project</span></button>
       </nav>
 
       <div class="live-queue-banner" id="liveQueueBanner">
@@ -1196,18 +1255,21 @@
 
       <main class="main-scroll" id="mainScroll" role="main">
         <!-- Tab 1: Work (Current Focus Hero, Plain Next Actions & Counted Disclosures) -->
-        <section id="tab-advisor" role="tabpanel" aria-labelledby="tabBtnAdvisor" tabindex="0">
+        <section id="tab-work" role="tabpanel" aria-labelledby="tabBtnWork" tabindex="0">
           <div class="focus-hero" id="currentFocusHero" data-focus-source="deterministic" data-conversation-count="0">
             <div class="focus-hero-text" id="currentFocusText">This workspace is ready for its next step. Pick a suggestion below to start a new conversation with a recommended model.</div>
             <div class="focus-hero-basis text-caption" id="currentFocusBasis">Current focus</div>
           </div>
 
           <div class="section-header" style="margin: 8px 2px 6px; flex-wrap: wrap; gap: 6px;">
-            <div class="section-title" id="workTabHeading" tabindex="-1">🚀 What to do next</div>
+            <div>
+              <div class="section-title" id="workTabHeading" tabindex="-1">🚀 What to do next</div>
+              <div class="tab-purpose" id="tabDescWork">You want to know what to do next, in plain words, and start it.</div>
+            </div>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
               <button type="button" class="btn" id="btnSelectAllRecs" style="padding:2px 7px;" title="Select or deselect all recommended tasks">☑️ Select All</button>
               <button type="button" class="btn btn-purple" id="btnQueueSelectedRecs" style="padding:2px 8px;" title="Add checked recommendations with their selected models to the execution queue">➕ Add Checked to Queue</button>
-              <button type="button" class="btn" id="btnGoToQueueFromAdvisor" style="padding:2px 8px;" title="Open the Multi-Task Queue Runner">⛓️ Open Queue</button>
+              <button type="button" class="btn" id="btnGoToQueueFromWork" style="padding:2px 8px;" title="Open the Multi-Task Queue Runner">⛓️ Open Queue</button>
             </div>
           </div>
           <div id="recommendationsList"></div>
@@ -1215,10 +1277,13 @@
           <div class="disclosure-section">
             <button type="button" class="btn disclosure-btn" id="btnDisclosureAiNotes" data-disclosure="ai-notes" aria-expanded="false" aria-controls="disclosureBodyAiNotes">▸ 🔍 AI notes (0)</button>
             <div class="disclosure-body" id="disclosureBodyAiNotes" style="display: none;">
-              <div class="section-card" id="insightsCard" data-overlay-trigger="insights:insights" style="margin-top: 6px;">
+              <div class="section-card" id="insightsCard" data-overlay-trigger="insights:insights" tabindex="-1" style="margin-top: 6px;">
                 <div class="section-header">
                   <div class="section-title">🔍 AI notes</div>
-                  <span class="pill pill-purple" id="turnBadge">Direct New-Chat</span>
+                  <div style="display:flex;gap:4px;align-items:center;">
+                    <span class="pill pill-purple" id="turnBadge">Direct New-Chat</span>
+                    <button type="button" class="btn focus-expand-btn" id="btnExpandInsights" data-focus-expand="insights:insights" aria-label="Expand AI notes in Focus View" title="Expand AI notes in Focus View">⤢</button>
+                  </div>
                 </div>
                 <div class="turn-box" style="margin-bottom: 8px;">
                   <div class="turn-headline" id="turnHeadline">Analyzing workspace state…</div>
@@ -1241,20 +1306,18 @@
           </div>
         </section>
 
-        <!-- Tab 1.5: Multi-Task Execution Queue & Workflow Orchestrator -->
+        <!-- Tab 2: Queue (Multi-Task Execution Queue & Per-Task Model Orchestrator) -->
         <section id="tab-queue" role="tabpanel" aria-labelledby="tabBtnQueue" tabindex="0" style="display: none;">
           <div class="section-card">
             <div class="section-header" style="flex-wrap: wrap; gap: 6px;">
               <div>
-                <div class="section-title" id="queueTabHeading" tabindex="-1">⛓️ Multi-Task Execution Queue & Per-Task Model Orchestrator</div>
-                <div class="text-caption" style="margin-top: 2px;">
-                  Queue multiple recommended tasks or an entire epic, pick an AI model & token-saving review gate per task, and run them automatically in separate sessions or as a compiled ZCode Dynamic Workflow (<code>.dwf.ts</code>).
-                </div>
+                <div class="section-title" id="queueTabHeading" tabindex="-1">⛓️ Queued tasks</div>
+                <div class="tab-purpose" id="tabDescQueue">You want to see or change what is lined up to run.</div>
               </div>
               <span class="pill pill-accent" id="queueStatusBadge">IDLE · 0/0</span>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+            <div class="queue-controls-grid" style="margin-top: 8px;">
               <div>
                 <label for="queueDefaultReviewSelect" class="label-caps">
                   🛡️ Default Review & Token Gate (Applies to Queue)
@@ -1288,7 +1351,7 @@
                 </label>
                 <span class="pill pill-purple" id="queueSplitStatusPill">ON · 2 Models</span>
               </div>
-              <div id="queueSplitModelsRow" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+              <div id="queueSplitModelsRow" class="queue-controls-grid" style="margin-top: 6px;">
                 <div>
                   <label for="queuePlannerModelSelect" class="label-caps">
                     🧠 Planner Model (Plan Step)
@@ -1309,7 +1372,7 @@
             </div>
 
             <div style="display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center;">
-              <button type="button" class="btn btn-primary" id="btnRunQueueWorkflow" title="Compile .zcode/workflows/bmad-task-queue.dwf.ts with per-task models and world.run state updates, then launch it via CreateWorkflow">
+              <button type="button" class="btn" id="btnRunQueueWorkflow" title="Compile .zcode/workflows/bmad-task-queue.dwf.ts with per-task models and world.run state updates, then launch it via CreateWorkflow">
                 ⚡ Run Queue via ZCode Workflow (.dwf.ts)
               </button>
               <button type="button" class="btn btn-purple" id="btnRunQueueSessions" title="Start each queued task in its own ZCode conversation; every finished task session hands off to the next one automatically with its own model">
@@ -1321,7 +1384,7 @@
               <button type="button" class="btn" id="btnPauseQueue" title="Pause active queue execution">
                 ⏸ Pause
               </button>
-              <button type="button" class="btn btn-primary" id="btnRetryFailedQueue" style="display: none;" title="Reset all failed tasks back to Queued so you can re-run them">
+              <button type="button" class="btn" id="btnRetryFailedQueue" style="display: none;" title="Reset all failed tasks back to Queued so you can re-run them">
                 ↻ Retry Failed
               </button>
               <button type="button" class="btn" id="btnClearDoneQueue" title="Remove completed tasks from the queue">
@@ -1342,42 +1405,44 @@
           <div id="queueItemsList"></div>
         </section>
 
-        <!-- Tab 2: Phases, Epics & Stories -->
-        <section id="tab-progress" role="tabpanel" aria-labelledby="tabBtnProgress" tabindex="0" style="display: none;">
+        <!-- Tab 3: Project (Reconciliation, Flat Phases, Epics & Tickets, Recently Changed Files) -->
+        <section id="tab-project" role="tabpanel" aria-labelledby="tabBtnProject" tabindex="0" style="display: none;">
           <div class="section-card">
-            <div class="section-header">
-              <div class="section-title" id="projectTabHeading" tabindex="-1">📈 Static Tracker vs. Smart AI Reconciliation</div>
+            <div class="section-header" style="flex-wrap: wrap; gap: 6px;">
+              <div>
+                <div class="section-title" id="projectTabHeading" tabindex="-1">📈 Line up your tickets with the code</div>
+                <div class="tab-purpose" id="tabDescProject">You want to see where the work stands and how it is structured.</div>
+              </div>
               <span class="pill pill-success" id="reconciledBadge">Smart Verified</span>
             </div>
             <div id="metricsBreakdown" class="text-caption"></div>
             <div style="display: flex; gap: 6px; margin-top: 9px; flex-wrap: wrap;">
-              <button type="button" class="btn btn-primary" id="btnReconcileTrackers" title="Reconcile and write back Smart AI status findings into sprint-status.yaml and/or tickets.toml">
+              <button type="button" class="btn" id="btnReconcileTrackers" title="Reconcile and write back Smart AI status findings into sprint-status.yaml and/or tickets.toml">
                 ⚡ Reconcile Trackers with Reality
               </button>
               <button type="button" class="btn" id="btnPreviewReconcile" title="Preview changes before modifying tracker files">
                 🔍 Preview Diff
               </button>
             </div>
-            <div id="reconciliationDiffCard" class="reconciliation-diff-card" data-overlay-trigger="reconciliation-diff:reconciliation-diff">
+            <div id="reconciliationDiffCard" class="reconciliation-diff-card" data-overlay-trigger="reconciliation-diff:reconciliation-diff" tabindex="-1">
               <div class="section-title" style="justify-content: space-between; margin-bottom: 5px;">
                 <span id="diffCardTitle">Reconciliation Preview</span>
-                <button type="button" class="btn" id="btnCloseDiff" style="padding: 1px 6px;">✕ Close</button>
+                <div style="display:flex;gap:4px;align-items:center;">
+                  <button type="button" class="btn focus-expand-btn" id="btnExpandReconciliationDiff" data-focus-expand="reconciliation-diff:reconciliation-diff" aria-label="Expand reconciliation diff in Focus View" title="Expand reconciliation diff in Focus View">⤢</button>
+                  <button type="button" class="btn" id="btnCloseDiff" style="padding: 1px 6px;">✕ Close</button>
+                </div>
               </div>
               <div id="diffCardContent" class="reconciliation-diff-content"></div>
             </div>
           </div>
 
           <div class="section-header" style="margin: 8px 2px 6px;">
-            <div class="section-title">🏛️ 4-Phase BMAD-METHOD Lifecycle</div>
-            <div style="display:flex;gap:4px;">
-              <button type="button" class="btn" id="btnExpandAllPhases" style="padding:2px 6px;">Expand All</button>
-              <button type="button" class="btn" id="btnCollapseAllPhases" style="padding:2px 6px;">Collapse All</button>
-            </div>
+            <div class="section-title">🏛️ Phases</div>
           </div>
           <div id="phasesList"></div>
 
           <div class="section-header" style="margin: 12px 2px 6px;">
-            <div class="section-title">📦 Epics & Stories Progress Explorer</div>
+            <div class="section-title">📦 Epics and tickets</div>
           </div>
           <div class="filter-bar">
             <input type="text" class="search-input" id="storySearch" aria-label="Filter epics, stories, or requirement IDs" placeholder="Filter epics, stories, or requirement IDs…" />
@@ -1389,39 +1454,11 @@
             </select>
           </div>
           <div id="epicsList"></div>
-        </section>
 
-        <!-- Tab 3: Skills & Agents Catalog -->
-        <section id="tab-catalog" role="tabpanel" aria-labelledby="tabBtnCatalog" tabindex="0" style="display: none;">
-          <div class="filter-bar">
-            <input type="text" class="search-input" id="skillSearch" aria-label="Search BMAD skills or agents" placeholder="Search /bmad-* skills or agents (e.g. ux, build, review, sally)…" />
-            <select class="btn" id="skillPhaseFilter" aria-label="Filter skills by phase">
-              <option value="all">All Phases</option>
-              <option value="1-analysis">Phase 1 · Analysis</option>
-              <option value="2-planning">Phase 2 · Planning & UX</option>
-              <option value="3-solutioning">Phase 3 · Solutioning</option>
-              <option value="4-implementation">Phase 4 · Implementation</option>
-              <option value="anytime">Anytime / Core</option>
-            </select>
-          </div>
-
-          <div class="section-header" style="margin: 6px 2px;">
-            <div class="section-title" id="catalogTabHeading" tabindex="-1">🛠️ Contextual BMAD Skills Launcher (New Session + Model)</div>
-          </div>
-          <div id="skillsCatalogList"></div>
-
-          <div class="section-header" style="margin: 12px 2px 6px;">
-            <div class="section-title">👥 Specialist BMAD Agents</div>
-          </div>
-          <div id="agentsCatalogList"></div>
-        </section>
-
-        <!-- Tab 4: Artifacts Inspector (Ordered by Last Modified + Diff Viewer) -->
-        <section id="tab-artifacts" role="tabpanel" aria-labelledby="tabBtnArtifacts" tabindex="0" style="display: none;">
-          <div class="section-card" id="artifactPreviewCard" style="display: none; border-color: var(--accent);">
+          <div class="section-card" id="artifactPreviewCard" style="display: none;">
             <div class="section-header" style="flex-wrap: wrap;">
               <div style="min-width: 0;">
-                <div class="section-title" id="previewFileName" style="font-family: var(--font-mono); color: var(--accent); overflow-wrap: anywhere; word-break: break-word;">Artifact Preview</div>
+                <div class="section-title" id="previewFileName" style="font-family: var(--font-mono); color: var(--text-primary); overflow-wrap: anywhere; word-break: break-word;">Artifact Preview</div>
                 <div id="previewMetaSubtitle" class="text-micro" style="color: var(--text-secondary); margin-top: 2px;"></div>
               </div>
               <div style="display: flex; gap: 5px; flex-wrap: wrap;">
@@ -1429,6 +1466,7 @@
                 <button type="button" class="btn" id="btnToggleContentMode" aria-pressed="false" title="View full file content">📄 Content</button>
                 <button type="button" class="btn" id="btnOpenArtifactExternal" title="Open this artifact file in your desktop editor/viewer">↗ Open File</button>
                 <button type="button" class="btn btn-primary" id="btnReviewArtifact" title="Launch /bmad-review for this artifact in a new session">🚀 Review</button>
+                <button type="button" class="btn focus-expand-btn" id="btnExpandArtifactPreview" aria-label="Expand artifact preview in Focus View" title="Expand artifact preview in Focus View">⤢</button>
                 <button type="button" class="btn" id="btnCloseArtifactPreview" title="Close artifact preview">✕ Close</button>
               </div>
             </div>
@@ -1437,7 +1475,7 @@
 
           <div class="section-card">
             <div class="section-header">
-              <div class="section-title" id="artifactsTabHeading" tabindex="-1">🕒 Workspace BMAD Artifacts (Ordered by Last Modified)</div>
+              <div class="section-title">🕒 Recently changed files</div>
               <span class="pill pill-accent" id="artifactCountBadge">0 files</span>
             </div>
             <div class="text-caption" style="margin-bottom: 8px;">
@@ -1472,9 +1510,9 @@
         let currentState = null;
         let selectedArtifactPath = null;
         let loadedArtifactData = null;
+        let loadingArtifactPath = null;
+        let lastReconciliationDiff = null;
         let artifactViewMode = "diff";
-        const expandedPhases = new Set(["4-implementation"]);
-        let initialPhasesExpanded = false;
         const expandedEpics = new Set();
         let initialEpicsExpanded = false;
         const userSelectedModels = new Map();
@@ -1484,15 +1522,13 @@
         let activeOverlay = null;
         let overlayFocusableIds = [];
         let suppressNextOverlayMissingToast = false;
-        let activeTabId = "advisor";
+        let activeTabId = "work";
         const lastSectionSignatures = {
           providerBar: "",
           recommendations: "",
           insights: "",
           phases: "",
           epics: "",
-          skillsCatalog: "",
-          agentsCatalog: "",
           artifacts: "",
           taskQueue: ""
         };
@@ -1883,8 +1919,8 @@
         }
 
         function wireUserEditTracking(key, serverCmd, serverModelId, cmdId, selectId, displayCmd, displayModelId) {
-          const ta = document.getElementById(cmdId);
-          const sel = document.getElementById(selectId);
+          const ta = cmdId ? document.getElementById(cmdId) : null;
+          const sel = selectId ? document.getElementById(selectId) : null;
           if (ta) {
             if (ta.tagName !== "TEXTAREA") ta.tagName = "TEXTAREA";
             if (displayCmd !== undefined) ta.value = displayCmd;
@@ -1920,10 +1956,6 @@
               ? rec.recommendedModel
               : rec.recommendedModel?.modelId || "";
           return String(raw || getFallbackModelId() || "");
-        }
-
-        function getSkillOverrideKey(s) {
-          return `skill:${s.skill}`;
         }
 
         function resolveUserPrompt(key, serverCmd) {
@@ -2101,14 +2133,6 @@
           pendingWorkspaceState = null;
           currentState = state;
           const m = state.metrics || {};
-          if (!initialPhasesExpanded && Array.isArray(state.phases) && state.phases.length > 0) {
-            initialPhasesExpanded = true;
-            const incomplete = state.phases.filter((p) => p.progressPct < 100);
-            if (incomplete.length > 0) {
-              expandedPhases.clear();
-              incomplete.forEach((p) => expandedPhases.add(p.id));
-            }
-          }
           if (!initialEpicsExpanded && Array.isArray(state.epics) && state.epics.length > 0) {
             initialEpicsExpanded = true;
             const openEpics = state.epics.filter((e) => e.smartProgressPct < 100);
@@ -2162,12 +2186,92 @@
           syncWorkDisclosures(state);
           renderPhases(state.phases || []);
           renderEpics();
-          renderSkillsCatalog();
           renderArtifactsDirectory();
 
           if (isOverlayOpen()) {
             reconcileActiveOverlay(state);
           }
+        }
+
+        function escapeAttrValue(val) {
+          return String(val ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+        }
+
+        function bindFocusTriggers(rootEl) {
+          if (!rootEl) return;
+          const triggerEls = [];
+          if (typeof rootEl.getAttribute === "function" && rootEl.getAttribute("data-overlay-trigger")) {
+            triggerEls.push(rootEl);
+          }
+          if (typeof rootEl.querySelectorAll === "function") {
+            rootEl.querySelectorAll("[data-overlay-trigger]").forEach((el) => {
+              if (!triggerEls.includes(el)) triggerEls.push(el);
+            });
+          }
+          triggerEls.forEach((el) => {
+            const raw = el.getAttribute("data-overlay-trigger") || "";
+            if (!raw || raw.startsWith("recommendation:")) return;
+            const colonIdx = raw.indexOf(":");
+            if (colonIdx === -1) return;
+            const targetType = raw.slice(0, colonIdx);
+            const targetKey = raw.slice(colonIdx + 1);
+            bindSingleListener(el, "click", (e) => {
+              if (isInteractiveDescendantClick(e, el)) return;
+              if (e?.target && e.target !== el && typeof e.target.closest === "function") {
+                const closestTrig = e.target.closest("[data-overlay-trigger]");
+                if (closestTrig && closestTrig !== el) return;
+              }
+              if (typeof e?.stopPropagation === "function") e.stopPropagation();
+              openOverlay({
+                kind: "focus",
+                targetType,
+                targetKey,
+                triggerEl: el,
+                triggerSelector: `[data-overlay-trigger="${escapeAttrValue(raw)}"]`
+              });
+            });
+          });
+
+          const expandBtns = [];
+          if (typeof rootEl.getAttribute === "function" && rootEl.getAttribute("data-focus-expand")) {
+            expandBtns.push(rootEl);
+          }
+          if (typeof rootEl.querySelectorAll === "function") {
+            rootEl.querySelectorAll("[data-focus-expand]").forEach((btn) => {
+              if (!expandBtns.includes(btn)) expandBtns.push(btn);
+            });
+          }
+          expandBtns.forEach((btn) => {
+            const raw = btn.getAttribute("data-focus-expand") || "";
+            const colonIdx = raw.indexOf(":");
+            if (colonIdx === -1) return;
+            const targetType = raw.slice(0, colonIdx);
+            const targetKey = raw.slice(colonIdx + 1);
+            bindSingleListener(btn, "click", (e) => {
+              if (typeof e?.stopPropagation === "function") e.stopPropagation();
+              openOverlay({
+                kind: "focus",
+                targetType,
+                targetKey,
+                triggerEl: btn,
+                triggerSelector: `[data-focus-expand="${escapeAttrValue(raw)}"]`
+              });
+            });
+          });
+        }
+
+        function getStoryOverrideKey(s) {
+          return String(s?.overrideKey || s?.id || "");
+        }
+
+        function getStoryBasePrompt(s, ep) {
+          return s.smartStatus === "done"
+            ? `/bmad-code-review "Verify story ${s.id} (${s.title}) implementation and acceptance criteria"`
+            : `/bmad-build-auto "Implement ticket ${s.id} (${s.title}) in ${ep.slug}: ${s.verify || s.description || "complete all acceptance criteria and unit tests"}"`;
+        }
+
+        function getStoryBaseModelId(s) {
+          return String(s?.recommendedModel?.modelId || getFallbackModelId() || "");
         }
 
         const INTERACTIVE_DESCENDANT_SELECTOR =
@@ -2193,12 +2297,8 @@
         function getActiveTabHeading() {
           const headingIdMap = {
             work: "workTabHeading",
-            advisor: "workTabHeading",
             queue: "queueTabHeading",
-            project: "projectTabHeading",
-            progress: "projectTabHeading",
-            catalog: "catalogTabHeading",
-            artifacts: "artifactsTabHeading"
+            project: "projectTabHeading"
           };
           const mappedId = headingIdMap[activeTabId] || "workTabHeading";
           const el = document.getElementById(mappedId);
@@ -2308,11 +2408,14 @@
           }
           if (targetType === "reconciliation-diff") {
             if (state.reconciliationDiff === null) return null;
-            return state.reconciliationDiff || { id: "reconciliation-diff" };
+            return state.reconciliationDiff ?? lastReconciliationDiff ?? { id: "reconciliation-diff", changesCount: 0, updatedFiles: [], changes: [], empty: true };
           }
           if (targetType === "insights") {
             if (state.smartInsights === null) return null;
-            return state.smartInsights || [];
+            return {
+              insights: Array.isArray(state.smartInsights) ? state.smartInsights : [],
+              turnAnalysis: state.turnAnalysis || {}
+            };
           }
           return null;
         }
@@ -2403,12 +2506,20 @@
 
             bindSingleListener(document.getElementById("overlay-btn-launch"), "click", async () => {
               const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              if (!cmd) {
+                showToast("⚠️ Prompt cannot be empty.");
+                return;
+              }
               const chosenModel = resolveUserModel(recKey, serverModelId);
               await launchPromptInNewSession(cmd, chosenModel, rec.skill, rec.title || rec.headline || plainTitle);
             });
 
             bindSingleListener(document.getElementById("overlay-btn-queue"), "click", async () => {
               const cmd = String(resolveUserPrompt(recKey, serverCmd) || "").trim();
+              if (!cmd) {
+                showToast("⚠️ Prompt cannot be empty.");
+                return;
+              }
               const chosenModel = resolveUserModel(recKey, serverModelId);
               const itemTitle = rec.title || rec.headline || plainTitle || "Task";
               pendingWorkspaceState = null;
@@ -2458,12 +2569,17 @@
             const isDone = it.status === "done";
             const isFailed = it.status === "failed";
             const phaseLabel = it.taskPhase ? `Phase: ${it.taskPhase.toUpperCase()} · ` : "";
+            const qKey = "queue:" + it.id;
+            const serverPrompt = it.prompt || it.effectivePrompt || "";
+            const displayPrompt = resolveUserPrompt(qKey, serverPrompt);
+            const showEffectiveNote = Boolean(it.effectivePrompt && it.effectivePrompt !== displayPrompt);
+            const storyTag = it.storyId ? `Story ${it.storyId} · ` : "";
             titleEl.textContent = it.title || "Queued Task";
             bodyEl.innerHTML = `
               <div class="overlay-meta-text" id="overlay-q-meta" style="margin-bottom:8px;">
-                ${escapeHtml(phaseLabel)}Status: ${escapeHtml(it.status || "queued")} · Model: ${escapeHtml(it.model || "host-default")} · Review: ${escapeHtml(it.reviewMode || "none")}
+                ${escapeHtml(phaseLabel)}${escapeHtml(storyTag)}Status: ${escapeHtml(it.status || "queued")} · Model: ${escapeHtml(it.model || "host-default")} · Review: ${escapeHtml(it.reviewMode || "none")}
               </div>
-              <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:6px;margin-bottom:8px;">
+              <div class="queue-item-controls-grid" style="margin-bottom:8px;">
                 <div>
                   <label for="overlay-q-model" class="label-caps">Assigned AI Model for this Task:</label>
                   <select class="model-select" id="overlay-q-model" aria-label="Assigned AI Model for ${escapeHtml(it.title)}" style="width:100%;">
@@ -2479,9 +2595,18 @@
                   </select>
                 </div>
               </div>
-              <div class="queue-prompt-inset overlay-command-text" id="overlay-q-prompt" style="margin-bottom:10px;">
-                ${escapeHtml(it.effectivePrompt || it.prompt || "")}
+              <div class="cmd-editor-wrap" style="margin-bottom:8px;">
+                <label class="cmd-label" for="overlay-q-prompt">
+                  <span>Task Prompt (Editable)</span>
+                  <span>${escapeHtml(it.skill || "")}</span>
+                </label>
+                <textarea class="cmd-textarea" id="overlay-q-prompt" rows="3" aria-label="Prompt for ${escapeHtml(it.title || "Queued Task")}">${escapeHtml(displayPrompt)}</textarea>
               </div>
+              ${
+                showEffectiveNote
+                  ? `<div class="overlay-meta-text" style="margin-bottom:4px;">Gate-shaped effective prompt:</div><div class="queue-prompt-inset overlay-command-text" id="overlay-q-effective-prompt" style="margin-bottom:8px;">${escapeHtml(it.effectivePrompt)}</div>`
+                  : ""
+              }
               ${
                 it.resultSummary
                   ? isFailed
@@ -2489,7 +2614,8 @@
                     : `<div class="queue-outcome-note overlay-meta-text" id="overlay-q-result">✨ Outcome: ${escapeHtml(it.resultSummary)}</div>`
                   : ""
               }
-              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+              <div class="overlay-actions-row">
+                <button type="button" class="btn" id="overlay-q-save-prompt">💾 Save Prompt</button>
                 <button type="button" class="btn" id="overlay-q-done" ${isDone ? "disabled" : ""}>✓ Mark Done</button>
                 ${isFailed ? `<button type="button" class="btn btn-primary" id="overlay-q-retry">↻ Retry / Re-queue</button>` : ""}
                 <button type="button" class="btn btn-primary" id="overlay-q-launch">🚀 New Session</button>
@@ -2497,10 +2623,12 @@
               </div>
             `;
 
-            overlayFocusableIds.push("overlay-q-model", "overlay-q-review");
+            overlayFocusableIds.push("overlay-q-model", "overlay-q-review", "overlay-q-prompt", "overlay-q-save-prompt");
             if (!isDone) overlayFocusableIds.push("overlay-q-done");
             if (isFailed) overlayFocusableIds.push("overlay-q-retry");
             overlayFocusableIds.push("overlay-q-launch", "overlay-q-remove");
+
+            wireUserEditTracking(qKey, serverPrompt, null, "overlay-q-prompt", null, displayPrompt, undefined);
 
             bindSingleListener(document.getElementById("overlay-q-model"), "change", async (e) => {
               const newModel = e.target.value;
@@ -2520,13 +2648,35 @@
               );
             });
 
+            bindSingleListener(document.getElementById("overlay-q-save-prompt"), "click", async () => {
+              const promptEl = document.getElementById("overlay-q-prompt");
+              const nextPrompt = String(promptEl ? promptEl.value : resolveUserPrompt(qKey, serverPrompt)).trim();
+              if (!nextPrompt) {
+                showToast("⚠️ Prompt cannot be empty.");
+                return;
+              }
+              pendingWorkspaceState = null;
+              const updated = await manageQueue(
+                { action: "update-item", taskId: it.id, prompt: nextPrompt },
+                "💾 Saved prompt for queued task"
+              );
+              if (updated) {
+                userEditedPrompts.delete(qKey);
+              }
+            });
+
             bindSingleListener(document.getElementById("overlay-q-done"), "click", async () => {
               pendingWorkspaceState = null;
               const isPlanStep = it.taskPhase === "plan";
-              await manageQueue(
+              const isSpotlight = overlay.targetType === "active-spotlight";
+              if (isSpotlight) suppressNextOverlayMissingToast = true;
+              const updated = await manageQueue(
                 { action: "complete-task", taskId: it.id, storyStatus: isPlanStep ? "in-progress" : "done" },
                 isPlanStep ? "✓ Plan marked Done — ready for Build step" : "✓ Task marked Done & next task promoted"
               );
+              if (!updated && isSpotlight) {
+                suppressNextOverlayMissingToast = false;
+              }
             });
 
             bindSingleListener(document.getElementById("overlay-q-retry"), "click", async () => {
@@ -2539,8 +2689,22 @@
 
             bindSingleListener(document.getElementById("overlay-q-launch"), "click", async () => {
               pendingWorkspaceState = null;
+              const draftPrompt = String(resolveUserPrompt(qKey, serverPrompt) || "").trim();
+              let launchPrompt = it.effectivePrompt || it.prompt || "";
+              if (draftPrompt && draftPrompt !== serverPrompt) {
+                const updatedPromptState = await manageQueue({ action: "update-item", taskId: it.id, prompt: draftPrompt });
+                if (updatedPromptState) {
+                  userEditedPrompts.delete(qKey);
+                  const refreshedItem = (updatedPromptState.taskQueue?.items || []).find((x) => x.id === it.id);
+                  launchPrompt =
+                    (refreshedItem?.prompt === draftPrompt ? refreshedItem.effectivePrompt || refreshedItem.prompt : null) ||
+                    draftPrompt;
+                } else {
+                  launchPrompt = draftPrompt;
+                }
+              }
               await manageQueue({ action: "start-task", taskId: it.id });
-              await launchPromptInNewSession(it.effectivePrompt || it.prompt, it.model, it.skill, it.title);
+              await launchPromptInNewSession(launchPrompt, it.model, it.skill, it.title);
             });
 
             bindSingleListener(document.getElementById("overlay-q-remove"), "click", async () => {
@@ -2550,6 +2714,425 @@
               if (!updated) {
                 suppressNextOverlayMissingToast = false;
               }
+            });
+            return;
+          }
+
+          if (overlay.targetType === "insights" && target) {
+            const { insights = [], turnAnalysis = {} } = target;
+            const turnLabel = turnAnalysis.turnCount > 0 ? `Turn #${turnAnalysis.turnCount} · Direct New-Chat` : "Direct New-Chat";
+            const headline =
+              turnAnalysis.aiSummaryHeadline || "Workspace analyzed — launch any recommended prompt in a new session.";
+            const summary = turnAnalysis.lastAssistantSummary || "";
+            titleEl.textContent = "🔍 AI notes";
+            bodyEl.innerHTML = `
+              <div class="overlay-meta-text" id="overlay-insights-turn-badge" style="margin-bottom:6px;">${escapeHtml(turnLabel)}</div>
+              <div class="overlay-item-row" id="overlay-insights-turn" style="margin-bottom:10px;">
+                <div class="overlay-item-row-title">${escapeHtml(headline)}</div>
+                ${summary ? `<div class="overlay-body-text" style="margin-bottom:0;">${escapeHtml(summary)}</div>` : ""}
+              </div>
+              <div class="overlay-list" id="overlay-insights-list">
+                ${
+                  insights.length
+                    ? insights
+                        .map((ins) => {
+                          const badge = ins.severity === "warning" ? "⚠️" : ins.severity === "success" ? "✅" : "✨";
+                          return `
+                            <div class="overlay-item-row">
+                              <div class="overlay-item-row-title">${badge} ${escapeHtml(ins.title)}</div>
+                              <div class="overlay-meta-text">${escapeHtml(ins.detail)}</div>
+                            </div>
+                          `;
+                        })
+                        .join("")
+                    : `<div class="overlay-item-row"><div class="overlay-body-text" style="margin-bottom:0;">All trackers and artifacts are synchronized.</div></div>`
+                }
+              </div>
+              <div class="overlay-actions-row">
+                <button type="button" class="btn btn-primary" id="overlay-insights-audit">✨ AI Audit</button>
+                <button type="button" class="btn" id="overlay-insights-sync">↻ Sync</button>
+              </div>
+            `;
+            overlayFocusableIds.push("overlay-insights-audit", "overlay-insights-sync");
+            bindSingleListener(document.getElementById("overlay-insights-audit"), "click", async () => {
+              const proj = currentState?.projectName || "this workspace";
+              const auditPrompt = `Please analyze the current BMAD-METHOD state of ${proj} (artifacts in _bmad-output, sprint status, epics, stories, and recent code changes) and call bmad_update_advisor to update the right-side BMAD Companion panel with your smart progress reconciliation and top 4 contextual /bmad-<skill> "<prompt>" recommendations including a recommendedModel for each.`;
+              await sendPromptToCurrentSession(auditPrompt);
+            });
+            bindSingleListener(document.getElementById("overlay-insights-sync"), "click", async () => {
+              await refreshState();
+              showToast("↻ Workspace BMAD artifacts & models synchronized!");
+            });
+            return;
+          }
+
+          if (overlay.targetType === "phase" && target) {
+            const p = target;
+            const artList = p.artifacts || [];
+            const artCount = p.totalArtifactsCount ?? artList.length;
+            titleEl.textContent = p.name || p.id || "Phase";
+            bodyEl.innerHTML = `
+              <div class="overlay-meta-text" id="overlay-phase-meta" style="margin-bottom:6px;">
+                ${escapeHtml(p.progressPct ?? 0)}% · ${escapeHtml(p.status || "pending")} · ${escapeHtml(artCount)} files
+              </div>
+              <div class="dual-bar" style="height:6px;margin-bottom:10px;">
+                <div class="bar-smart" style="width:${escapeHtml(p.progressPct ?? 0)}%"></div>
+              </div>
+              ${p.summary ? `<div class="overlay-body-text" id="overlay-phase-summary">${escapeHtml(p.summary)}</div>` : ""}
+              <div class="overlay-list" id="overlay-phase-artifacts">
+                ${
+                  artList.length
+                    ? artList
+                        .map(
+                          (a, idx) => `
+                          <div class="overlay-item-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                            <div style="min-width:0;flex:1;">
+                              <div class="overlay-item-row-title">${escapeHtml(a.displayLabel || a.name || a.relPath)}</div>
+                              <div class="overlay-meta-text">${escapeHtml(a.relPath)}${a.mtimeMs ? ` · ${escapeHtml(formatTimestamp(a.mtimeMs))}` : ""}</div>
+                            </div>
+                            <div style="display:flex;gap:4px;flex-shrink:0;">
+                              <button type="button" class="btn btn-purple" id="overlay-phase-art-diff-${idx}" data-overlay-art-focus="${escapeHtml(a.relPath)}">🔀 View Diff</button>
+                              <button type="button" class="btn" id="overlay-phase-art-open-${idx}" data-overlay-art-open="${escapeHtml(a.relPath)}">↗ Open</button>
+                            </div>
+                          </div>
+                        `
+                        )
+                        .join("")
+                    : `<div class="overlay-item-row"><div class="overlay-meta-text">No artifacts generated in this phase yet.</div></div>`
+                }
+              </div>
+            `;
+            artList.forEach((_, idx) => {
+              overlayFocusableIds.push(`overlay-phase-art-diff-${idx}`, `overlay-phase-art-open-${idx}`);
+            });
+            bodyEl.querySelectorAll("[data-overlay-art-focus]").forEach((btn) => {
+              bindSingleListener(btn, "click", () => {
+                const rel = btn.getAttribute("data-overlay-art-focus");
+                if (!rel) return;
+                openOverlay({
+                  kind: "focus",
+                  targetType: "artifact",
+                  targetKey: rel,
+                  triggerEl: overlay.triggerEl,
+                  triggerSelector: overlay.triggerSelector,
+                  parentOverlay: {
+                    kind: overlay.kind,
+                    targetType: overlay.targetType,
+                    targetKey: overlay.targetKey,
+                    triggerEl: overlay.triggerEl,
+                    triggerSelector: overlay.triggerSelector,
+                    parentOverlay: overlay.parentOverlay || null
+                  }
+                });
+              });
+            });
+            bodyEl.querySelectorAll("[data-overlay-art-open]").forEach((btn) => {
+              bindSingleListener(btn, "click", async () => {
+                const rel = btn.getAttribute("data-overlay-art-open");
+                if (rel) await openArtifactExternally(rel);
+              });
+            });
+            return;
+          }
+
+          if (overlay.targetType === "epic" && target) {
+            const ep = target;
+            const stories = ep.stories || [];
+            const openCount = stories.filter((s) => s.smartStatus !== "done").length;
+            titleEl.textContent = `Epic ${ep.number ?? ""} · ${ep.title || ep.slug || "Epic"}`;
+            bodyEl.innerHTML = `
+              <div class="overlay-meta-text" id="overlay-epic-meta" style="margin-bottom:8px;">
+                ${escapeHtml(ep.smartProgressPct ?? 0)}% Smart (${escapeHtml(ep.declaredProgressPct ?? 0)}% Tracker) · ${escapeHtml(stories.length)} stories (${escapeHtml(openCount)} open)${ep.hasRetrospective ? " · ✓ Retrospective complete" : ""}
+              </div>
+              <div class="overlay-actions-row" style="margin-top:0;margin-bottom:10px;">
+                <button type="button" class="btn btn-purple" id="overlay-epic-queue-all" ${openCount === 0 ? "disabled" : ""}>
+                  ${openCount === 0 ? "✓ All Done" : `➕ Queue Epic (${openCount})`}
+                </button>
+              </div>
+              <div class="overlay-list" id="overlay-epic-stories">
+                ${
+                  stories.length
+                    ? stories
+                        .map((s, idx) => {
+                          const sKey = getStoryOverrideKey(s);
+                          const sPill =
+                            s.smartStatus === "done"
+                              ? "pill-success"
+                              : s.smartStatus === "review"
+                                ? "pill-warning"
+                                : "pill-purple";
+                          return `
+                            <div class="overlay-item-row" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                              <div style="min-width:0;flex:1;">
+                                <div class="overlay-item-row-title">${escapeHtml(s.id)} · ${escapeHtml(s.title)}</div>
+                                ${s.smartReason || s.smartEvidence ? `<div class="overlay-meta-text">✨ ${escapeHtml(s.smartReason || s.smartEvidence)}</div>` : ""}
+                              </div>
+                              <div style="display:flex;gap:5px;align-items:center;flex-shrink:0;">
+                                <span class="pill ${sPill}">${escapeHtml(s.smartStatus || "backlog")}</span>
+                                <button type="button" class="btn" id="overlay-epic-story-${idx}" data-overlay-story-key="${escapeHtml(sKey)}">⤢ Focus Story</button>
+                              </div>
+                            </div>
+                          `;
+                        })
+                        .join("")
+                    : `<div class="overlay-item-row"><div class="overlay-meta-text">No stories in this epic yet.</div></div>`
+                }
+              </div>
+            `;
+            if (openCount > 0) overlayFocusableIds.push("overlay-epic-queue-all");
+            stories.forEach((_, idx) => overlayFocusableIds.push(`overlay-epic-story-${idx}`));
+
+            bindSingleListener(document.getElementById("overlay-epic-queue-all"), "click", async () => {
+              pendingWorkspaceState = null;
+              await manageQueue(
+                { action: "add-epic", epicSlug: ep.slug, includeDone: false },
+                `➕ Queued all open stories of ${ep.slug} in build order!`
+              );
+            });
+            bodyEl.querySelectorAll("[data-overlay-story-key]").forEach((btn) => {
+              bindSingleListener(btn, "click", () => {
+                const sKey = btn.getAttribute("data-overlay-story-key");
+                if (!sKey) return;
+                openOverlay({
+                  kind: "focus",
+                  targetType: "story",
+                  targetKey: sKey,
+                  triggerEl: overlay.triggerEl,
+                  triggerSelector: `[data-overlay-trigger="${escapeAttrValue(`story:${sKey}`)}"]`,
+                  parentOverlay: {
+                    kind: overlay.kind,
+                    targetType: overlay.targetType,
+                    targetKey: overlay.targetKey,
+                    triggerEl: overlay.triggerEl,
+                    triggerSelector: overlay.triggerSelector,
+                    parentOverlay: overlay.parentOverlay || null
+                  }
+                });
+              });
+            });
+            return;
+          }
+
+          if (overlay.targetType === "story" && target) {
+            const { story: s, epic: ep } = target;
+            const storyKey = getStoryOverrideKey(s);
+            const draftKey = "story:" + storyKey;
+            const basePrompt = getStoryBasePrompt(s, ep);
+            const displayPrompt = resolveUserPrompt(draftKey, basePrompt);
+            const baseModelId = getStoryBaseModelId(s);
+            const displayModelId = resolveUserModel(draftKey, baseModelId);
+            const qItem = isPromptOrStoryInQueue(null, s.overrideKey);
+            const skillTag = s.smartStatus === "done" ? "/bmad-code-review" : "/bmad-build-auto";
+            titleEl.textContent = `${s.id} · ${s.title || "Story"}`;
+            bodyEl.innerHTML = `
+              <div class="overlay-meta-text" id="overlay-story-meta" style="margin-bottom:8px;">
+                Epic ${escapeHtml(ep.number)}: ${escapeHtml(ep.title)} · Status: ${escapeHtml(s.smartStatus || "backlog")}${
+                  s.declaredStatus && s.declaredStatus !== s.smartStatus ? ` (Tracker: ${escapeHtml(s.declaredStatus)})` : ""
+                }${s.aiReconciled ? " · ✨ AI Reconciled" : ""}${qItem ? ` · Queue: ${escapeHtml(qItem.status)}` : ""}
+              </div>
+              ${s.description ? `<div class="overlay-body-text" id="overlay-story-desc">${escapeHtml(s.description)}</div>` : ""}
+              ${s.smartReason || s.smartEvidence ? `<div class="story-evidence overlay-meta-text" id="overlay-story-evidence" style="margin-bottom:8px;">✨ ${escapeHtml(s.smartReason || s.smartEvidence)}</div>` : ""}
+              ${s.verify ? `<div class="overlay-meta-text" id="overlay-story-verify" style="margin-bottom:8px;">Verify: ${escapeHtml(s.verify)}</div>` : ""}
+              <div class="cmd-editor-wrap" style="margin-bottom:8px;">
+                <label class="cmd-label" for="overlay-story-cmd">
+                  <span>Story Command + Prompt (Editable)</span>
+                  <span>${escapeHtml(skillTag)}</span>
+                </label>
+                <textarea class="cmd-textarea" id="overlay-story-cmd" rows="3" aria-label="Prompt for story ${escapeHtml(s.id)}">${escapeHtml(displayPrompt)}</textarea>
+              </div>
+              <div class="model-bar" style="margin-bottom:10px;">
+                <div class="model-bar-top">
+                  <span class="pill pill-purple">${escapeHtml(s.recommendedModel?.tier || "🤖 Recommended")}</span>
+                  <label class="label-caps" for="overlay-story-model" style="margin-bottom:0;">Model</label>
+                  <select class="model-select" id="overlay-story-model" aria-label="Model for story ${escapeHtml(s.id)}">
+                    ${buildModelSelectOptions(displayModelId, baseModelId)}
+                  </select>
+                </div>
+                ${s.recommendedModel?.reason ? `<div class="overlay-meta-text" id="overlay-story-model-reason" style="margin-top:4px;">${escapeHtml(s.recommendedModel.reason)}</div>` : ""}
+              </div>
+              <div class="overlay-actions-row">
+                ${overlay.parentOverlay ? `<button type="button" class="btn" id="overlay-back-btn">← Back</button>` : ""}
+                <button type="button" class="btn btn-purple" id="overlay-story-queue">${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Queue Story"}</button>
+                <button type="button" class="btn btn-primary" id="overlay-story-launch">🚀 New Session</button>
+              </div>
+            `;
+            if (overlay.parentOverlay) overlayFocusableIds.push("overlay-back-btn");
+            overlayFocusableIds.push("overlay-story-cmd", "overlay-story-model", "overlay-story-queue", "overlay-story-launch");
+            wireUserEditTracking(draftKey, basePrompt, baseModelId, "overlay-story-cmd", "overlay-story-model", displayPrompt, displayModelId);
+
+            if (overlay.parentOverlay) {
+              bindSingleListener(document.getElementById("overlay-back-btn"), "click", () => {
+                openOverlay(overlay.parentOverlay);
+              });
+            }
+
+            bindSingleListener(document.getElementById("overlay-story-queue"), "click", async () => {
+              const cmd = String(resolveUserPrompt(draftKey, basePrompt) || "").trim();
+              if (!cmd) {
+                showToast("⚠️ Prompt cannot be empty.");
+                return;
+              }
+              const chosenModel = resolveUserModel(draftKey, baseModelId);
+              pendingWorkspaceState = null;
+              await manageQueue(
+                {
+                  action: "add",
+                  items: [
+                    {
+                      title: `Story ${s.id}: ${s.title}`,
+                      skill: skillTag,
+                      prompt: cmd,
+                      model: chosenModel,
+                      storyId: String(s.id),
+                      overrideKey: s.overrideKey,
+                      epicSlug: ep.slug,
+                      verifyCommand: s.verify || ""
+                    }
+                  ]
+                },
+                `➕ Added Story ${s.id}: ${s.title} to Queue`
+              );
+            });
+
+            bindSingleListener(document.getElementById("overlay-story-launch"), "click", async () => {
+              const cmd = String(resolveUserPrompt(draftKey, basePrompt) || "").trim();
+              if (!cmd) {
+                showToast("⚠️ Prompt cannot be empty.");
+                return;
+              }
+              const chosenModel = resolveUserModel(draftKey, baseModelId);
+              await launchPromptInNewSession(cmd, chosenModel, "", s.title);
+            });
+            return;
+          }
+
+          if (overlay.targetType === "artifact" && target) {
+            const art = target;
+            const hasLoaded = Boolean(loadedArtifactData && loadedArtifactData.relPath === art.relPath);
+            const currentMode = artifactViewMode || "diff";
+            const metaTime = hasLoaded ? loadedArtifactData.mtimeMs : art.mtimeMs;
+            const previewInner = hasLoaded
+              ? currentMode === "diff"
+                ? formatDiffHtml(loadedArtifactData.diff || "No diff available.")
+                : escapeHtml(loadedArtifactData.preview || "Empty artifact.")
+              : "Loading artifact diff & content…";
+
+            titleEl.textContent = art.relPath || art.name || "Artifact";
+            bodyEl.innerHTML = `
+              <div class="overlay-meta-text" id="overlay-art-meta" style="margin-bottom:8px;">
+                🕒 ${escapeHtml(formatTimestamp(metaTime))} · ${escapeHtml(art.kind || "artifact")} (${escapeHtml(art.phaseName || art.phaseId || "workspace")})${
+                  art.gitStatus ? ` · ${escapeHtml(art.gitStatus)}` : ""
+                }${hasLoaded && loadedArtifactData.diffSource ? ` · ${escapeHtml(loadedArtifactData.diffSource)}` : ""}
+              </div>
+              <div class="overlay-actions-row" style="margin-top:0;margin-bottom:8px;">
+                ${overlay.parentOverlay ? `<button type="button" class="btn" id="overlay-back-btn">← Back</button>` : ""}
+                <button type="button" class="btn ${currentMode === "diff" ? "btn-purple" : ""}" id="overlay-art-diff-btn" aria-pressed="${currentMode === "diff" ? "true" : "false"}">🔀 Git Diff</button>
+                <button type="button" class="btn ${currentMode === "content" ? "btn-purple" : ""}" id="overlay-art-content-btn" aria-pressed="${currentMode === "content" ? "true" : "false"}">📄 Content</button>
+                <button type="button" class="btn" id="overlay-art-open-btn">↗ Open File</button>
+                <button type="button" class="btn btn-primary" id="overlay-art-review-btn">🚀 Review</button>
+              </div>
+              <div class="artifact-preview overlay-command-text" id="overlay-art-preview">${previewInner}</div>
+            `;
+            if (overlay.parentOverlay) overlayFocusableIds.push("overlay-back-btn");
+            overlayFocusableIds.push("overlay-art-diff-btn", "overlay-art-content-btn", "overlay-art-open-btn", "overlay-art-review-btn");
+
+            if (overlay.parentOverlay) {
+              bindSingleListener(document.getElementById("overlay-back-btn"), "click", () => {
+                openOverlay(overlay.parentOverlay);
+              });
+            }
+
+            bindSingleListener(document.getElementById("overlay-art-diff-btn"), "click", () => {
+              artifactViewMode = "diff";
+              if (loadedArtifactData && loadedArtifactData.relPath === art.relPath) {
+                renderArtifactInspectorCard();
+              } else {
+                loadArtifactPreview(art.relPath, "diff");
+              }
+            });
+            bindSingleListener(document.getElementById("overlay-art-content-btn"), "click", () => {
+              artifactViewMode = "content";
+              if (loadedArtifactData && loadedArtifactData.relPath === art.relPath) {
+                renderArtifactInspectorCard();
+              } else {
+                loadArtifactPreview(art.relPath, "content");
+              }
+            });
+            bindSingleListener(document.getElementById("overlay-art-open-btn"), "click", async () => {
+              await openArtifactExternally(art.relPath);
+            });
+            bindSingleListener(document.getElementById("overlay-art-review-btn"), "click", async () => {
+              const reviewModel =
+                currentState?.recommendations?.find((r) => r.skill === "/bmad-code-review")?.recommendedModel?.modelId ||
+                currentState?.recommendations?.[0]?.recommendedModel?.modelId ||
+                getFallbackModelId();
+              await launchPromptInNewSession(
+                `/bmad-review "Review the BMAD artifact ${art.relPath} for completeness, consistency with codebase reality, and verification gaps"`,
+                reviewModel,
+                "/bmad-review",
+                `Review ${art.relPath}`
+              );
+            });
+
+            if (!hasLoaded && loadingArtifactPath !== art.relPath) {
+              loadArtifactPreview(art.relPath, currentMode);
+            }
+            return;
+          }
+
+          if (overlay.targetType === "reconciliation-diff" && target) {
+            const diffData = target;
+            const changes = Array.isArray(diffData.changes) ? diffData.changes : [];
+            const updatedFiles = Array.isArray(diffData.updatedFiles) ? diffData.updatedFiles : [];
+            const changesCount = diffData.changesCount ?? changes.length;
+            titleEl.textContent = diffData.empty
+              ? "Tracker Reconciliation Preview"
+              : diffData.dryRun
+                ? `🔍 Dry Run Preview (${changesCount} keys across ${updatedFiles.length} file(s))`
+                : `✅ Reconciled ${changesCount} keys across ${updatedFiles.length} file(s)!`;
+
+            bodyEl.innerHTML = `
+              <div class="overlay-meta-text" id="overlay-diff-meta" style="margin-bottom:8px;">
+                ${
+                  diffData.empty
+                    ? "Run Preview Diff or Reconcile Now to inspect tracker changes."
+                    : `${escapeHtml(changesCount)} key change(s) across ${escapeHtml(updatedFiles.length)} tracker file(s)`
+                }
+              </div>
+              <div class="overlay-list" id="overlay-diff-list">
+                ${
+                  diffData.empty
+                    ? `<div class="overlay-item-row"><div class="overlay-body-text" style="margin-bottom:0;">No reconciliation preview loaded yet.</div></div>`
+                    : changes.length === 0
+                      ? `<div class="overlay-item-row"><div class="overlay-body-text" style="color:var(--success);margin-bottom:0;">✓ All tracker files are already 100% synchronized with code reality! No changes needed.</div></div>`
+                      : changes
+                          .map(
+                            (c) => `
+                            <div class="overlay-item-row">
+                              <div class="overlay-meta-text">${escapeHtml(c.file)}</div>
+                              <div class="overlay-item-row-title">
+                                ${escapeHtml(c.key)}: <span style="color:var(--danger);">${escapeHtml(c.oldStatus)}</span> → <span style="color:var(--success);">${escapeHtml(c.newStatus)}</span>
+                              </div>
+                              ${c.reason ? `<div class="overlay-body-text" style="margin-bottom:0;">${escapeHtml(c.reason)}</div>` : ""}
+                            </div>
+                          `
+                          )
+                          .join("")
+                }
+              </div>
+              <div class="overlay-actions-row">
+                <button type="button" class="btn" id="overlay-diff-preview">🔍 Preview Diff</button>
+                <button type="button" class="btn btn-primary" id="overlay-diff-apply">⚡ Reconcile Now</button>
+              </div>
+            `;
+            overlayFocusableIds.push("overlay-diff-preview", "overlay-diff-apply");
+            bindSingleListener(document.getElementById("overlay-diff-preview"), "click", async () => {
+              pendingWorkspaceState = null;
+              await runReconciliation(true);
+            });
+            bindSingleListener(document.getElementById("overlay-diff-apply"), "click", async () => {
+              pendingWorkspaceState = null;
+              await runReconciliation(false);
             });
             return;
           }
@@ -2572,14 +3155,16 @@
           const targetKey = String(spec.targetKey || "");
           const triggerEl = spec.triggerEl || null;
           const triggerSelector =
-            spec.triggerSelector || (targetType && targetKey ? `[data-overlay-trigger="${targetType}:${targetKey}"]` : "");
+            spec.triggerSelector ||
+            (targetType && targetKey ? `[data-overlay-trigger="${escapeAttrValue(`${targetType}:${targetKey}`)}"]` : "");
 
           activeOverlay = {
             kind,
             targetType,
             targetKey,
             triggerEl,
-            triggerSelector
+            triggerSelector,
+            parentOverlay: spec.parentOverlay || null
           };
 
           renderOverlayContent(currentState, activeOverlay);
@@ -2626,26 +3211,30 @@
 
           if (currentState && !pendingWorkspaceState) {
             renderRecommendations(currentState.recommendations || []);
+            renderEpics();
           }
 
           flushPendingState();
 
           if (!options.skipFocusRestore) {
+            let fallbackTrigger = null;
             if (
               prevOverlay.triggerEl &&
               prevOverlay.triggerEl.isConnected !== false &&
               typeof prevOverlay.triggerEl.focus === "function"
             ) {
               prevOverlay.triggerEl.focus();
-            } else if (prevOverlay.triggerSelector && typeof document.querySelector === "function") {
-              const fallbackTrigger = document.querySelector(prevOverlay.triggerSelector);
+            } else {
+              if (prevOverlay.triggerSelector && typeof document.querySelector === "function") {
+                try {
+                  fallbackTrigger = document.querySelector(prevOverlay.triggerSelector);
+                } catch {}
+              }
               if (fallbackTrigger && fallbackTrigger.isConnected !== false && typeof fallbackTrigger.focus === "function") {
                 fallbackTrigger.focus();
               } else {
                 focusActiveTabHeading();
               }
-            } else {
-              focusActiveTabHeading();
             }
           }
         }
@@ -2932,13 +3521,20 @@
             }
           }
 
+          const runWorkflowBtn = document.getElementById("btnRunQueueWorkflow");
+          if (runWorkflowBtn) {
+            runWorkflowBtn.classList.toggle("btn-primary", !q.activeTask && counts.queued > 0);
+          }
+
           const retryFailedBtn = document.getElementById("btnRetryFailedQueue");
           if (retryFailedBtn) {
             if (counts.failed > 0) {
               retryFailedBtn.style.display = "inline-flex";
               retryFailedBtn.textContent = `↻ Retry Failed (${counts.failed})`;
+              retryFailedBtn.classList.toggle("btn-primary", !q.activeTask && counts.queued === 0);
             } else {
               retryFailedBtn.style.display = "none";
+              retryFailedBtn.classList.remove("btn-primary");
             }
           }
 
@@ -2953,15 +3549,16 @@
                     ? `<span class="pill pill-accent">💻 BUILD</span>`
                     : "";
               spotlightEl.innerHTML = `
-                <div class="queue-active-spotlight" data-overlay-trigger="active-spotlight:${escapeHtml(act.id)}">
+                <div class="queue-active-spotlight" data-overlay-trigger="active-spotlight:${escapeHtml(act.id)}" tabindex="-1">
                   <div class="section-header">
                     <div class="section-title" style="color: var(--success);">
                       <span class="pulse-dot"></span>🟢 ACTIVE TASK NOW RUNNING
                     </div>
-                    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">
                       ${actPhasePill}
                       <span class="pill pill-purple">🤖 ${escapeHtml(act.model || "host-default")}</span>
                       <span class="pill pill-accent">review: ${escapeHtml(act.reviewMode || "none")}</span>
+                      <button type="button" class="btn focus-expand-btn" data-focus-expand="active-spotlight:${escapeHtml(act.id)}" aria-label="Expand active task in Focus View" title="Expand active task in Focus View">⤢</button>
                     </div>
                   </div>
                   <div class="section-title" style="margin-bottom:4px;">${escapeHtml(act.title)}</div>
@@ -2970,6 +3567,7 @@
                   </div>
                 </div>
               `;
+              bindFocusTriggers(spotlightEl);
             } else {
               spotlightEl.innerHTML = "";
             }
@@ -2983,7 +3581,7 @@
               <div class="empty-state-card" style="padding:16px 12px;">
                 <div class="section-title" style="color:var(--text-primary);margin-bottom:4px;justify-content:center;">Your BMAD Execution Queue is Empty</div>
                 <div class="text-caption">
-                  Select an Epic above and click <b>➕ Queue Epic</b>, or check multiple tasks in <b>⚡ Next Prompts</b> / <b>📊 Phases & Epics</b> to enqueue them with per-task AI models.
+                  Select an Epic above and click <b>➕ Queue Epic</b>, or check multiple tasks in <b>⚡ Work</b> / <b>📊 Project</b> to enqueue them with per-task AI models.
                 </div>
               </div>
             `;
@@ -3004,7 +3602,7 @@
                     : `<span class="pill pill-accent">⏳ IN QUEUE #${idx + 1}</span>`;
 
               return `
-                <div class="queue-item-card ${isAct ? "is-active" : ""} ${isDone ? "is-done" : ""} ${isFailed ? "is-failed" : ""}" data-overlay-trigger="queue-item:${escapeHtml(it.id)}">
+                <div class="queue-item-card ${isAct ? "is-active" : ""} ${isDone ? "is-done" : ""} ${isFailed ? "is-failed" : ""}" data-overlay-trigger="queue-item:${escapeHtml(it.id)}" tabindex="-1">
                   <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;margin-bottom:5px;">
                     <div style="display:flex;align-items:center;gap:6px;min-width:0;flex:1;">
                       <span class="pill pill-purple" style="flex-shrink:0;">#${idx + 1}</span>
@@ -3014,10 +3612,11 @@
                       ${it.taskPhase === "plan" ? `<span class="pill pill-purple">🧠 PLAN</span>` : it.taskPhase === "build" ? `<span class="pill pill-accent">💻 BUILD</span>` : ""}
                       ${it.storyId ? `<span class="pill pill-purple">Story ${escapeHtml(it.storyId)}</span>` : ""}
                       ${stPill}
+                      <button type="button" class="btn focus-expand-btn" data-focus-expand="queue-item:${escapeHtml(it.id)}" aria-label="Expand ${escapeHtml(it.title)} in Focus View" title="Expand task in Focus View">⤢</button>
                     </div>
                   </div>
 
-                  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:6px;margin-bottom:6px;">
+                  <div class="queue-item-controls-grid" style="margin-bottom:6px;">
                     <div>
                       <label for="q-model-${idx}" class="label-caps">Assigned AI Model for this Task:</label>
                       <select class="model-select" id="q-model-${idx}" data-q-model="${escapeHtml(it.id)}" aria-label="Assigned AI Model for ${escapeHtml(it.title)}" style="width:100%;">
@@ -3051,7 +3650,7 @@
                       <button type="button" class="btn" style="padding:2px 6px;" data-q-move="down" data-q-id="${escapeHtml(it.id)}" ${idx === q.items.length - 1 ? "disabled" : ""} title="Move task later in queue">↓ Down</button>
                       ${
                         isFailed
-                          ? `<button type="button" class="btn btn-primary" style="padding:2px 7px;" data-q-retry="${escapeHtml(it.id)}" title="Reset this failed task back to Queued so it can run again">↻ Retry / Re-queue</button>`
+                          ? `<button type="button" class="btn" style="padding:2px 7px;" data-q-retry="${escapeHtml(it.id)}" title="Reset this failed task back to Queued so it can run again">↻ Retry / Re-queue</button>`
                           : isAct
                             ? ""
                             : `<button type="button" class="btn" style="padding:2px 7px;" data-q-activate="${escapeHtml(it.id)}" title="Mark this task as the currently active task">🟢 Set Active</button>`
@@ -3059,7 +3658,7 @@
                       <button type="button" class="btn" style="padding:2px 7px;" data-q-done="${escapeHtml(it.id)}" ${isDone ? "disabled" : ""} title="Mark this task as Done and advance queue">✓ Mark Done</button>
                     </div>
                     <div style="display:flex;gap:4px;">
-                      <button type="button" class="btn btn-primary" style="padding:2px 7px;" data-q-launch-single="${escapeHtml(it.id)}" title="Open a single new conversation for this task with its prompt pre-pasted">🚀 New Session</button>
+                      <button type="button" class="btn" style="padding:2px 7px;" data-q-launch-single="${escapeHtml(it.id)}" title="Open a single new conversation for this task with its prompt pre-pasted">🚀 New Session</button>
                       <button type="button" class="btn" style="padding:2px 7px;color:var(--danger);" data-q-remove="${escapeHtml(it.id)}" aria-label="Remove ${escapeHtml(it.title)} from queue" title="Remove task from queue">✕</button>
                     </div>
                   </div>
@@ -3146,6 +3745,8 @@
               );
             });
           });
+
+          bindFocusTriggers(listEl);
         }
 
         async function launchQueueExecution(mode) {
@@ -3506,7 +4107,6 @@
           const m = currentState.metrics || {};
           const phaseSig = JSON.stringify({
             phases,
-            expanded: [...expandedPhases],
             metrics: {
               reconciledStoriesCount: m.reconciledStoriesCount,
               smartDoneStories: m.smartDoneStories,
@@ -3520,6 +4120,12 @@
             }
           });
           if (!sectionNeedsRender("phases", phaseSig, force)) return;
+
+          const hasTrackerDrift =
+            (m.reconciledStoriesCount || 0) > 0 ||
+            (m.smartOverallPct || 0) !== (m.declaredOverallPct || 0) ||
+            (m.smartDoneStories || 0) !== (m.declaredDoneStories || 0);
+          document.getElementById("btnReconcileTrackers")?.classList.toggle("btn-primary", hasTrackerDrift);
 
           document.getElementById("reconciledBadge").textContent =
             `${m.reconciledStoriesCount || 0} Stories AI-Reconciled`;
@@ -3538,7 +4144,6 @@
           const container = document.getElementById("phasesList");
           container.innerHTML = phases
             .map((p) => {
-              const isExpanded = expandedPhases.has(p.id);
               const pillCls = p.progressPct >= 95 ? "pill-success" : "pill-accent";
               const artCount = p.totalArtifactsCount ?? (p.artifacts || []).length;
               const chips = (p.artifacts || [])
@@ -3556,65 +4161,47 @@
                 )
                 .join("");
 
-              const bodyHtml = isExpanded
-                ? `
-                  <div class="phase-body">
-                    <div class="text-caption" style="margin-bottom:6px;">
-                      ${escapeHtml(p.summary)}
-                    </div>
-                    <div class="text-micro" style="color:var(--text-muted);margin-bottom:4px;">
-                      Generated Artifacts (${escapeHtml(artCount)}) — click file name to view diff, or <b>↗</b> to open file:
-                    </div>
-                    <div class="phase-artifacts">${chips || `<span class="text-caption" style="color:var(--text-muted);">No artifacts generated in this phase yet.</span>`}</div>
-                  </div>
-                `
-                : "";
-
               return `
-                <div class="phase-card" data-overlay-trigger="phase:${escapeHtml(p.id)}">
-                  <button type="button" class="phase-summary-row" aria-expanded="${isExpanded ? "true" : "false"}" data-phase-toggle="${escapeHtml(p.id)}">
-                    <div class="phase-top">
-                      <span style="font-weight:700;">${isExpanded ? "▾" : "▸"} ${escapeHtml(p.name)}</span>
-                      <div style="display:flex;gap:4px;align-items:center;">
-                        <span class="pill pill-purple">${escapeHtml(artCount)} files</span>
-                        <span class="pill ${pillCls}">${escapeHtml(p.progressPct)}% · ${escapeHtml(p.status)}</span>
-                      </div>
+                <div class="phase-card" data-overlay-trigger="phase:${escapeHtml(p.id)}" tabindex="-1">
+                  <div class="phase-top">
+                    <span style="font-weight:700;">${escapeHtml(p.name)}</span>
+                    <div style="display:flex;gap:4px;align-items:center;">
+                      <span class="pill pill-purple">${escapeHtml(artCount)} files</span>
+                      <span class="pill ${pillCls}">${escapeHtml(p.progressPct)}% · ${escapeHtml(p.status)}</span>
+                      <button type="button" class="btn focus-expand-btn" data-focus-expand="phase:${escapeHtml(p.id)}" aria-label="Expand ${escapeHtml(p.name)} in Focus View" title="Expand phase in Focus View">⤢</button>
                     </div>
-                    <div class="dual-bar" style="height:5px;">
-                      <div class="bar-smart" style="width:${escapeHtml(p.progressPct)}%"></div>
-                    </div>
-                  </button>
-                  ${bodyHtml}
+                  </div>
+                  <div class="dual-bar" style="height:5px;margin-bottom:6px;">
+                    <div class="bar-smart" style="width:${escapeHtml(p.progressPct)}%"></div>
+                  </div>
+                  ${p.summary ? `<div class="text-caption">${escapeHtml(p.summary)}</div>` : ""}
+                  <div class="phase-artifacts">${chips || `<span class="text-caption" style="color:var(--text-muted);">No artifacts generated in this phase yet.</span>`}</div>
                 </div>
               `;
             })
             .join("");
 
-          container.querySelectorAll("[data-phase-toggle]").forEach((row) => {
-            row.addEventListener("click", () => {
-              const pid = row.getAttribute("data-phase-toggle");
-              if (expandedPhases.has(pid)) expandedPhases.delete(pid);
-              else expandedPhases.add(pid);
-              renderPhases(currentState.phases || []);
-            });
-          });
-
           container.querySelectorAll("[data-art-diff]").forEach((el) => {
             el.addEventListener("click", (e) => {
-              e.stopPropagation();
+              if (typeof e?.stopPropagation === "function") e.stopPropagation();
               const rel = el.getAttribute("data-art-diff");
-              switchTab("artifacts");
               loadArtifactPreview(rel, "diff");
+              document.getElementById("artifactPreviewCard")?.scrollIntoView?.({
+                behavior: "smooth",
+                block: "nearest"
+              });
             });
           });
 
           container.querySelectorAll("[data-art-open]").forEach((el) => {
             el.addEventListener("click", async (e) => {
-              e.stopPropagation();
+              if (typeof e?.stopPropagation === "function") e.stopPropagation();
               const rel = el.getAttribute("data-art-open");
               await openArtifactExternally(rel);
             });
           });
+
+          bindFocusTriggers(container);
         }
 
         function renderEpics(force = false) {
@@ -3622,11 +4209,21 @@
           const query = readFilterValue("storySearch");
           const statusFilter = document.getElementById("storyStatusFilter").value;
           const epics = currentState.epics || [];
+          const storyDraftDigest = epics.flatMap((ep) =>
+            (ep.stories || []).map((s) => {
+              const k = "story:" + getStoryOverrideKey(s);
+              const baseP = getStoryBasePrompt(s, ep);
+              const baseM = getStoryBaseModelId(s);
+              return `${k}=>${resolveUserPrompt(k, baseP)}::${resolveUserModel(k, baseM)}`;
+            })
+          );
           const epicSig = JSON.stringify({
             query,
             statusFilter,
             expanded: [...expandedEpics],
             epics,
+            models: currentState?.availableModels || [],
+            storyDrafts: storyDraftDigest,
             queueItems: (currentState?.taskQueue?.items || []).map((i) => i.overrideKey + ":" + i.status)
           });
           if (!sectionNeedsRender("epics", epicSig, force)) return;
@@ -3663,24 +4260,32 @@
                           : s.smartStatus === "review"
                             ? "pill-warning"
                             : "pill-purple";
-                      const smartPrompt =
-                        s.smartStatus === "done"
-                          ? `/bmad-code-review "Verify story ${s.id} (${s.title}) implementation and acceptance criteria"`
-                          : `/bmad-build-auto "Implement ticket ${s.id} (${s.title}) in ${epic.slug}: ${s.verify || s.description || "complete all acceptance criteria and unit tests"}"`;
-                      const stModel = s.recommendedModel?.modelId || getFallbackModelId();
-                      const stModelShort = s.recommendedModel?.shortName || shortModelName(stModel);
+                      const storyKey = getStoryOverrideKey(s);
+                      const draftKey = "story:" + storyKey;
+                      const basePrompt = getStoryBasePrompt(s, epic);
+                      const smartPrompt = resolveUserPrompt(draftKey, basePrompt);
+                      const baseModel = getStoryBaseModelId(s);
+                      const stModel = resolveUserModel(draftKey, baseModel);
+                      const stModelShort =
+                        stModel === baseModel && s.recommendedModel?.shortName
+                          ? s.recommendedModel.shortName
+                          : shortModelName(stModel);
+                      const hasStoryDraft = smartPrompt !== basePrompt || stModel !== baseModel;
+                      const storySkill = s.smartStatus === "done" ? "/bmad-code-review" : "/bmad-build-auto";
                       const qItem = isPromptOrStoryInQueue(null, s.overrideKey);
                       return `
-                        <div class="story-row" data-overlay-trigger="story:${escapeHtml(s.overrideKey || s.id)}">
+                        <div class="story-row" data-overlay-trigger="story:${escapeHtml(storyKey)}" tabindex="-1">
                           <div class="story-head">
                             <div class="story-title">
                               <span style="font-family:var(--font-mono);color:var(--accent);">${escapeHtml(s.id)}</span>
                               ${escapeHtml(s.title)}
                             </div>
-                            <div style="display:flex;gap:4px;flex-shrink:0;">
+                            <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;flex-wrap:wrap;">
                               ${qItem ? (qItem.status === "failed" ? `<span class="pill pill-danger">⚠️ Queue Failed</span>` : `<span class="pill pill-success">${qItem.status === "running" ? "🟢 Active in Queue" : qItem.status === "done" ? "✓ Queue Done" : "⏳ Queued"}</span>`) : ""}
+                              ${hasStoryDraft ? `<span class="pill pill-purple">✎ Customized</span>` : ""}
                               ${s.aiReconciled ? `<span class="pill pill-purple" title="Reconciled by Smart AI + Artifact check">✨ AI</span>` : ""}
                               <span class="pill ${sPill}">${escapeHtml(s.smartStatus)}</span>
+                              <button type="button" class="btn focus-expand-btn" data-focus-expand="story:${escapeHtml(storyKey)}" aria-label="Expand Story ${escapeHtml(s.id)} in Focus View" title="Expand story in Focus View">⤢</button>
                             </div>
                           </div>
                           ${s.smartReason || s.smartEvidence ? `<div class="story-evidence">✨ ${escapeHtml(s.smartReason || s.smartEvidence)}</div>` : ""}
@@ -3689,10 +4294,10 @@
                               🤖 ${escapeHtml(stModelShort)}
                             </span>
                             <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                              <button type="button" class="btn btn-purple" style="padding:2px 7px;" data-queue-story-id="${escapeHtml(s.id)}" data-queue-story-override="${escapeHtml(s.overrideKey)}" data-queue-story-epic="${escapeHtml(epic.slug)}" data-queue-story-title="${escapeHtml(`Story ${s.id}: ${s.title}`)}" data-queue-story-prompt="${escapeHtml(smartPrompt)}" data-queue-story-model="${escapeHtml(stModel)}" data-queue-story-verify="${escapeHtml(s.verify || "")}">
+                              <button type="button" class="btn btn-purple" style="padding:2px 7px;" data-queue-story-id="${escapeHtml(s.id)}" data-queue-story-override="${escapeHtml(s.overrideKey)}" data-queue-story-epic="${escapeHtml(epic.slug)}" data-queue-story-skill="${escapeHtml(storySkill)}" data-queue-story-title="${escapeHtml(`Story ${s.id}: ${s.title}`)}" data-queue-story-prompt="${escapeHtml(smartPrompt)}" data-queue-story-model="${escapeHtml(stModel)}" data-queue-story-verify="${escapeHtml(s.verify || "")}">
                                 ${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Queue Story"}
                               </button>
-                              <button type="button" class="btn btn-primary" style="padding:2px 7px;" data-story-prompt="${escapeHtml(smartPrompt)}" data-story-model="${escapeHtml(stModel)}" data-story-title="${escapeHtml(s.title)}">
+                              <button type="button" class="btn" style="padding:2px 7px;" data-story-prompt="${escapeHtml(smartPrompt)}" data-story-model="${escapeHtml(stModel)}" data-story-title="${escapeHtml(s.title)}">
                                 🚀 New Session
                               </button>
                             </div>
@@ -3705,7 +4310,7 @@
               : "";
 
             htmlParts.push(`
-              <div class="epic-box" data-overlay-trigger="epic:${escapeHtml(epic.id)}">
+              <div class="epic-box" data-overlay-trigger="epic:${escapeHtml(epic.id)}" tabindex="-1">
                 <div class="epic-summary">
                   <button type="button" class="epic-toggle-btn" aria-expanded="${isExpanded ? "true" : "false"}" data-epic-toggle="${escapeHtml(epic.id)}">
                     <div class="section-title">
@@ -3720,6 +4325,7 @@
                       ${openStoriesCount === 0 ? "✓ All Done" : `➕ Queue Epic (${openStoriesCount})`}
                     </button>
                     ${statusPill}
+                    <button type="button" class="btn focus-expand-btn" data-focus-expand="epic:${escapeHtml(epic.id)}" aria-label="Expand Epic ${escapeHtml(epic.number)} in Focus View" title="Expand epic in Focus View">⤢</button>
                   </div>
                 </div>
                 ${storiesHtml}
@@ -3769,7 +4375,7 @@
                   items: [
                     {
                       title: btn.getAttribute("data-queue-story-title"),
-                      skill: "/bmad-build-auto",
+                      skill: btn.getAttribute("data-queue-story-skill") || "/bmad-build-auto",
                       prompt: btn.getAttribute("data-queue-story-prompt"),
                       model: btn.getAttribute("data-queue-story-model"),
                       storyId: btn.getAttribute("data-queue-story-id"),
@@ -3793,207 +4399,8 @@
               await launchPromptInNewSession(cmd, model, "", title);
             });
           });
-        }
 
-        function renderSkillsCatalog(force = false) {
-          if (!currentState) return;
-          const query = readFilterValue("skillSearch");
-          const phaseFilter = document.getElementById("skillPhaseFilter").value;
-          const allSkills = currentState.skillsCatalog || [];
-          const skills = allSkills.filter((s) => {
-            if (phaseFilter !== "all" && s.phase !== phaseFilter) return false;
-            if (!query) return true;
-            const hay = `${s.skill} ${s.displayName} ${s.description} ${s.module} ${s.phase}`.toLowerCase();
-            return hay.includes(query);
-          });
-
-          const skillsSig = JSON.stringify({
-            query,
-            phaseFilter,
-            skills,
-            models: currentState.availableModels || [],
-            queueItems: (currentState?.taskQueue?.items || []).map((i) => i.prompt + ":" + i.status)
-          });
-          if (sectionNeedsRender("skillsCatalog", skillsSig, force)) {
-            const skillsEl = document.getElementById("skillsCatalogList");
-            if (!skills.length) {
-              const hasFilter = Boolean(query) || phaseFilter !== "all";
-              skillsEl.innerHTML = `<div class="empty-state-card">${allSkills.length === 0 ? "No BMAD skills discovered yet." : `No matching BMAD skills found. Try clearing the search or selecting <b>All Phases</b>.${hasFilter ? `<div style="margin-top:8px;"><button type="button" class="btn" id="btnClearSkillFilters">✕ Clear Filters</button></div>` : ""}`}</div>`;
-              document.getElementById("btnClearSkillFilters")?.addEventListener("click", () => {
-                const searchEl = document.getElementById("skillSearch");
-                const phaseEl = document.getElementById("skillPhaseFilter");
-                if (searchEl) searchEl.value = "";
-                if (phaseEl) phaseEl.value = "all";
-                renderSkillsCatalog(true);
-                searchEl?.focus?.();
-              });
-            } else {
-              skillsEl.innerHTML = skills
-                .map((s, idx) => {
-                const flow = [
-                  ...(s.precededBy || []).map((p) => `← ${p}`),
-                  ...(s.followedBy || []).map((f) => `→ ${f}`)
-                ].join(" · ");
-                const sModel = s.recommendedModel || dynamicFitModel();
-                const skillKey = getSkillOverrideKey(s);
-                const serverCmd = s.contextualCommand || "";
-                const displayCmd = resolveUserPrompt(skillKey, serverCmd);
-                const serverModelId = sModel.modelId || "";
-                const displayModelId = resolveUserModel(skillKey, serverModelId);
-                const qItem = isPromptOrStoryInQueue(displayCmd, null) || isPromptOrStoryInQueue(serverCmd, null);
-                const qBadge = qItem
-                  ? qItem.status === "running"
-                    ? `<span class="pill pill-success">🟢 Active</span>`
-                    : qItem.status === "done"
-                      ? `<span class="pill pill-success">✅ Done</span>`
-                      : qItem.status === "failed"
-                        ? `<span class="pill pill-danger">⚠️ Failed</span>`
-                        : `<span class="pill pill-accent">✓ In Queue</span>`
-                  : "";
-                return `
-                  <div class="rec-card">
-                    <div class="rec-top">
-                      <span class="rec-title">${escapeHtml(s.displayName)}</span>
-                      <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                        ${qBadge}
-                        <span class="pill pill-accent">/${escapeHtml(s.skill)}</span>
-                        <span class="pill pill-purple">${escapeHtml(s.phase)}</span>
-                      </div>
-                    </div>
-                    <div class="rec-rationale">${escapeHtml(s.description)}</div>
-                    ${flow ? `<div class="text-mono-meta" style="color:var(--text-muted);margin-bottom:6px;">${escapeHtml(flow)}</div>` : ""}
-                    <div class="cmd-editor-wrap">
-                      <label class="cmd-label" for="cat-cmd-${idx}">
-                        <span>BMAD Skill Command (Editable)</span>
-                        <span>/${escapeHtml(s.skill)}</span>
-                      </label>
-                      <textarea class="cmd-textarea" id="cat-cmd-${idx}" rows="2" aria-label="BMAD Skill Command for ${escapeHtml(s.displayName)}">${escapeHtml(displayCmd)}</textarea>
-                    </div>
-                    <div class="model-bar">
-                      <div class="model-bar-top">
-                        <span class="pill pill-purple">${escapeHtml(sModel.tier)}</span>
-                        <select class="model-select" id="cat-model-${idx}" aria-label="Recommended model for ${escapeHtml(s.displayName)}">
-                          ${buildModelSelectOptions(displayModelId, serverModelId)}
-                        </select>
-                      </div>
-                    </div>
-                    <div class="rec-actions">
-                      <button type="button" class="btn btn-purple" data-cat-queue="${idx}">${qItem ? (qItem.status === "done" ? "↻ Re-queue" : "↻ Update in Queue") : "➕ Add to Queue"}</button>
-                      <button type="button" class="btn btn-primary" data-cat-launch="${idx}">🚀 Launch in New Session</button>
-                      <button type="button" class="btn" data-cat-send="${idx}">💬 Run Here</button>
-                      <button type="button" class="btn" data-cat-copy="${idx}">📋 Copy</button>
-                    </div>
-                  </div>
-                `;
-              })
-              .join("");
-            }
-
-            skills.forEach((s, idx) => {
-              wireUserEditTracking(
-                getSkillOverrideKey(s),
-                s.contextualCommand || "",
-                s.recommendedModel?.modelId || getFallbackModelId() || "",
-                `cat-cmd-${idx}`,
-                `cat-model-${idx}`
-              );
-            });
-
-            skillsEl.querySelectorAll("[data-cat-queue]").forEach((btn) => {
-              btn.addEventListener("click", async () => {
-                const idx = Number(btn.getAttribute("data-cat-queue"));
-                const cmd = readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, true);
-                const model = readModelEditor(`cat-model-${idx}`, skills[idx].recommendedModel?.modelId);
-                await manageQueue(
-                  {
-                    action: "add",
-                    items: [
-                      {
-                        title: skills[idx].displayName,
-                        skill: "/" + skills[idx].skill,
-                        prompt: cmd,
-                        model
-                      }
-                    ]
-                  },
-                  `➕ Added "${skills[idx].displayName}" [${shortModelName(model)}] to Queue`
-                );
-              });
-            });
-
-            skillsEl.querySelectorAll("[data-cat-launch]").forEach((btn) => {
-              btn.addEventListener("click", async () => {
-                const idx = Number(btn.getAttribute("data-cat-launch"));
-                const cmd = readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, false);
-                const model = readModelEditor(`cat-model-${idx}`, skills[idx].recommendedModel?.modelId);
-                await launchPromptInNewSession(cmd, model, skills[idx].skill, skills[idx].displayName);
-              });
-            });
-
-            skillsEl.querySelectorAll("[data-cat-send]").forEach((btn) => {
-              btn.addEventListener("click", async () => {
-                const idx = Number(btn.getAttribute("data-cat-send"));
-                await sendPromptToCurrentSession(readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, false));
-              });
-            });
-
-            skillsEl.querySelectorAll("[data-cat-copy]").forEach((btn) => {
-              btn.addEventListener("click", async () => {
-                const idx = Number(btn.getAttribute("data-cat-copy"));
-                await copyWithToast(readCmdEditor(`cat-cmd-${idx}`, skills[idx].contextualCommand, false));
-              });
-            });
-          }
-
-          const allAgents = currentState.agentsCatalog || [];
-          const agents = allAgents.filter((a) => {
-            if (!query) return true;
-            const hay = `${a.skill} ${a.name} ${a.title} ${a.focus}`.toLowerCase();
-            return hay.includes(query);
-          });
-          const agentsSig = JSON.stringify({
-            query,
-            agents,
-            projectName: currentState.projectName,
-            fallbackModel: getFallbackModelId()
-          });
-          if (sectionNeedsRender("agentsCatalog", agentsSig, force)) {
-            const agentsEl = document.getElementById("agentsCatalogList");
-            if (!agents.length) {
-              agentsEl.innerHTML = `<div class="empty-state-card">${allAgents.length === 0 ? "No specialist BMAD agents discovered yet." : "No matching specialist agents found for that search."}</div>`;
-            } else {
-              agentsEl.innerHTML = agents
-                .map((a) => {
-                  const agentCmd = `/${a.skill} "Hi ${a.name} (${a.title}), review our current ${currentState.projectName} state and advise on ${a.focus}"`;
-                  const aModel = a.recommendedModel?.modelId || getFallbackModelId();
-                  const aShort = a.recommendedModel?.shortName || shortModelName(aModel);
-                  return `
-                    <div class="agent-card">
-                      <div style="min-width:0;flex:1;">
-                        <div style="font-weight:700;">${escapeHtml(a.icon)} ${escapeHtml(a.name)} — ${escapeHtml(a.title)}</div>
-                        <div class="text-caption">${escapeHtml(a.focus)}</div>
-                        <div style="margin-top:3px;"><span class="pill pill-purple">🤖 ${escapeHtml(aShort)}</span></div>
-                      </div>
-                      <button type="button" class="btn btn-primary" style="flex-shrink:0;" data-agent-cmd="${escapeHtml(agentCmd)}" data-agent-model="${escapeHtml(aModel)}" data-agent-name="${escapeHtml(a.name)}">
-                        🚀 New Session
-                      </button>
-                    </div>
-                  `;
-                })
-                .join("");
-
-              agentsEl.querySelectorAll("[data-agent-cmd]").forEach((btn) => {
-                btn.addEventListener("click", async () => {
-                  await launchPromptInNewSession(
-                    btn.getAttribute("data-agent-cmd"),
-                    btn.getAttribute("data-agent-model"),
-                    "",
-                    btn.getAttribute("data-agent-name")
-                  );
-                });
-              });
-            }
-          }
+          bindFocusTriggers(container);
         }
 
         function renderArtifactsDirectory(force = false) {
@@ -4034,7 +4441,7 @@
                     : `<span class="pill pill-success">✓ Committed</span>`;
               const isInspecting = selectedArtifactPath === a.relPath;
               return `
-                <div class="insight-item${isInspecting ? " is-inspecting" : ""}" data-overlay-trigger="artifact:${escapeHtml(a.relPath)}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <div class="insight-item${isInspecting ? " is-inspecting" : ""}" data-overlay-trigger="artifact:${escapeHtml(a.relPath)}" tabindex="-1" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
                   <button type="button" class="art-row-btn" data-open-art="${escapeHtml(a.relPath)}" aria-label="Inspect ${escapeHtml(a.relPath)}">
                     <div class="art-row-path text-mono-meta" style="font-weight:600;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                       ${escapeHtml(a.relPath)}
@@ -4052,6 +4459,7 @@
                     <button type="button" class="btn" style="padding:3px 7px;" data-ext-art="${escapeHtml(a.relPath)}" title="Open file in desktop editor">
                       ↗ Open
                     </button>
+                    <button type="button" class="btn focus-expand-btn" data-focus-expand="artifact:${escapeHtml(a.relPath)}" aria-label="Expand ${escapeHtml(a.relPath)} in Focus View" title="Expand artifact in Focus View">⤢</button>
                   </div>
                 </div>
               `;
@@ -4070,6 +4478,24 @@
               await openArtifactExternally(btn.getAttribute("data-ext-art"));
             });
           });
+
+          bindFocusTriggers(list);
+        }
+
+        function syncArtifactOverlayControls(relPath, mode) {
+          if (!isOverlayOpen() || activeOverlay?.targetType !== "artifact" || activeOverlay.targetKey !== relPath) {
+            return;
+          }
+          const oDiff = document.getElementById("overlay-art-diff-btn");
+          const oContent = document.getElementById("overlay-art-content-btn");
+          if (oDiff) {
+            oDiff.classList.toggle("btn-purple", mode === "diff");
+            oDiff.setAttribute("aria-pressed", mode === "diff" ? "true" : "false");
+          }
+          if (oContent) {
+            oContent.classList.toggle("btn-purple", mode === "content");
+            oContent.setAttribute("aria-pressed", mode === "content" ? "true" : "false");
+          }
         }
 
         function renderArtifactInspectorCard() {
@@ -4095,11 +4521,32 @@
           } else {
             content.textContent = loadedArtifactData.preview || "Empty artifact.";
           }
+
+          if (isOverlayOpen() && activeOverlay?.targetType === "artifact" && activeOverlay.targetKey === loadedArtifactData.relPath) {
+            syncArtifactOverlayControls(loadedArtifactData.relPath, artifactViewMode);
+            const oMeta = document.getElementById("overlay-art-meta");
+            if (oMeta) {
+              const artObj = resolveOverlayTarget(currentState, activeOverlay) || {};
+              oMeta.textContent = `🕒 ${formatTimestamp(loadedArtifactData.mtimeMs)} · ${artObj.kind || "artifact"} (${artObj.phaseName || artObj.phaseId || "workspace"})${artObj.gitStatus ? ` · ${artObj.gitStatus}` : ""}${loadedArtifactData.diffSource ? ` · ${loadedArtifactData.diffSource}` : ""}`;
+            }
+            const oPreview = document.getElementById("overlay-art-preview");
+            if (oPreview) {
+              if (artifactViewMode === "diff") {
+                oPreview.innerHTML = formatDiffHtml(loadedArtifactData.diff || "No diff available.");
+              } else {
+                oPreview.textContent = loadedArtifactData.preview || "Empty artifact.";
+              }
+            }
+          }
         }
 
         async function loadArtifactPreview(relPath, mode = "diff") {
           selectedArtifactPath = relPath;
           artifactViewMode = mode;
+          loadingArtifactPath = relPath;
+          if (loadedArtifactData && loadedArtifactData.relPath !== relPath) {
+            loadedArtifactData = null;
+          }
           renderArtifactsDirectory();
           const card = document.getElementById("artifactPreviewCard");
           const title = document.getElementById("previewFileName");
@@ -4119,18 +4566,37 @@
             btnContent.setAttribute("aria-pressed", mode === "content" ? "true" : "false");
           }
           content.textContent = "Loading artifact diff & content…";
+          syncArtifactOverlayControls(relPath, mode);
+          if (isOverlayOpen() && activeOverlay?.targetType === "artifact" && activeOverlay.targetKey === relPath) {
+            const oPreview = document.getElementById("overlay-art-preview");
+            if (oPreview) oPreview.textContent = "Loading artifact diff & content…";
+          }
           try {
             const res = await callServerTool("bmad_inspect_artifact", { relPath });
             if (res && res.structuredContent) {
               loadedArtifactData = res.structuredContent;
               renderArtifactInspectorCard();
             } else {
+              const fallbackText = res?.content?.[0]?.text || "Empty artifact.";
               if (metaSub) metaSub.textContent = "";
-              content.textContent = res?.content?.[0]?.text || "Empty artifact.";
+              content.textContent = fallbackText;
+              if (isOverlayOpen() && activeOverlay?.targetType === "artifact" && activeOverlay.targetKey === relPath) {
+                const oPreview = document.getElementById("overlay-art-preview");
+                if (oPreview) oPreview.textContent = fallbackText;
+              }
             }
           } catch (err) {
+            const errMsg = "Failed to load artifact: " + err.message;
             if (metaSub) metaSub.textContent = "";
-            content.textContent = "Failed to load artifact: " + err.message;
+            content.textContent = errMsg;
+            if (isOverlayOpen() && activeOverlay?.targetType === "artifact" && activeOverlay.targetKey === relPath) {
+              const oPreview = document.getElementById("overlay-art-preview");
+              if (oPreview) oPreview.textContent = errMsg;
+            }
+          } finally {
+            if (loadingArtifactPath === relPath) {
+              loadingArtifactPath = null;
+            }
           }
         }
 
@@ -4140,6 +4606,8 @@
             const res = await callServerTool("bmad_reconcile_trackers", { dryRun, target: "all", backup: true });
             const data = res?.structuredContent;
             if (!data) throw new Error("No reconciliation data returned.");
+
+            lastReconciliationDiff = { ...data, dryRun };
 
             const diffCard = document.getElementById("reconciliationDiffCard");
             const diffTitle = document.getElementById("diffCardTitle");
@@ -4166,12 +4634,19 @@
                 .join("");
             }
 
-            if (!dryRun) {
+            if (dryRun) {
+              if (isOverlayOpen() && activeOverlay?.targetType === "reconciliation-diff") {
+                reconcileActiveOverlay(currentState);
+              }
+            } else {
               showToast(`✓ Successfully reconciled ${data.changesCount} keys to match code reality!`);
               if (data.newScan) {
                 renderWorkspaceState(data.newScan);
               } else {
                 await refreshState();
+                if (isOverlayOpen() && activeOverlay?.targetType === "reconciliation-diff") {
+                  reconcileActiveOverlay(currentState);
+                }
               }
             }
           } catch (err) {
@@ -4180,25 +4655,16 @@
         }
 
         function switchTab(tabId, focusBtn = false) {
-          activeTabId = tabId;
+          const validTabs = ["work", "queue", "project"];
+          const resolvedTabId = validTabs.includes(tabId) ? tabId : "work";
+          activeTabId = resolvedTabId;
           if (isOverlayOpen()) {
             closeOverlay({ skipFocusRestore: true });
           }
-          const aliasMap = {
-            work: "advisor",
-            advisor: "work",
-            project: "progress",
-            progress: "project"
-          };
-          const resolvedTabId = document.getElementById("tab-" + tabId)
-            ? tabId
-            : aliasMap[tabId] && document.getElementById("tab-" + aliasMap[tabId])
-              ? aliasMap[tabId]
-              : tabId;
           const tabBtns = Array.from(document.querySelectorAll(".tab-btn"));
           tabBtns.forEach((b) => {
             const btnTab = b.getAttribute("data-tab");
-            const isActive = btnTab === tabId || btnTab === resolvedTabId;
+            const isActive = btnTab === resolvedTabId;
             b.classList.toggle("active", isActive);
             b.setAttribute("aria-selected", isActive ? "true" : "false");
             b.setAttribute("tabindex", isActive ? "0" : "-1");
@@ -4206,7 +4672,7 @@
               b.focus();
             }
           });
-          ["work", "advisor", "queue", "project", "progress", "catalog", "artifacts"].forEach((id) => {
+          validTabs.forEach((id) => {
             const el = document.getElementById("tab-" + id);
             if (el) el.style.display = id === resolvedTabId ? "block" : "none";
           });
@@ -4294,7 +4760,7 @@
           }
         });
 
-        document.getElementById("btnGoToQueueFromAdvisor")?.addEventListener("click", () => {
+        document.getElementById("btnGoToQueueFromWork")?.addEventListener("click", () => {
           switchTab("queue");
         });
 
@@ -4424,22 +4890,29 @@
         document.getElementById("btnPreviewReconcile").addEventListener("click", () => runReconciliation(true));
         document.getElementById("btnCloseDiff").addEventListener("click", () => {
           document.getElementById("reconciliationDiffCard").style.display = "none";
+          lastReconciliationDiff = null;
+          document.getElementById("btnPreviewReconcile")?.focus?.();
         });
+
+        document.getElementById("btnExpandArtifactPreview")?.addEventListener("click", (e) => {
+          if (typeof e?.stopPropagation === "function") e.stopPropagation();
+          if (!selectedArtifactPath) return;
+          const btn = document.getElementById("btnExpandArtifactPreview");
+          openOverlay({
+            kind: "focus",
+            targetType: "artifact",
+            targetKey: selectedArtifactPath,
+            triggerEl: btn,
+            triggerSelector: "#btnExpandArtifactPreview"
+          });
+        });
+
+        bindFocusTriggers(document.getElementById("insightsCard"));
+        bindFocusTriggers(document.getElementById("reconciliationDiffCard"));
 
         document.getElementById("storySearch").addEventListener("input", renderEpics);
         document.getElementById("storyStatusFilter").addEventListener("change", renderEpics);
-        document.getElementById("skillSearch").addEventListener("input", renderSkillsCatalog);
-        document.getElementById("skillPhaseFilter").addEventListener("change", renderSkillsCatalog);
         document.getElementById("artifactSearch").addEventListener("input", renderArtifactsDirectory);
-
-        document.getElementById("btnExpandAllPhases").addEventListener("click", () => {
-          (currentState?.phases || []).forEach((p) => expandedPhases.add(p.id));
-          renderPhases(currentState?.phases || []);
-        });
-        document.getElementById("btnCollapseAllPhases").addEventListener("click", () => {
-          expandedPhases.clear();
-          renderPhases(currentState?.phases || []);
-        });
 
         document.getElementById("btnToggleDiffMode").addEventListener("click", () => {
           artifactViewMode = "diff";
@@ -4453,10 +4926,18 @@
           if (selectedArtifactPath) await openArtifactExternally(selectedArtifactPath);
         });
         document.getElementById("btnCloseArtifactPreview").addEventListener("click", () => {
+          const prevPath = selectedArtifactPath;
           document.getElementById("artifactPreviewCard").style.display = "none";
           selectedArtifactPath = null;
           loadedArtifactData = null;
           renderArtifactsDirectory();
+          let rowBtn = null;
+          if (prevPath && typeof document.querySelector === "function") {
+            try {
+              rowBtn = document.querySelector(`[data-open-art="${escapeAttrValue(prevPath)}"]`);
+            } catch {}
+          }
+          (rowBtn || document.getElementById("artifactSearch"))?.focus?.();
         });
 
         document.getElementById("btnReviewArtifact").addEventListener("click", async () => {
@@ -4493,6 +4974,8 @@
             openOverlay,
             closeOverlay,
             reconcileActiveOverlay,
+            resolveOverlayTarget,
+            getLastReconciliationDiff: () => lastReconciliationDiff,
             getActiveOverlay: () => activeOverlay,
             setActiveOverlay: (val) => {
               activeOverlay = val;
@@ -4541,7 +5024,6 @@
             renderInsights,
             renderPhases,
             renderEpics,
-            renderSkillsCatalog,
             renderArtifactsDirectory,
             switchTab,
             showToast,

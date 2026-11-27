@@ -72,3 +72,15 @@ covers = []
 after = [1, 2, 3, 4, 5]
 hitl = false
 risk = "low"
+
+[[entry]]
+id = 7
+type = "story"
+title = "Review Queue two-model auto-split (Plan -> Build)"
+status = "done"
+description = "Code review of the Plan/Build auto-split across bmad-engine, mcp-server, hook-runner, panel and queue tests; verified by deterministic tests only."
+verify = "Run `node --test \"tests/*.test.mjs\" && node scripts/check-version-sync.mjs`."
+covers = []
+after = [6]
+hitl = false
+risk = "low"

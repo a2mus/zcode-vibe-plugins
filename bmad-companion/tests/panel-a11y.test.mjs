@@ -49,6 +49,121 @@ function createStubbedA11yEnvironment() {
   const documentListeners = new Map();
   let activeElement = null;
 
+  const VOID_TAGS = new Set([
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
+  ]);
+
+  function unescapeAttr(v) {
+    return String(v || "").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+
+  function decodeHtmlEntities(s) {
+    return String(s || "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&");
+  }
+
+  function splitSelectorList(sel) {
+    const parts = [];
+    let cur = "";
+    let bracketDepth = 0;
+    let quoteChar = "";
+    for (let i = 0; i < sel.length; i++) {
+      const ch = sel[i];
+      if (quoteChar) {
+        cur += ch;
+        if (ch === quoteChar && sel[i - 1] !== "\\") quoteChar = "";
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quoteChar = ch;
+        cur += ch;
+        continue;
+      }
+      if (ch === "[") bracketDepth++;
+      else if (ch === "]" && bracketDepth > 0) bracketDepth--;
+      else if (ch === "," && bracketDepth === 0) {
+        if (cur.trim()) parts.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    return parts;
+  }
+
+  function matchesSingleSelector(node, rawSel) {
+    if (!node || !rawSel) return false;
+    let sel = rawSel.trim();
+    if (!sel) return false;
+
+    const notClauses = [];
+    sel = sel.replace(/:not\(([^)]+)\)/g, (_, inner) => {
+      notClauses.push(inner.trim());
+      return "";
+    });
+    for (const nc of notClauses) {
+      if (matchesSingleSelector(node, nc)) return false;
+    }
+
+    let rest = sel.trim();
+    const tagMatch = rest.match(/^([a-z0-9-]+)/i);
+    if (tagMatch) {
+      if (node.tagName !== tagMatch[1].toUpperCase()) return false;
+      rest = rest.slice(tagMatch[1].length);
+    }
+
+    while (rest.length > 0) {
+      if (rest[0] === "#") {
+        const m = rest.match(/^#([a-z0-9_-]+)/i);
+        if (!m || node.id !== m[1]) return false;
+        rest = rest.slice(m[0].length);
+      } else if (rest[0] === ".") {
+        const m = rest.match(/^\.([a-z0-9_-]+)/i);
+        if (!m || !node.classList?.contains(m[1])) return false;
+        rest = rest.slice(m[0].length);
+      } else if (rest[0] === "[") {
+        const eqMatch =
+          rest.match(/^\[([a-z0-9_-]+)="((?:\\.|[^"\\])*)"\]/i) ||
+          rest.match(/^\[([a-z0-9_-]+)='((?:\\.|[^'\\])*)'\]/i);
+        if (eqMatch) {
+          if (node.getAttribute?.(eqMatch[1]) !== unescapeAttr(eqMatch[2])) return false;
+          rest = rest.slice(eqMatch[0].length);
+          continue;
+        }
+        const bareEqMatch = rest.match(/^\[([a-z0-9_-]+)=([^\]]+)\]/i);
+        if (bareEqMatch) {
+          if (node.getAttribute?.(bareEqMatch[1]) !== bareEqMatch[2].trim()) return false;
+          rest = rest.slice(bareEqMatch[0].length);
+          continue;
+        }
+        const presMatch = rest.match(/^\[([a-z0-9_-]+)\]/i);
+        if (presMatch) {
+          const attrName = presMatch[1];
+          if (attrName === "disabled") {
+            if (!node.disabled && !node.hasAttribute?.("disabled")) return false;
+          } else if (!node.hasAttribute?.(attrName)) {
+            return false;
+          }
+          rest = rest.slice(presMatch[0].length);
+          continue;
+        }
+        return false;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function matchesSelector(node, sel) {
+    if (!node || !sel || typeof sel !== "string") return false;
+    return splitSelectorList(sel).some((part) => matchesSingleSelector(node, part));
+  }
+
   function makeElement(id, tagName = "div") {
     const existing = elements.get(id);
     if (existing) {
@@ -68,6 +183,11 @@ function createStubbedA11yEnvironment() {
     const el = {
       id,
       tagName: tagName.toUpperCase(),
+      isConnected: true,
+      disabled: false,
+      checked: false,
+      parentElement: null,
+      _children: [],
       style: { width: "", display: "" },
       listeners,
       attributes,
@@ -97,6 +217,7 @@ function createStubbedA11yEnvironment() {
       },
       setAttribute(k, v) {
         attributes.set(k, String(v));
+        if (k === "disabled") el.disabled = true;
       },
       getAttribute(k) {
         return attributes.has(k) ? attributes.get(k) : null;
@@ -106,6 +227,7 @@ function createStubbedA11yEnvironment() {
       },
       removeAttribute(k) {
         attributes.delete(k);
+        if (k === "disabled") el.disabled = false;
       },
       addEventListener(type, fn) {
         if (!listeners.has(type)) listeners.set(type, []);
@@ -124,6 +246,21 @@ function createStubbedA11yEnvironment() {
         for (const fn of [...(listeners.get(evt.type) || [])]) fn(evt);
         return !evt.defaultPrevented;
       },
+      closest(sel) {
+        let cur = this;
+        while (cur) {
+          if (matchesSelector(cur, sel)) return cur;
+          cur = cur.parentElement;
+        }
+        return null;
+      },
+      appendChild(child) {
+        if (child) {
+          child.parentElement = el;
+          el._children.push(child);
+        }
+        return child;
+      },
       focus() {
         activeElement = el;
         el.dispatchEvent({ type: "focus", target: el });
@@ -136,11 +273,20 @@ function createStubbedA11yEnvironment() {
           fn({ type: "focusout", target: el });
         }
       },
-      querySelectorAll() {
-        return [];
+      querySelectorAll(sel) {
+        const out = [];
+        const walk = (node) => {
+          for (const child of node._children || []) {
+            if (matchesSelector(child, sel)) out.push(child);
+            walk(child);
+          }
+        };
+        walk(el);
+        return out;
       },
-      querySelector() {
-        return null;
+      querySelector(sel) {
+        const list = el.querySelectorAll(sel);
+        return list.length ? list[0] : null;
       }
     };
 
@@ -159,29 +305,93 @@ function createStubbedA11yEnvironment() {
       },
       set(v) {
         innerHtmlVal = String(v ?? "");
-        for (const match of innerHtmlVal.matchAll(/<([a-z0-9-]+)\s+([^>]*id="([^"]+)"[^>]*)>/gi)) {
-          const childEl = elements.get(match[3]) || makeElement(match[3], match[1]);
-          childEl.tagName = match[1].toUpperCase();
-          for (const attr of match[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
-            childEl.setAttribute(attr[1], attr[2]);
-            if (attr[1] === "class") {
-              attr[2].split(/\s+/).filter(Boolean).forEach((c) => childEl.classList.add(c));
+        for (const c of el._children || []) {
+          if (!c.id) c.isConnected = false;
+          c.parentElement = null;
+        }
+        el._children = [];
+
+        if (el._renderedTriggerKeys) {
+          for (const oldKey of el._renderedTriggerKeys) {
+            const prev = elements.get(oldKey);
+            if (prev && !prev.id) prev.isConnected = false;
+            elements.delete(oldKey);
+          }
+        }
+        el._renderedTriggerKeys = [];
+
+        const stack = [el];
+        const cleanMarkup = innerHtmlVal.replace(/<!--[\s\S]*?-->/g, "");
+        for (const tagMatch of cleanMarkup.matchAll(/<(\/?)([a-z0-9-]+)([^>]*)>/gi)) {
+          const isClosing = tagMatch[1] === "/";
+          const tagNameRaw = tagMatch[2];
+          const tagUpper = tagNameRaw.toUpperCase();
+          const attrStr = tagMatch[3] || "";
+
+          if (isClosing) {
+            for (let i = stack.length - 1; i >= 1; i--) {
+              if (stack[i].tagName === tagUpper) {
+                stack.length = i;
+                break;
+              }
             }
-            if (attr[1] === "style") {
-              const dispMatch = attr[2].match(/(?:^|;)\s*display\s*:\s*([^;]+)/i);
+            continue;
+          }
+
+          const idMatch = attrStr.match(/\bid="([^"]+)"/i);
+          const nodeId = idMatch ? idMatch[1] : "";
+          const childEl = nodeId ? (elements.get(nodeId) || makeElement(nodeId, tagNameRaw)) : makeElement("", tagNameRaw);
+          childEl.tagName = tagUpper;
+          childEl.isConnected = true;
+          childEl._children = [];
+          if (nodeId && /\bclass="/i.test(attrStr)) {
+            for (const cls of (childEl.getAttribute("class") || "").split(/\s+/).filter(Boolean)) {
+              childEl.classList.remove(cls);
+            }
+          }
+          childEl.disabled = /\bdisabled\b/i.test(attrStr);
+          if (/\bchecked\b/i.test(attrStr)) childEl.checked = true;
+
+          for (const attr of attrStr.matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
+            const attrName = attr[1];
+            const attrVal = decodeHtmlEntities(attr[2]);
+            childEl.setAttribute(attrName, attrVal);
+            if (attrName === "class") {
+              attrVal.split(/\s+/).filter(Boolean).forEach((c) => childEl.classList.add(c));
+            }
+            if (attrName === "style") {
+              const dispMatch = attrVal.match(/(?:^|;)\s*display\s*:\s*([^;]+)/i);
               if (dispMatch) childEl.style.display = dispMatch[1].trim();
             }
           }
+
+          const parent = stack[stack.length - 1];
+          childEl.parentElement = parent;
+          parent._children.push(childEl);
+
+          const trigVal = childEl.getAttribute("data-overlay-trigger");
+          if (trigVal !== null) {
+            const trigKey = `trigger:${trigVal}`;
+            elements.set(trigKey, childEl);
+            el._renderedTriggerKeys.push(trigKey);
+          }
+          const expVal = childEl.getAttribute("data-focus-expand");
+          if (expVal !== null) {
+            const expKey = `expand:${expVal}`;
+            elements.set(expKey, childEl);
+            el._renderedTriggerKeys.push(expKey);
+          }
+
+          const selfClosing = attrStr.trim().endsWith("/") || VOID_TAGS.has(tagNameRaw.toLowerCase());
+          if (!selfClosing) {
+            stack.push(childEl);
+          }
         }
+
         for (const textMatch of innerHtmlVal.matchAll(/<([a-z0-9-]+)\s+[^>]*id="([^"]+)"[^>]*>([^<]*)<\/\1>/gi)) {
           const targetEl = elements.get(textMatch[2]);
           if (targetEl && targetEl.tagName !== "TEXTAREA") {
-            targetEl.textContent = textMatch[3]
-              .replace(/&lt;/g, "<")
-              .replace(/&gt;/g, ">")
-              .replace(/&quot;/g, '"')
-              .replace(/&amp;/g, "&")
-              .trim();
+            targetEl.textContent = decodeHtmlEntities(textMatch[3]).trim();
           }
         }
       }
@@ -203,24 +413,27 @@ function createStubbedA11yEnvironment() {
   const documentElement = makeElement("__html__", "html");
   const body = makeElement("__body__", "body");
 
-  // Pre-seed elements with IDs from panel markup
+  // Pre-seed elements with IDs and parent/child structure from panel markup
   const panelMarkup = PANEL_HTML.replace(/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/gi, "");
-  for (const match of panelMarkup.matchAll(/<([a-z0-9-]+)\s+([^>]*id="([^"]+)"[^>]*)>/gi)) {
-    const el = elements.get(match[3]) || makeElement(match[3], match[1]);
-    for (const attr of match[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
-      el.setAttribute(attr[1], attr[2]);
-      if (attr[1] === "class") {
-        attr[2].split(/\s+/).filter(Boolean).forEach((c) => el.classList.add(c));
+  const bodyMatch = panelMarkup.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (bodyMatch) {
+    body.innerHTML = bodyMatch[1];
+  } else {
+    for (const match of panelMarkup.matchAll(/<([a-z0-9-]+)\s+([^>]*id="([^"]+)"[^>]*)>/gi)) {
+      const el = elements.get(match[3]) || makeElement(match[3], match[1]);
+      for (const attr of match[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
+        el.setAttribute(attr[1], attr[2]);
+        if (attr[1] === "class") {
+          attr[2].split(/\s+/).filter(Boolean).forEach((c) => el.classList.add(c));
+        }
       }
     }
   }
 
   const tabBtns = [
-    elements.get("tabBtnAdvisor"),
+    elements.get("tabBtnWork"),
     elements.get("tabBtnQueue"),
-    elements.get("tabBtnProgress"),
-    elements.get("tabBtnCatalog"),
-    elements.get("tabBtnArtifacts")
+    elements.get("tabBtnProject")
   ].filter(Boolean);
 
   const sandbox = {
@@ -257,11 +470,25 @@ function createStubbedA11yEnvironment() {
       createElement: (tag) => makeElement(`elem_${Math.random().toString(36).slice(2)}`, tag),
       querySelectorAll: (sel) => {
         if (sel === ".tab-btn") return tabBtns;
-        return [];
+        return body.querySelectorAll(sel);
       },
       querySelector: (sel) => {
         if (sel === ".tabs-nav" || sel === "#tabsNav") return elements.get("tabsNav");
-        return null;
+        if (sel && sel.startsWith("#")) {
+          const byId = elements.get(sel.slice(1));
+          return byId && byId.isConnected !== false ? byId : null;
+        }
+        const trigMatch = sel && sel.match(/^\[data-overlay-trigger="((?:\\.|[^"\\])*)"\]$/);
+        if (trigMatch) {
+          const trig = elements.get(`trigger:${unescapeAttr(trigMatch[1])}`);
+          if (trig && trig.isConnected !== false) return trig;
+        }
+        const expMatch = sel && sel.match(/^\[data-focus-expand="((?:\\.|[^"\\])*)"\]$/);
+        if (expMatch) {
+          const exp = elements.get(`expand:${unescapeAttr(expMatch[1])}`);
+          if (exp && exp.isConnected !== false) return exp;
+        }
+        return body.querySelector(sel);
       },
       addEventListener: (type, fn) => {
         if (!documentListeners.has(type)) documentListeners.set(type, []);
@@ -308,6 +535,7 @@ function createStubbedA11yEnvironment() {
   return {
     sandbox,
     elements,
+    makeElement,
     tabBtns,
     getActiveElement: () => activeElement,
     getTestHooks: () => sandbox.window.__bmadTestHooks
@@ -379,31 +607,27 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       );
     });
 
-    it("declares role='tab', aria-selected, aria-controls, and roving tabindex on all 5 tabs", () => {
+    it("declares role='tab', aria-selected, aria-controls, aria-describedby, and roving tabindex on all 3 tabs", () => {
       const tabs = [
-        { id: "tabBtnAdvisor", tab: "advisor", selected: "true", tabindex: "0", controls: "tab-advisor" },
-        { id: "tabBtnQueue", tab: "queue", selected: "false", tabindex: "-1", controls: "tab-queue" },
-        { id: "tabBtnProgress", tab: "progress", selected: "false", tabindex: "-1", controls: "tab-progress" },
-        { id: "tabBtnCatalog", tab: "catalog", selected: "false", tabindex: "-1", controls: "tab-catalog" },
-        { id: "tabBtnArtifacts", tab: "artifacts", selected: "false", tabindex: "-1", controls: "tab-artifacts" }
+        { id: "tabBtnWork", tab: "work", selected: "true", tabindex: "0", controls: "tab-work", describedby: "tabDescWork" },
+        { id: "tabBtnQueue", tab: "queue", selected: "false", tabindex: "-1", controls: "tab-queue", describedby: "tabDescQueue" },
+        { id: "tabBtnProject", tab: "project", selected: "false", tabindex: "-1", controls: "tab-project", describedby: "tabDescProject" }
       ];
 
       for (const t of tabs) {
         const regex = new RegExp(
-          `<button[^>]*id="${t.id}"[^>]*role="tab"[^>]*aria-selected="${t.selected}"[^>]*aria-controls="${t.controls}"[^>]*tabindex="${t.tabindex}"[^>]*data-tab="${t.tab}"`,
+          `<button[^>]*id="${t.id}"[^>]*role="tab"[^>]*aria-selected="${t.selected}"[^>]*aria-controls="${t.controls}"[^>]*aria-describedby="${t.describedby}"[^>]*tabindex="${t.tabindex}"[^>]*data-tab="${t.tab}"`,
           "i"
         );
         assert.match(PANEL_HTML, regex, `Tab button ${t.id} must declare complete ARIA tab semantics`);
       }
     });
 
-    it("declares role='tabpanel', tabindex='0', and aria-labelledby on all 5 sections", () => {
+    it("declares role='tabpanel', tabindex='0', and aria-labelledby on all 3 sections", () => {
       const sections = [
-        { id: "tab-advisor", labelledby: "tabBtnAdvisor" },
+        { id: "tab-work", labelledby: "tabBtnWork" },
         { id: "tab-queue", labelledby: "tabBtnQueue" },
-        { id: "tab-progress", labelledby: "tabBtnProgress" },
-        { id: "tab-catalog", labelledby: "tabBtnCatalog" },
-        { id: "tab-artifacts", labelledby: "tabBtnArtifacts" }
+        { id: "tab-project", labelledby: "tabBtnProject" }
       ];
 
       for (const s of sections) {
@@ -419,24 +643,29 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       const env = createStubbedA11yEnvironment();
       const hooks = env.getTestHooks();
 
-      const advisorBtn = env.elements.get("tabBtnAdvisor");
+      const workBtn = env.elements.get("tabBtnWork");
       const queueBtn = env.elements.get("tabBtnQueue");
-      const advisorPanel = env.elements.get("tab-advisor");
+      const projectBtn = env.elements.get("tabBtnProject");
+      const workPanel = env.elements.get("tab-work");
       const queuePanel = env.elements.get("tab-queue");
+      const projectPanel = env.elements.get("tab-project");
 
-      assert.equal(advisorBtn.getAttribute("aria-selected"), "true");
-      assert.equal(advisorBtn.getAttribute("tabindex"), "0");
+      assert.equal(workBtn.getAttribute("aria-selected"), "true");
+      assert.equal(workBtn.getAttribute("tabindex"), "0");
       assert.equal(queueBtn.getAttribute("aria-selected"), "false");
       assert.equal(queueBtn.getAttribute("tabindex"), "-1");
+      assert.equal(projectBtn.getAttribute("aria-selected"), "false");
+      assert.equal(projectBtn.getAttribute("tabindex"), "-1");
 
       hooks.switchTab("queue");
 
-      assert.equal(advisorBtn.getAttribute("aria-selected"), "false");
-      assert.equal(advisorBtn.getAttribute("tabindex"), "-1");
+      assert.equal(workBtn.getAttribute("aria-selected"), "false");
+      assert.equal(workBtn.getAttribute("tabindex"), "-1");
       assert.equal(queueBtn.getAttribute("aria-selected"), "true");
       assert.equal(queueBtn.getAttribute("tabindex"), "0");
-      assert.equal(advisorPanel.style.display, "none");
+      assert.equal(workPanel.style.display, "none");
       assert.equal(queuePanel.style.display, "block");
+      assert.equal(projectPanel.style.display, "none");
     });
 
     it("navigates tabs with ArrowRight, ArrowLeft, ArrowDown, ArrowUp, Home, and End keys (with wrap)", () => {
@@ -444,7 +673,9 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       const hooks = env.getTestHooks();
       const { tabBtns } = env;
 
-      // Focus first tab (advisor)
+      assert.equal(tabBtns.length, 3, "Must expose exactly 3 tab buttons (work, queue, project)");
+
+      // Focus first tab (work)
       tabBtns[0].focus();
       assert.equal(env.getActiveElement(), tabBtns[0]);
 
@@ -463,29 +694,29 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       assert.equal(tabBtns[0].getAttribute("aria-selected"), "false");
       assert.equal(tabBtns[0].getAttribute("tabindex"), "-1");
 
-      // ArrowDown -> Progress
+      // ArrowDown -> Project (index 2)
       hooks.handleTabKeydown({ key: "ArrowDown", currentTarget: tabBtns[1], preventDefault: () => {} });
-      assert.equal(tabBtns[2].getAttribute("aria-selected"), "true", "Progress tab should be selected");
+      assert.equal(tabBtns[2].getAttribute("aria-selected"), "true", "Project tab should be selected");
 
-      // End -> Artifacts (last tab, index 4)
-      hooks.handleTabKeydown({ key: "End", currentTarget: tabBtns[2], preventDefault: () => {} });
-      assert.equal(tabBtns[4].getAttribute("aria-selected"), "true", "Artifacts tab should be selected");
+      // ArrowRight wraps to Work (index 0)
+      hooks.handleTabKeydown({ key: "ArrowRight", currentTarget: tabBtns[2], preventDefault: () => {} });
+      assert.equal(tabBtns[0].getAttribute("aria-selected"), "true", "Should wrap back to Work tab");
 
-      // ArrowRight wraps to Advisor (index 0)
-      hooks.handleTabKeydown({ key: "ArrowRight", currentTarget: tabBtns[4], preventDefault: () => {} });
-      assert.equal(tabBtns[0].getAttribute("aria-selected"), "true", "Should wrap back to Advisor tab");
-
-      // ArrowLeft wraps to Artifacts (index 4)
+      // ArrowLeft wraps to Project (index 2)
       hooks.handleTabKeydown({ key: "ArrowLeft", currentTarget: tabBtns[0], preventDefault: () => {} });
-      assert.equal(tabBtns[4].getAttribute("aria-selected"), "true", "Should wrap back to Artifacts tab");
+      assert.equal(tabBtns[2].getAttribute("aria-selected"), "true", "Should wrap back to Project tab");
 
-      // ArrowUp -> Catalog (index 3)
-      hooks.handleTabKeydown({ key: "ArrowUp", currentTarget: tabBtns[4], preventDefault: () => {} });
-      assert.equal(tabBtns[3].getAttribute("aria-selected"), "true", "Catalog tab should be selected");
+      // ArrowUp -> Queue (index 1)
+      hooks.handleTabKeydown({ key: "ArrowUp", currentTarget: tabBtns[2], preventDefault: () => {} });
+      assert.equal(tabBtns[1].getAttribute("aria-selected"), "true", "Queue tab should be selected");
 
-      // Home -> Advisor (index 0)
-      hooks.handleTabKeydown({ key: "Home", currentTarget: tabBtns[3], preventDefault: () => {} });
+      // Home -> Work (index 0)
+      hooks.handleTabKeydown({ key: "Home", currentTarget: tabBtns[1], preventDefault: () => {} });
       assert.equal(tabBtns[0].getAttribute("aria-selected"), "true", "Home must navigate to first tab");
+
+      // End -> Project (index 2)
+      hooks.handleTabKeydown({ key: "End", currentTarget: tabBtns[0], preventDefault: () => {} });
+      assert.equal(tabBtns[2].getAttribute("aria-selected"), "true", "End must navigate to last tab");
     });
   });
 
@@ -581,14 +812,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       );
     });
 
-    it("associates catalog skill command textarea with <label class='cmd-label'> via for/id", () => {
-      assert.match(
-        PANEL_HTML,
-        /<label\s+class="cmd-label"\s+for="cat-cmd-\$\{idx\}">[\s\S]*?<\/label>\s*<textarea\s+class="cmd-textarea"\s+id="cat-cmd-\$\{idx\}"/i,
-        "Catalog cmd-textarea must be preceded by an associated label with for/id"
-      );
-    });
-
     it("associates per-task queue assigned model and review gate <label>s with controls via for/id", () => {
       assert.match(
         PANEL_HTML,
@@ -606,8 +829,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
     it("provides accessible aria-label attributes on filter inputs and selects", () => {
       assert.match(PANEL_HTML, /<input[^>]*id="storySearch"[^>]*aria-label="[^"]+"/);
       assert.match(PANEL_HTML, /<select[^>]*id="storyStatusFilter"[^>]*aria-label="[^"]+"/);
-      assert.match(PANEL_HTML, /<input[^>]*id="skillSearch"[^>]*aria-label="[^"]+"/);
-      assert.match(PANEL_HTML, /<select[^>]*id="skillPhaseFilter"[^>]*aria-label="[^"]+"/);
       assert.match(PANEL_HTML, /<input[^>]*id="artifactSearch"[^>]*aria-label="[^"]+"/);
     });
   });
@@ -786,14 +1007,14 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
     });
   });
 
-  describe("UX Design Sync: LD-1 single-row 5-tab layout, semantic toasts & view consistency", () => {
+  describe("UX Design Sync: LD-1 single-row 3-tab layout, semantic toasts & view consistency", () => {
     const styleText = extractStyleContent(PANEL_HTML);
 
-    it("LD-1: lays out all 5 tabs in a single 5-column grid row without orphan wrapping", () => {
+    it("LD-1: lays out all 3 tabs in a single 3-column grid row without orphan wrapping", () => {
       assert.match(
         styleText,
-        /\.tabs-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\)/,
-        ".tabs-nav must use repeat(5, minmax(0, 1fr)) so all 5 tabs fit in one row"
+        /\.tabs-nav\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/,
+        ".tabs-nav must use repeat(3, minmax(0, 1fr)) so all 3 tabs fit in one row"
       );
       assert.match(
         styleText,
@@ -864,11 +1085,11 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       assert.match(bannerHtml, /pill-warning[^>]*>⏸ PAUSED \(2\)/, "Paused queue banner must render pill-warning ⏸ PAUSED badge");
     });
 
-    it("renders padded .agent-card rows, keyboard-accessible Phase/Epic <button aria-expanded> toggles, empty states, and artifact close button", () => {
+    it("renders padded flat .phase-card rows, keyboard-accessible Epic <button aria-expanded> toggles, empty states, and artifact close button", () => {
       assert.match(
         styleText,
-        /\.agent-card\s*\{[\s\S]*?padding:\s*9px\s+11px/,
-        ".agent-card must define 9px 11px padding"
+        /\.phase-card\s*\{[\s\S]*?padding:\s*9px\s+11px/,
+        ".phase-card must define 9px 11px padding"
       );
       assert.match(
         PANEL_HTML,
@@ -878,7 +1099,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
 
       const env = createStubbedA11yEnvironment();
       env.elements.get("storyStatusFilter").value = "all";
-      env.elements.get("skillPhaseFilter").value = "all";
       const hooks = env.getTestHooks();
       hooks.renderWorkspaceState({
         projectName: "UX Sync Test",
@@ -904,32 +1124,17 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
             stories: []
           }
         ],
-        skillsCatalog: [],
-        agentsCatalog: [
-          {
-            skill: "bmad-agent-ux-designer",
-            icon: "🎨",
-            name: "Sally",
-            title: "UX Designer",
-            focus: "Experience & visual systems"
-          }
-        ],
         artifacts: []
       });
 
       const phasesHtml = env.elements.get("phasesList").innerHTML;
-      assert.match(phasesHtml, /<button[^>]*class="phase-summary-row"[^>]*aria-expanded="true"/);
+      assert.match(phasesHtml, /class="phase-card"[^>]*data-overlay-trigger="phase:2-planning"/);
+      assert.doesNotMatch(phasesHtml, /phase-summary-row/);
       assert.match(phasesHtml, /<button[^>]*class="art-chip-main"/);
       assert.match(phasesHtml, /<button[^>]*class="art-chip-open"/);
 
       const epicsHtml = env.elements.get("epicsList").innerHTML;
       assert.match(epicsHtml, /<button[^>]*class="epic-toggle-btn"[^>]*aria-expanded="true"/);
-
-      const skillsHtml = env.elements.get("skillsCatalogList").innerHTML;
-      assert.match(skillsHtml, /class="empty-state-card"/);
-
-      const agentsHtml = env.elements.get("agentsCatalogList").innerHTML;
-      assert.match(agentsHtml, /class="agent-card"/);
 
       const artsHtml = env.elements.get("artifactsDirectoryList").innerHTML;
       assert.match(artsHtml, /class="empty-state-card"/);
@@ -941,7 +1146,7 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       assert.equal(previewCard.style.display, "none");
     });
 
-    it("refines progressbar ARIA, paused queue controls, honest Queue Epic states, agent search filtering, and filter-clear buttons", () => {
+    it("refines progressbar ARIA, paused queue controls, honest Queue Epic states, and filter-clear buttons", () => {
       assert.match(
         PANEL_HTML,
         /<div[^>]*id="progressBarTrack"[^>]*role="progressbar"[^>]*aria-labelledby="progressHeadline"[^>]*aria-valuemin="0"[^>]*aria-valuemax="100"/,
@@ -961,7 +1166,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       const env = createStubbedA11yEnvironment();
       const hooks = env.getTestHooks();
       env.elements.get("storyStatusFilter").value = "all";
-      env.elements.get("skillPhaseFilter").value = "all";
 
       hooks.renderWorkspaceState({
         projectName: "Ergonomics Test",
@@ -984,13 +1188,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
             stories: [{ id: "1.1", title: "Done Story", smartStatus: "done", declaredStatus: "done", overrideKey: "epic-done#1" }]
           }
         ],
-        skillsCatalog: [
-          { skill: "bmad-ux", displayName: "UX Design", description: "Design UX", module: "bmm", phase: "2-planning", contextualCommand: "/bmad-ux \"x\"" }
-        ],
-        agentsCatalog: [
-          { skill: "bmad-agent-ux-designer", icon: "🎨", name: "Sally", title: "UX Designer", focus: "Experience" },
-          { skill: "bmad-agent-dev", icon: "💻", name: "Amelia", title: "Developer", focus: "Implementation" }
-        ],
         artifacts: [
           { relPath: "_bmad-output/prd.md", name: "prd.md", kind: "prd", phaseId: "2-planning", phaseName: "Planning", gitStatus: "committed", mtimeMs: Date.now() }
         ]
@@ -1009,14 +1206,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       env.elements.get("storySearch").value = "no-such-story-xyz";
       hooks.renderEpics(true);
       assert.match(env.elements.get("epicsList").innerHTML, /id="btnClearStoryFilters"/);
-
-      // #skillSearch filters agents too ("sally" keeps Sally and excludes Amelia)
-      env.elements.get("skillSearch").value = "sally";
-      hooks.renderSkillsCatalog(true);
-      const agentsFilteredHtml = env.elements.get("agentsCatalogList").innerHTML;
-      assert.match(agentsFilteredHtml, /Sally/);
-      assert.doesNotMatch(agentsFilteredHtml, /Amelia/);
-      assert.match(env.elements.get("skillsCatalogList").innerHTML, /id="btnClearSkillFilters"/);
 
       // Artifact filter miss includes #btnClearArtifactSearch
       env.elements.get("artifactSearch").value = "missing-artifact-xyz";
@@ -1163,7 +1352,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
 
       const env = createStubbedA11yEnvironment();
       env.elements.get("storyStatusFilter").value = "all";
-      env.elements.get("skillPhaseFilter").value = "all";
       const hooks = env.getTestHooks();
 
       hooks.renderWorkspaceState({
@@ -1273,7 +1461,6 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
 
       const env = createStubbedA11yEnvironment();
       env.elements.get("storyStatusFilter").value = "all";
-      env.elements.get("skillPhaseFilter").value = "all";
       const hooks = env.getTestHooks();
 
       hooks.renderWorkspaceState({
@@ -1321,3 +1508,788 @@ describe("Story 4.3: Accessibility floor — close AD-1 through AD-5", () => {
       );
     });
   });
+
+  describe("Story 8.2: 3-tab Work / Queue / Project shell, plain headings & Project consolidation", () => {
+    const styleText = extractStyleContent(PANEL_HTML);
+
+    it("RD-3: uses plain task headings across Work, Queue, and Project and updated empty-queue copy", () => {
+      assert.match(PANEL_HTML, /<div[^>]*id="workTabHeading"[^>]*>🚀 What to do next<\/div>/);
+      assert.match(PANEL_HTML, /<div[^>]*id="queueTabHeading"[^>]*>⛓️ Queued tasks<\/div>/);
+      assert.match(PANEL_HTML, /<div[^>]*id="projectTabHeading"[^>]*>📈 Line up your tickets with the code<\/div>/);
+      assert.match(PANEL_HTML, /<div[^>]*class="section-title"[^>]*>🏛️ Phases<\/div>/);
+      assert.match(PANEL_HTML, /<div[^>]*class="section-title"[^>]*>📦 Epics and tickets<\/div>/);
+      assert.match(PANEL_HTML, /<div[^>]*class="section-title"[^>]*>🕒 Recently changed files<\/div>/);
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      hooks.renderWorkspaceState({
+        projectName: "Empty Queue Copy Test",
+        metrics: { totalEpics: 0, totalStories: 0, smartDoneStories: 0, smartOverallPct: 0, declaredOverallPct: 0 },
+        taskQueue: {
+          status: "idle",
+          executionMode: "dynamic-workflow",
+          defaultReviewMode: "none",
+          counts: { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 },
+          items: []
+        }
+      });
+      const emptyQueueHtml = env.elements.get("queueItemsList").innerHTML;
+      assert.match(emptyQueueHtml, /<b>⚡ Work<\/b> \/ <b>📊 Project<\/b>/);
+      assert.doesNotMatch(emptyQueueHtml, /Next Prompts|Phases & Epics/);
+    });
+
+    it("RD-4: provides verbatim 'Use it when…' copy on tab title, aria-describedby, and visible .tab-purpose subtitles", () => {
+      const expected = [
+        {
+          btnId: "tabBtnWork",
+          descId: "tabDescWork",
+          text: "You want to know what to do next, in plain words, and start it."
+        },
+        {
+          btnId: "tabBtnQueue",
+          descId: "tabDescQueue",
+          text: "You want to see or change what is lined up to run."
+        },
+        {
+          btnId: "tabBtnProject",
+          descId: "tabDescProject",
+          text: "You want to see where the work stands and how it is structured."
+        }
+      ];
+
+      assert.match(styleText, /\.tab-purpose\s*\{[\s\S]*?font-size:\s*12\.5px/);
+
+      for (const item of expected) {
+        assert.match(
+          PANEL_HTML,
+          new RegExp(`<button[^>]*id="${item.btnId}"[^>]*aria-describedby="${item.descId}"[^>]*title="${item.text}"`),
+          `${item.btnId} must carry verbatim RD-4 title and aria-describedby`
+        );
+        assert.match(
+          PANEL_HTML,
+          new RegExp(`<div[^>]*class="tab-purpose"[^>]*id="${item.descId}"[^>]*>${item.text}<\\/div>`),
+          `${item.descId} must render verbatim RD-4 subtitle under tab heading`
+        );
+      }
+    });
+
+    it("OQ-9: removes legacy 5-tab/catalog/agent markup and switchTab('artifacts') calls from panel.html", () => {
+      const forbiddenTokens = [
+        'switchTab("artifacts"',
+        "switchTab('artifacts'",
+        "tab-advisor",
+        "tab-progress",
+        "tab-catalog",
+        "tab-artifacts",
+        "tabBtnAdvisor",
+        "tabBtnProgress",
+        "tabBtnCatalog",
+        "tabBtnArtifacts",
+        "skillsCatalogList",
+        "agentsCatalogList",
+        "skillSearch",
+        "skillPhaseFilter",
+        "btnExpandAllPhases",
+        "btnCollapseAllPhases",
+        "agent-card",
+        "phase-summary-row"
+      ];
+      for (const tok of forbiddenTokens) {
+        assert.equal(PANEL_HTML.includes(tok), false, `panel.html must not contain legacy token ${tok}`);
+      }
+    });
+
+    it("RD-9: consolidates flat phases, empty phase message, and Changed Files + inspector inside #tab-project", () => {
+      const projectMatch = PANEL_HTML.match(/<section[^>]*id="tab-project"[\s\S]*?<\/section>/);
+      assert.ok(projectMatch, "#tab-project section must exist");
+      const projectSection = projectMatch[0];
+      assert.match(projectSection, /id="phasesList"/);
+      assert.match(projectSection, /id="epicsList"/);
+      assert.match(projectSection, /id="artifactPreviewCard"/);
+      assert.match(projectSection, /id="artifactsDirectoryList"/);
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      hooks.renderWorkspaceState({
+        projectName: "Empty Phase Test",
+        metrics: { totalEpics: 0, totalStories: 0, smartDoneStories: 0, smartOverallPct: 0, declaredOverallPct: 0 },
+        phases: [
+          {
+            id: "1-analysis",
+            name: "Phase 1 · Analysis",
+            progressPct: 0,
+            status: "pending",
+            summary: "Product brief",
+            artifacts: []
+          }
+        ]
+      });
+      assert.match(env.elements.get("phasesList").innerHTML, /No artifacts generated in this phase yet\./);
+    });
+
+    it("RD-5: toggles btn-primary on #btnReconcileTrackers only when trackers disagree and keeps inspector neutral", () => {
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*id="artifactPreviewCard"[^>]*style="display:\s*none;"/,
+        "#artifactPreviewCard must not carry inline accent border-color"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*id="previewFileName"[^>]*color:\s*var\(--text-primary\)/,
+        "#previewFileName must use neutral var(--text-primary)"
+      );
+      assert.match(
+        PANEL_HTML,
+        /<button[^>]*class="btn"[^>]*id="btnReconcileTrackers"/,
+        "#btnReconcileTrackers must default to plain .btn in initial markup"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      const recBtn = env.elements.get("btnReconcileTrackers");
+
+      // Missing metrics default to synced (no btn-primary)
+      hooks.renderWorkspaceState({ projectName: "Missing Metrics", metrics: {} });
+      assert.equal(recBtn.classList.contains("btn-primary"), false);
+
+      // Drift by reconciledStoriesCount > 0 -> btn-primary added
+      hooks.renderWorkspaceState({
+        projectName: "Drift Count",
+        metrics: { reconciledStoriesCount: 2, smartOverallPct: 50, declaredOverallPct: 50, smartDoneStories: 2, declaredDoneStories: 2 }
+      });
+      assert.equal(recBtn.classList.contains("btn-primary"), true);
+
+      // Synchronized again -> btn-primary removed
+      hooks.renderWorkspaceState({
+        projectName: "Synced",
+        metrics: { reconciledStoriesCount: 0, smartOverallPct: 50, declaredOverallPct: 50, smartDoneStories: 2, declaredDoneStories: 2 }
+      });
+      assert.equal(recBtn.classList.contains("btn-primary"), false);
+
+      // Drift by smartOverallPct !== declaredOverallPct -> btn-primary added
+      hooks.renderWorkspaceState({
+        projectName: "Drift Pct",
+        metrics: { reconciledStoriesCount: 0, smartOverallPct: 75, declaredOverallPct: 50, smartDoneStories: 2, declaredDoneStories: 2 }
+      });
+      assert.equal(recBtn.classList.contains("btn-primary"), true);
+
+      // Drift by smartDoneStories !== declaredDoneStories -> btn-primary added
+      hooks.renderWorkspaceState({
+        projectName: "Drift Done",
+        metrics: { reconciledStoriesCount: 0, smartOverallPct: 50, declaredOverallPct: 50, smartDoneStories: 3, declaredDoneStories: 2 }
+      });
+      assert.equal(recBtn.classList.contains("btn-primary"), true);
+    });
+
+    it("UX Audit: enforces narrow-dock grid wrapping, RD-5 Queue/Project single focal accent, and inline dismiss focus restoration", () => {
+      assert.match(
+        styleText,
+        /\.queue-controls-grid\s*\{[\s\S]*?minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/,
+        ".queue-controls-grid must use minmax(0, 1fr) columns to avoid narrow-dock horizontal overflow"
+      );
+      assert.match(
+        styleText,
+        /\.queue-item-controls-grid\s*\{[\s\S]*?minmax\(0,\s*1\.4fr\)\s+minmax\(0,\s*1fr\)/,
+        ".queue-item-controls-grid must use minmax(0, ...) columns"
+      );
+      assert.match(
+        styleText,
+        /\.queue-controls-grid\s+\.model-select,\s*\n\s*\.queue-item-controls-grid\s+\.model-select\s*\{[\s\S]*?min-width:\s*0/,
+        "Grid-child .model-select must override min-width: 0"
+      );
+      for (const cls of [".overlay-body-text", ".overlay-meta-text", ".artifact-preview", ".reconciliation-diff-content", ".story-title"]) {
+        const re = new RegExp(`\\${cls}\\s*\\{[^}]*?overflow-wrap:\\s*anywhere`);
+        assert.match(styleText, re, `${cls} must wrap long unbroken tokens via overflow-wrap: anywhere`);
+      }
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      const runBtn = env.elements.get("btnRunQueueWorkflow");
+      const retryBtn = env.elements.get("btnRetryFailedQueue");
+
+      // 1. Empty queue -> neither Run nor Retry carries btn-primary
+      hooks.renderWorkspaceState({
+        projectName: "Queue Focal",
+        metrics: { totalEpics: 1, totalStories: 1, smartDoneStories: 1, smartOverallPct: 100, declaredOverallPct: 100 },
+        epics: [
+          {
+            id: "1",
+            number: 1,
+            slug: "e1",
+            title: "Done Epic",
+            smartProgressPct: 100,
+            declaredProgressPct: 100,
+            stories: [{ id: "1.1", title: "Done Story", smartStatus: "done", overrideKey: "e1#1" }]
+          }
+        ],
+        taskQueue: {
+          status: "idle",
+          executionMode: "separate-sessions",
+          counts: { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 },
+          items: []
+        }
+      });
+      assert.equal(runBtn.classList.contains("btn-primary"), false);
+      assert.equal(retryBtn.classList.contains("btn-primary"), false);
+      // Per-story New Session button uses neutral .btn so Project keeps #btnReconcileTrackers as sole focal accent
+      assert.doesNotMatch(env.elements.get("epicsList").innerHTML, /class="btn btn-primary"[^>]*data-story-prompt/);
+
+      // 2. Queued items waiting -> #btnRunQueueWorkflow carries btn-primary; per-row buttons do not
+      hooks.renderWorkspaceState({
+        projectName: "Queue Focal Queued",
+        metrics: { totalEpics: 0, totalStories: 0, smartDoneStories: 0, smartOverallPct: 0, declaredOverallPct: 0 },
+        taskQueue: {
+          status: "idle",
+          executionMode: "separate-sessions",
+          counts: { total: 1, running: 0, queued: 1, done: 0, failed: 0, progressPct: 0 },
+          items: [{ id: "t1", title: "Queued", status: "queued", model: "p/m", reviewMode: "none", effectivePrompt: '/bmad-build "x"' }]
+        }
+      });
+      assert.equal(runBtn.classList.contains("btn-primary"), true);
+      assert.equal(retryBtn.classList.contains("btn-primary"), false);
+      assert.doesNotMatch(env.elements.get("queueItemsList").innerHTML, /btn-primary/);
+
+      // 3. Active task running -> spotlight carries focus, Run button drops btn-primary
+      hooks.renderWorkspaceState({
+        projectName: "Queue Focal Running",
+        metrics: { totalEpics: 0, totalStories: 0, smartDoneStories: 0, smartOverallPct: 0, declaredOverallPct: 0 },
+        taskQueue: {
+          status: "running",
+          executionMode: "separate-sessions",
+          activeTask: { id: "t1", title: "Running", status: "running", model: "p/m", reviewMode: "none", effectivePrompt: '/bmad-build "x"' },
+          counts: { total: 2, running: 1, queued: 1, done: 0, failed: 0, progressPct: 0 },
+          items: [{ id: "t1", title: "Running", status: "running", model: "p/m", reviewMode: "none", effectivePrompt: '/bmad-build "x"' }]
+        }
+      });
+      assert.equal(runBtn.classList.contains("btn-primary"), false);
+
+      // 4. Failed only -> #btnRetryFailedQueue carries btn-primary
+      hooks.renderWorkspaceState({
+        projectName: "Queue Focal Failed",
+        metrics: { totalEpics: 0, totalStories: 0, smartDoneStories: 0, smartOverallPct: 0, declaredOverallPct: 0 },
+        taskQueue: {
+          status: "completed",
+          executionMode: "separate-sessions",
+          counts: { total: 1, running: 0, queued: 0, done: 0, failed: 1, progressPct: 0 },
+          items: [{ id: "t1", title: "Failed", status: "failed", model: "p/m", reviewMode: "none", effectivePrompt: '/bmad-build "x"' }]
+        }
+      });
+      assert.equal(runBtn.classList.contains("btn-primary"), false);
+      assert.equal(retryBtn.classList.contains("btn-primary"), true);
+
+      // 5. Closing inline reconciliation diff & artifact preview restores focus cleanly
+      env.elements.get("reconciliationDiffCard").style.display = "block";
+      env.elements.get("btnCloseDiff").dispatchEvent({ type: "click" });
+      assert.equal(env.getActiveElement()?.id, "btnPreviewReconcile");
+
+      env.elements.get("artifactPreviewCard").style.display = "block";
+      env.elements.get("btnCloseArtifactPreview").dispatchEvent({ type: "click" });
+      assert.equal(env.getActiveElement()?.id, "artifactSearch");
+    });
+  });
+
+  describe("Story 8.6: Finalized AD-16 3-tab ARIA, dialog/disclosure attributes, interactive-descendant guard & complete Palette C WCAG contrast suite", () => {
+    const styleText = extractStyleContent(PANEL_HTML);
+
+    it("enforces exact 3-tab / 3-tabpanel cardinality, bidirectional ARIA linkage, rendered switchTab('project'/'work'), and keyboard focus transfer", () => {
+      const tabMatches = [...PANEL_HTML.matchAll(/<button\b([^>]*\brole="tab"[^>]*)>/gi)];
+      const panelMatches = [...PANEL_HTML.matchAll(/<section\b([^>]*\brole="tabpanel"[^>]*)>/gi)];
+
+      assert.equal(tabMatches.length, 3, "Panel must expose exactly 3 role='tab' buttons");
+      assert.equal(panelMatches.length, 3, "Panel must expose exactly 3 role='tabpanel' sections");
+
+      const parsedTabs = tabMatches.map((m) => {
+        const attrs = m[1];
+        return {
+          id: attrs.match(/\bid="([^"]+)"/i)?.[1],
+          controls: attrs.match(/\baria-controls="([^"]+)"/i)?.[1],
+          describedby: attrs.match(/\baria-describedby="([^"]+)"/i)?.[1],
+          dataTab: attrs.match(/\bdata-tab="([^"]+)"/i)?.[1]
+        };
+      });
+      const parsedPanels = panelMatches.map((m) => {
+        const attrs = m[1];
+        return {
+          id: attrs.match(/\bid="([^"]+)"/i)?.[1],
+          labelledby: attrs.match(/\baria-labelledby="([^"]+)"/i)?.[1]
+        };
+      });
+
+      assert.deepEqual(
+        parsedTabs.map((t) => t.dataTab),
+        ["work", "queue", "project"]
+      );
+
+      for (const tab of parsedTabs) {
+        assert.ok(tab.id && tab.controls && tab.describedby, `Tab ${tab.id} must have id, aria-controls, aria-describedby`);
+        const matchedPanel = parsedPanels.find((p) => p.id === tab.controls);
+        assert.ok(matchedPanel, `Tab ${tab.id} aria-controls="${tab.controls}" must match a tabpanel`);
+        assert.equal(
+          matchedPanel.labelledby,
+          tab.id,
+          `Tabpanel ${matchedPanel.id} aria-labelledby must point back to ${tab.id}`
+        );
+        assert.match(
+          PANEL_HTML,
+          new RegExp(`<div[^>]*class="tab-purpose"[^>]*id="${tab.describedby}"`, "i"),
+          `aria-describedby="${tab.describedby}" must reference a .tab-purpose subtitle`
+        );
+      }
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      const workBtn = env.elements.get("tabBtnWork");
+      const queueBtn = env.elements.get("tabBtnQueue");
+      const projectBtn = env.elements.get("tabBtnProject");
+      const workPanel = env.elements.get("tab-work");
+      const queuePanel = env.elements.get("tab-queue");
+      const projectPanel = env.elements.get("tab-project");
+
+      // Switch to project and verify ARIA + display
+      hooks.switchTab("project");
+      assert.equal(workBtn.getAttribute("aria-selected"), "false");
+      assert.equal(workBtn.getAttribute("tabindex"), "-1");
+      assert.equal(queueBtn.getAttribute("aria-selected"), "false");
+      assert.equal(queueBtn.getAttribute("tabindex"), "-1");
+      assert.equal(projectBtn.getAttribute("aria-selected"), "true");
+      assert.equal(projectBtn.getAttribute("tabindex"), "0");
+      assert.equal(workPanel.style.display, "none");
+      assert.equal(queuePanel.style.display, "none");
+      assert.equal(projectPanel.style.display, "block");
+
+      // Switch back to work and verify ARIA + display
+      hooks.switchTab("work");
+      assert.equal(workBtn.getAttribute("aria-selected"), "true");
+      assert.equal(workBtn.getAttribute("tabindex"), "0");
+      assert.equal(projectBtn.getAttribute("aria-selected"), "false");
+      assert.equal(projectBtn.getAttribute("tabindex"), "-1");
+      assert.equal(workPanel.style.display, "block");
+      assert.equal(projectPanel.style.display, "none");
+
+      // Keyboard navigation transfers actual focus (document.activeElement) across all 3 tabs
+      workBtn.focus();
+      assert.equal(env.getActiveElement(), workBtn);
+
+      hooks.handleTabKeydown({ key: "ArrowRight", currentTarget: workBtn, preventDefault: () => {} });
+      assert.equal(env.getActiveElement(), queueBtn, "ArrowRight must move DOM focus to #tabBtnQueue");
+
+      hooks.handleTabKeydown({ key: "ArrowRight", currentTarget: queueBtn, preventDefault: () => {} });
+      assert.equal(env.getActiveElement(), projectBtn, "ArrowRight must move DOM focus to #tabBtnProject");
+
+      hooks.handleTabKeydown({ key: "Home", currentTarget: projectBtn, preventDefault: () => {} });
+      assert.equal(env.getActiveElement(), workBtn, "Home must move DOM focus to #tabBtnWork");
+
+      hooks.handleTabKeydown({ key: "End", currentTarget: workBtn, preventDefault: () => {} });
+      assert.equal(env.getActiveElement(), projectBtn, "End must move DOM focus to #tabBtnProject");
+    });
+
+    it("verifies static + rendered #overlayLayer dialog ARIA, overlay <label for> associations, ⤢ aria-labels, and RD-8 disclosure collapse round-trips with neutral .btn weight", () => {
+      // Static dialog + close button + expand aria-label checks
+      assert.match(
+        PANEL_HTML,
+        /<div[^>]*id="overlayLayer"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="overlayTitle"[^>]*aria-hidden="true"[^>]*style="display:\s*none;"/i
+      );
+      assert.match(PANEL_HTML, /<div[^>]*id="overlayTitle"[^>]*>Focus View<\/div>/);
+      assert.match(PANEL_HTML, /<button[^>]*id="overlayCloseBtn"[^>]*aria-label="Close overlay"/);
+      assert.match(PANEL_HTML, /<button[^>]*id="btnExpandInsights"[^>]*aria-label="Expand AI notes in Focus View"/);
+      assert.match(PANEL_HTML, /<button[^>]*id="btnExpandReconciliationDiff"[^>]*aria-label="Expand reconciliation diff in Focus View"/);
+      assert.match(PANEL_HTML, /<button[^>]*id="btnExpandArtifactPreview"[^>]*aria-label="Expand artifact preview in Focus View"/);
+
+      // Static overlay label associations for Queue and Story Focus Views
+      for (const id of ["overlay-q-model", "overlay-q-review", "overlay-q-prompt", "overlay-story-cmd", "overlay-story-model"]) {
+        assert.match(
+          PANEL_HTML,
+          new RegExp(`<label[^>]*for="${id}"[^>]*>[\\s\\S]*?<\\/label>[\\s\\S]*?id="${id}"`, "i"),
+          `Overlay control #${id} must have an associated <label for="${id}">`
+        );
+      }
+
+      // RD-8: disclosure buttons never escalate visual weight on aria-expanded="true"
+      assert.doesNotMatch(
+        styleText,
+        /\.disclosure-btn\[aria-expanded="true"\][^}]*?(?:btn-primary|background:\s*var\(--accent\)|font-weight:\s*700)/i,
+        "RD-8 disclosure buttons must keep constant default .btn visual weight when expanded"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      env.elements.get("storyStatusFilter").value = "all";
+
+      hooks.renderWorkspaceState({
+        projectName: "Dialog & Disclosure A11y",
+        metrics: { totalEpics: 1, totalStories: 1, smartDoneStories: 0, smartOverallPct: 0, declaredOverallPct: 0 },
+        availableModels: [{ id: "prov/model-a", modelId: "model-a", providerName: "Prov", current: true }],
+        smartInsights: [{ title: "Insight 1", detail: "Detail 1", severity: "info" }],
+        providerState: { activeProviders: [{ providerName: "Prov", modelCount: 1, kind: "api" }] },
+        phases: [
+          {
+            id: "4-implementation",
+            name: "Phase 4 · Implementation",
+            progressPct: 50,
+            status: "in-progress",
+            artifacts: [{ relPath: "docs/spec.md", name: "spec.md", mtimeMs: 1000 }]
+          }
+        ],
+        epics: [
+          {
+            id: "epic-8",
+            slug: "epic-8",
+            number: 8,
+            title: "Panel Redesign",
+            smartProgressPct: 50,
+            declaredProgressPct: 50,
+            stories: [
+              {
+                id: "8.6",
+                title: "Test Suite",
+                smartStatus: "in-progress",
+                overrideKey: "epic-8#6",
+                recommendedModel: { modelId: "prov/model-a" }
+              }
+            ]
+          }
+        ],
+        artifacts: [{ relPath: "docs/spec.md", name: "spec.md", kind: "spec", phaseName: "Implementation", mtimeMs: 1000 }],
+        recommendations: [
+          {
+            title: "Task 1",
+            plainTitle: "First task",
+            plainSummary: "Summary",
+            skill: "/bmad-build",
+            phase: "4-implementation",
+            fullCommand: '/bmad-build "Task 1"',
+            recommendedModel: { modelId: "prov/model-a" }
+          }
+        ],
+        taskQueue: {
+          status: "running",
+          executionMode: "separate-sessions",
+          defaultReviewMode: "none",
+          activeTask: {
+            id: "q-act",
+            title: "Active Task",
+            status: "running",
+            model: "prov/model-a",
+            reviewMode: "none",
+            effectivePrompt: '/bmad-build "Active"'
+          },
+          counts: { total: 2, running: 1, queued: 1, done: 0, failed: 0, progressPct: 0 },
+          items: [
+            {
+              id: "q-act",
+              title: "Active Task",
+              status: "running",
+              model: "prov/model-a",
+              reviewMode: "none",
+              effectivePrompt: '/bmad-build "Active"'
+            },
+            {
+              id: "q-queued",
+              title: "Queued Task",
+              status: "queued",
+              model: "prov/model-a",
+              reviewMode: "none",
+              effectivePrompt: '/bmad-build "Queued"'
+            }
+          ]
+        }
+      });
+
+      // Rendered ⤢ expand buttons all carry descriptive Focus View aria-labels
+      const renderedExpandBtns = env.sandbox.document.querySelectorAll(".focus-expand-btn");
+      assert.ok(renderedExpandBtns.length >= 8, "All rendered Focus View targets must include .focus-expand-btn");
+      for (const btn of renderedExpandBtns) {
+        const label = btn.getAttribute("aria-label") || "";
+        assert.match(label, /Focus View/i, `Expand button ${btn.id || btn.getAttribute("data-focus-expand")} must describe Focus View in aria-label`);
+      }
+
+      // Rendered #overlayLayer dialog aria-hidden lifecycle & Queue Focus View <label for> associations
+      const overlayLayer = env.elements.get("overlayLayer");
+      const overlayBody = env.elements.get("overlayBody");
+      assert.equal(overlayLayer.getAttribute("aria-hidden"), "true");
+
+      hooks.openOverlay({ kind: "focus", targetType: "queue-item", targetKey: "q-queued" });
+      assert.equal(overlayLayer.getAttribute("aria-hidden"), "false");
+      for (const qControlId of ["overlay-q-model", "overlay-q-review", "overlay-q-prompt"]) {
+        assert.ok(overlayBody.querySelector(`label[for="${qControlId}"]`), `Rendered Queue overlay must contain <label for="${qControlId}">`);
+        assert.ok(overlayBody.querySelector(`#${qControlId}`), `Rendered Queue overlay must contain #${qControlId}`);
+      }
+      hooks.closeOverlay();
+      assert.equal(overlayLayer.getAttribute("aria-hidden"), "true");
+
+      // Rendered Story Focus View <label for> associations
+      hooks.openOverlay({ kind: "focus", targetType: "story", targetKey: "epic-8#6" });
+      assert.equal(overlayLayer.getAttribute("aria-hidden"), "false");
+      for (const sControlId of ["overlay-story-cmd", "overlay-story-model"]) {
+        assert.ok(overlayBody.querySelector(`label[for="${sControlId}"]`), `Rendered Story overlay must contain <label for="${sControlId}">`);
+        assert.ok(overlayBody.querySelector(`#${sControlId}`), `Rendered Story overlay must contain #${sControlId}`);
+      }
+      hooks.closeOverlay();
+      assert.equal(overlayLayer.getAttribute("aria-hidden"), "true");
+
+      // RD-8 disclosure collapse round-trip (false -> true -> false) + aria-controls + neutral .btn weight
+      const disclosureSpecs = [
+        { btnId: "btnDisclosureAiNotes", bodyId: "disclosureBodyAiNotes", key: "ai-notes", openDisplay: "block" },
+        { btnId: "btnDisclosureModelsProviders", bodyId: "disclosureBodyModelsProviders", key: "models-providers", openDisplay: "block" },
+        { btnId: "rec-more-actions-0", bodyId: "rec-more-body-0", key: "more-actions", openDisplay: "flex" }
+      ];
+
+      for (const spec of disclosureSpecs) {
+        const btn = env.elements.get(spec.btnId);
+        const body = env.elements.get(spec.bodyId);
+        assert.equal(btn.getAttribute("aria-controls"), spec.bodyId, `#${spec.btnId} aria-controls must target #${spec.bodyId}`);
+        assert.equal(btn.getAttribute("aria-expanded"), "false");
+        assert.equal(body.style.display, "none");
+        assert.equal(btn.classList.contains("btn"), true);
+        assert.equal(btn.classList.contains("btn-primary"), false);
+        assert.equal(btn.classList.contains("btn-purple"), false);
+
+        // Expand
+        btn.dispatchEvent({ type: "click" });
+        const btnOpen = env.elements.get(spec.btnId);
+        const bodyOpen = env.elements.get(spec.bodyId);
+        assert.equal(btnOpen.getAttribute("aria-expanded"), "true");
+        assert.equal(bodyOpen.style.display, spec.openDisplay);
+        assert.equal(hooks.getExpandedDisclosures().has(spec.key), true);
+        assert.equal(btnOpen.classList.contains("btn-primary"), false);
+        assert.equal(btnOpen.classList.contains("btn-purple"), false);
+
+        // Collapse
+        btnOpen.dispatchEvent({ type: "click" });
+        const btnClosed = env.elements.get(spec.btnId);
+        const bodyClosed = env.elements.get(spec.bodyId);
+        assert.equal(btnClosed.getAttribute("aria-expanded"), "false");
+        assert.equal(bodyClosed.style.display, "none");
+        assert.equal(hooks.getExpandedDisclosures().has(spec.key), false);
+        assert.equal(btnClosed.classList.contains("btn-primary"), false);
+        assert.equal(btnClosed.classList.contains("btn-purple"), false);
+      }
+    });
+
+    it("verifies static + rendered AD-17 §3 interactive-descendant click guard across direct and nested targets", () => {
+      const scriptText = extractInlineScript(PANEL_HTML);
+      assert.match(
+        scriptText,
+        /INTERACTIVE_DESCENDANT_SELECTOR\s*=\s*['"]button,\s*a,\s*input,\s*select,\s*textarea,\s*label,\s*\[role="tab"\],\s*\.status-pill,\s*\.pill['"]/,
+        "INTERACTIVE_DESCENDANT_SELECTOR must enumerate all AD-17 §3 interactive descendant selectors"
+      );
+      assert.match(
+        scriptText,
+        /function bindFocusTriggers[\s\S]*?if\s*\(isInteractiveDescendantClick\(e,\s*el\)\)\s*return;/,
+        "bindFocusTriggers must enforce isInteractiveDescendantClick(e, el)"
+      );
+
+      const env = createStubbedA11yEnvironment();
+      const hooks = env.getTestHooks();
+      const container = env.makeElement("a11y-card", "DIV");
+      const plain = env.makeElement("a11y-plain", "SPAN");
+      container.appendChild(plain);
+
+      assert.equal(hooks.isInteractiveDescendantClick({ target: container }, container), false);
+      assert.equal(hooks.isInteractiveDescendantClick({ target: plain }, container), false);
+
+      for (const [label, tag, attrs] of [
+        ["button", "BUTTON", {}],
+        ["a", "A", {}],
+        ["input", "INPUT", {}],
+        ["select", "SELECT", {}],
+        ["textarea", "TEXTAREA", {}],
+        ["label", "LABEL", {}],
+        ["[role=tab]", "DIV", { role: "tab" }],
+        [".status-pill", "SPAN", { class: "status-pill" }],
+        [".pill", "SPAN", { class: "pill" }]
+      ]) {
+        const parent = env.makeElement(`a11y-int-${label}`, tag);
+        if (attrs.role) parent.setAttribute("role", attrs.role);
+        if (attrs.class) parent.classList.add(attrs.class);
+        const child = env.makeElement(`a11y-nested-${label}`, "SPAN");
+        parent.appendChild(child);
+        container.appendChild(parent);
+
+        assert.equal(hooks.isInteractiveDescendantClick({ target: parent }, container), true, `Direct ${label} must be guarded`);
+        assert.equal(hooks.isInteractiveDescendantClick({ target: child }, container), true, `Nested span inside ${label} must be guarded`);
+      }
+    });
+
+    it("verifies complete Palette C dark/light token fidelity and deterministic WCAG 2.1 contrast across every surface, pill, gradient, diff wash, and focus ring", () => {
+      const rootScope = /:root\s*\{[\s\S]*?\}/;
+      const lightScope = /body\.theme-light\s*\{[\s\S]*?\}/;
+
+      const expectedDarkTokens = {
+        "--bg-primary": "#1b1b1e",
+        "--bg-secondary": "#242428",
+        "--bg-tertiary": "#2e2e33",
+        "--bg-elevated": "#35353b",
+        "--border": "#3d3d44",
+        "--border-subtle": "#2c2c31",
+        "--text-primary": "#d6d3cd",
+        "--text-secondary": "#a3a09a",
+        "--text-muted": "#9e9b95",
+        "--accent": "#74a9c9",
+        "--accent-soft": "#74a9c914",
+        "--success": "#86b98a",
+        "--success-soft": "#86b98a14",
+        "--warning": "#cfae62",
+        "--warning-soft": "#cfae6214",
+        "--purple": "#b3a4d6",
+        "--purple-soft": "#b3a4d614",
+        "--danger": "#d98890",
+        "--danger-soft": "#d9889014",
+        "--on-primary": "#ffffff",
+        "--primary-gradient-start": "#35687f",
+        "--primary-gradient-end": "#3a728b",
+        "--brand-gradient-start": "#35687f",
+        "--brand-gradient-end": "#7d6aa0"
+      };
+
+      const expectedLightTokens = {
+        "--bg-primary": "#fbf9f6",
+        "--bg-secondary": "#f4f1ed",
+        "--bg-tertiary": "#e9e5df",
+        "--bg-elevated": "#ffffff",
+        "--border": "#d9d3ca",
+        "--border-subtle": "#e6e1da",
+        "--text-primary": "#2b2926",
+        "--text-secondary": "#5c5852",
+        "--text-muted": "#67625b",
+        "--accent": "#28627c",
+        "--accent-soft": "#28627c1a",
+        "--success": "#2a663c",
+        "--success-soft": "#2a663c14",
+        "--warning": "#7d5f22",
+        "--warning-soft": "#7d5f2214",
+        "--purple": "#6b5a9c",
+        "--purple-soft": "#6b5a9c14",
+        "--danger": "#a4444d",
+        "--danger-soft": "#a4444d14",
+        "--primary-gradient-start": "#28627c",
+        "--primary-gradient-end": "#225468",
+        "--brand-gradient-start": "#28627c",
+        "--brand-gradient-end": "#6b5a9c"
+      };
+
+      // 1. Assert full Palette C token completeness
+      for (const [k, expected] of Object.entries(expectedDarkTokens)) {
+        assert.equal(extractCssVar(styleText, rootScope, k), expected, `Dark token ${k} must match DESIGN.md Palette C`);
+      }
+      for (const [k, expected] of Object.entries(expectedLightTokens)) {
+        assert.equal(extractCssVar(styleText, lightScope, k), expected, `Light token ${k} must match DESIGN.md Palette C`);
+      }
+
+      // Verify diff wash CSS rules use 16% color-mix over transparent
+      assert.match(styleText, /\.diff-add\s*\{[\s\S]*?color-mix\(in srgb,\s*var\(--success\)\s*16%,\s*transparent\)/);
+      assert.match(styleText, /\.diff-del\s*\{[\s\S]*?color-mix\(in srgb,\s*var\(--danger\)\s*16%,\s*transparent\)/);
+
+      // Extract --on-primary dynamically from :root (never hardcoded)
+      const onPrimary = extractCssVar(styleText, rootScope, "--on-primary");
+
+      const themes = [
+        { name: "dark", scope: rootScope },
+        { name: "light", scope: lightScope }
+      ];
+      const surfaces = ["--bg-primary", "--bg-secondary", "--bg-tertiary"];
+      const inkTokens = ["--text-primary", "--text-secondary", "--text-muted"];
+      const semanticHues = ["accent", "success", "warning", "purple", "danger"];
+      const gradientStops = [
+        "--primary-gradient-start",
+        "--primary-gradient-end",
+        "--brand-gradient-start",
+        "--brand-gradient-end"
+      ];
+
+      for (const { name, scope } of themes) {
+        const bgPrimary = extractCssVar(styleText, scope, "--bg-primary");
+        const bgSecondary = extractCssVar(styleText, scope, "--bg-secondary");
+        const bgTertiary = extractCssVar(styleText, scope, "--bg-tertiary");
+        const border = extractCssVar(styleText, scope, "--border");
+
+        // Distinct surface hierarchy
+        assert.notEqual(bgPrimary, bgSecondary, `${name} bg-primary and bg-secondary must be distinct`);
+        assert.notEqual(bgSecondary, bgTertiary, `${name} bg-secondary and bg-tertiary must be distinct`);
+
+        // All 3 ink tokens on all 3 surfaces >= 4.5:1
+        for (const inkVar of inkTokens) {
+          const inkHex = extractCssVar(styleText, scope, inkVar);
+          for (const surfVar of surfaces) {
+            const surfHex = extractCssVar(styleText, scope, surfVar);
+            const ratio = contrastRatio(inkHex, surfHex);
+            assert.ok(
+              ratio >= 4.5,
+              `${name} ${inkVar} (${inkHex}) / ${surfVar} (${surfHex}) = ${ratio.toFixed(2)}:1 (must be >= 4.5:1)`
+            );
+          }
+        }
+
+        // All 5 semantic hues directly on bg-primary and bg-secondary >= 4.5:1
+        for (const hue of semanticHues) {
+          const hueHex = extractCssVar(styleText, scope, `--${hue}`);
+          for (const surfVar of ["--bg-primary", "--bg-secondary"]) {
+            const surfHex = extractCssVar(styleText, scope, surfVar);
+            const ratio = contrastRatio(hueHex, surfHex);
+            assert.ok(
+              ratio >= 4.5,
+              `${name} --${hue} (${hueHex}) / ${surfVar} (${surfHex}) = ${ratio.toFixed(2)}:1 (must be >= 4.5:1)`
+            );
+          }
+
+          // All 5 semantic pills on *-soft composited over both bg-secondary and bg-primary >= 4.5:1
+          const softToken = extractCssVar(styleText, scope, `--${hue}-soft`);
+          const { hex: softHex, alpha } = parseRgba(softToken);
+          for (const surfVar of ["--bg-secondary", "--bg-primary"]) {
+            const surfHex = extractCssVar(styleText, scope, surfVar);
+            const compBg = compositeColor(softHex, alpha, surfHex);
+            const ratio = contrastRatio(hueHex, compBg);
+            assert.ok(
+              ratio >= 4.5,
+              `${name} pill --${hue} (${hueHex}) on --${hue}-soft (${softToken}) over ${surfVar} (${surfHex} -> ${compBg}) = ${ratio.toFixed(2)}:1 (must be >= 4.5:1)`
+            );
+          }
+        }
+
+        // Dynamic --on-primary on all 4 gradient stops >= 4.5:1
+        for (const gradVar of gradientStops) {
+          const gradHex = extractCssVar(styleText, scope, gradVar);
+          const ratio = contrastRatio(onPrimary, gradHex);
+          assert.ok(
+            ratio >= 4.5,
+            `${name} --on-primary (${onPrimary}) / ${gradVar} (${gradHex}) = ${ratio.toFixed(2)}:1 (must be >= 4.5:1)`
+          );
+        }
+
+        // .diff-add (16% success) and .diff-del (16% danger) over bg-primary >= 4.5:1
+        for (const [cls, hue] of [
+          [".diff-add", "success"],
+          [".diff-del", "danger"]
+        ]) {
+          const hueHex = extractCssVar(styleText, scope, `--${hue}`);
+          const diffBg = compositeColor(hueHex, 0.16, bgPrimary);
+          const ratio = contrastRatio(hueHex, diffBg);
+          assert.ok(
+            ratio >= 4.5,
+            `${name} ${cls} (--${hue} ${hueHex} on 16% wash over ${bgPrimary} = ${diffBg}) = ${ratio.toFixed(2)}:1 (must be >= 4.5:1)`
+          );
+        }
+
+        // Focus indicators: --accent and --purple across all 3 surfaces >= 3.0:1
+        for (const focusVar of ["--accent", "--purple"]) {
+          const focusHex = extractCssVar(styleText, scope, focusVar);
+          for (const surfVar of surfaces) {
+            const surfHex = extractCssVar(styleText, scope, surfVar);
+            const ratio = contrastRatio(focusHex, surfHex);
+            assert.ok(
+              ratio >= 3.0,
+              `${name} focus ${focusVar} (${focusHex}) / ${surfVar} (${surfHex}) = ${ratio.toFixed(2)}:1 (must be >= 3.0:1)`
+            );
+          }
+        }
+
+        // Decorative border stays < 3.0:1 against bg-primary
+        const borderRatio = contrastRatio(border, bgPrimary);
+        assert.ok(
+          borderRatio < 3.0,
+          `${name} decorative --border (${border}) / --bg-primary (${bgPrimary}) = ${borderRatio.toFixed(2)}:1 (expected < 3.0:1 decorative)`
+        );
+      }
+    });
+  });
+

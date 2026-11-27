@@ -15,6 +15,9 @@ function createStubbedDomEnvironment(initialOptions = {}) {
   const outboundMessages = [];
   const toolCalls = [];
   const pendingToolResolutions = [];
+  const pendingInspectArtifactResolutions = [];
+  const pendingReconcileResolutions = [];
+  const pendingOpenArtifactResolutions = [];
   const intervalCallbacks = [];
   const scheduledTimers = [];
 
@@ -23,6 +26,122 @@ function createStubbedDomEnvironment(initialOptions = {}) {
   let isHidden = initialOptions.hidden ?? false;
   let visibilityState = initialOptions.visibilityState ?? "visible";
   let autoRespondGetState = initialOptions.autoRespondGetState ?? true;
+  let queueManageHandler = initialOptions.queueManageHandler ?? null;
+
+  const VOID_TAGS = new Set([
+    "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"
+  ]);
+
+  function unescapeAttr(v) {
+    return String(v || "").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+
+  function splitSelectorList(sel) {
+    const parts = [];
+    let cur = "";
+    let bracketDepth = 0;
+    let quoteChar = "";
+    for (let i = 0; i < sel.length; i++) {
+      const ch = sel[i];
+      if (quoteChar) {
+        cur += ch;
+        if (ch === quoteChar && sel[i - 1] !== "\\") quoteChar = "";
+        continue;
+      }
+      if (ch === '"' || ch === "'") {
+        quoteChar = ch;
+        cur += ch;
+        continue;
+      }
+      if (ch === "[") bracketDepth++;
+      else if (ch === "]" && bracketDepth > 0) bracketDepth--;
+      else if (ch === "," && bracketDepth === 0) {
+        if (cur.trim()) parts.push(cur.trim());
+        cur = "";
+        continue;
+      }
+      cur += ch;
+    }
+    if (cur.trim()) parts.push(cur.trim());
+    return parts;
+  }
+
+  function matchesSingleSelector(node, rawSel) {
+    if (!node || !rawSel) return false;
+    let sel = rawSel.trim();
+    if (!sel) return false;
+
+    const notClauses = [];
+    sel = sel.replace(/:not\(([^)]+)\)/g, (_, inner) => {
+      notClauses.push(inner.trim());
+      return "";
+    });
+    for (const nc of notClauses) {
+      if (matchesSingleSelector(node, nc)) return false;
+    }
+
+    let rest = sel.trim();
+    const tagMatch = rest.match(/^([a-z0-9-]+)/i);
+    if (tagMatch) {
+      if (node.tagName !== tagMatch[1].toUpperCase()) return false;
+      rest = rest.slice(tagMatch[1].length);
+    }
+
+    while (rest.length > 0) {
+      if (rest[0] === "#") {
+        const m = rest.match(/^#([a-z0-9_-]+)/i);
+        if (!m || node.id !== m[1]) return false;
+        rest = rest.slice(m[0].length);
+      } else if (rest[0] === ".") {
+        const m = rest.match(/^\.([a-z0-9_-]+)/i);
+        if (!m || !node.classList?.contains(m[1])) return false;
+        rest = rest.slice(m[0].length);
+      } else if (rest[0] === "[") {
+        const eqMatch = rest.match(/^\[([a-z0-9_-]+)="((?:\\.|[^"\\])*)"\]/i) ||
+          rest.match(/^\[([a-z0-9_-]+)='((?:\\.|[^'\\])*)'\]/i);
+        if (eqMatch) {
+          const expected = unescapeAttr(eqMatch[2]);
+          if (node.getAttribute?.(eqMatch[1]) !== expected) return false;
+          rest = rest.slice(eqMatch[0].length);
+          continue;
+        }
+        const bareEqMatch = rest.match(/^\[([a-z0-9_-]+)=([^\]]+)\]/i);
+        if (bareEqMatch) {
+          if (node.getAttribute?.(bareEqMatch[1]) !== bareEqMatch[2].trim()) return false;
+          rest = rest.slice(bareEqMatch[0].length);
+          continue;
+        }
+        const presMatch = rest.match(/^\[([a-z0-9_-]+)\]/i);
+        if (presMatch) {
+          const attrName = presMatch[1];
+          if (attrName === "disabled") {
+            if (!node.disabled && !node.hasAttribute?.("disabled")) return false;
+          } else if (!node.hasAttribute?.(attrName)) {
+            return false;
+          }
+          rest = rest.slice(presMatch[0].length);
+          continue;
+        }
+        return false;
+      } else {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function matchesSelector(node, sel) {
+    if (!node || !sel || typeof sel !== "string") return false;
+    return splitSelectorList(sel).some((part) => matchesSingleSelector(node, part));
+  }
+
+  function decodeHtmlEntities(s) {
+    return String(s || "")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, "&");
+  }
 
   function makeElement(id, tagName = "div") {
     const existing = elements.get(id);
@@ -45,6 +164,9 @@ function createStubbedDomEnvironment(initialOptions = {}) {
       tagName: tagName.toUpperCase(),
       isConnected: true,
       disabled: false,
+      checked: false,
+      parentElement: null,
+      _children: [],
       style: { width: "", display: "" },
       listeners,
       attributes,
@@ -74,6 +196,7 @@ function createStubbedDomEnvironment(initialOptions = {}) {
       },
       setAttribute(k, v) {
         attributes.set(k, String(v));
+        if (k === "disabled") el.disabled = true;
       },
       getAttribute(k) {
         return attributes.has(k) ? attributes.get(k) : null;
@@ -83,6 +206,7 @@ function createStubbedDomEnvironment(initialOptions = {}) {
       },
       removeAttribute(k) {
         attributes.delete(k);
+        if (k === "disabled") el.disabled = false;
       },
       addEventListener(type, fn) {
         if (!listeners.has(type)) listeners.set(type, []);
@@ -97,13 +221,33 @@ function createStubbedDomEnvironment(initialOptions = {}) {
       },
       dispatchEvent(evt) {
         evt.target = evt.target || el;
-        evt.currentTarget = el;
-        for (const fn of [...(listeners.get(evt.type) || [])]) fn(evt);
+        let stopped = false;
+        if (typeof evt.stopPropagation !== "function") {
+          evt.stopPropagation = () => {
+            stopped = true;
+          };
+        } else {
+          const origStop = evt.stopPropagation;
+          evt.stopPropagation = () => {
+            stopped = true;
+            origStop();
+          };
+        }
+        let cur = el;
+        while (cur) {
+          evt.currentTarget = cur;
+          for (const fn of [...(cur.listeners.get(evt.type) || [])]) fn(evt);
+          if (!evt.bubbles || stopped) break;
+          cur = cur.parentElement;
+        }
         return !evt.defaultPrevented;
       },
       closest(sel) {
-        const targetTag = sel.toUpperCase();
-        if (this.tagName === targetTag) return this;
+        let cur = this;
+        while (cur) {
+          if (matchesSelector(cur, sel)) return cur;
+          cur = cur.parentElement;
+        }
         return null;
       },
       focus() {
@@ -117,13 +261,26 @@ function createStubbedDomEnvironment(initialOptions = {}) {
         dispatchDocumentEvent({ type: "focusout", target: el });
       },
       appendChild(child) {
+        if (child) {
+          child.parentElement = el;
+          el._children.push(child);
+        }
         return child;
       },
-      querySelectorAll() {
-        return [];
+      querySelectorAll(sel) {
+        const out = [];
+        const walk = (node) => {
+          for (const child of node._children || []) {
+            if (matchesSelector(child, sel)) out.push(child);
+            walk(child);
+          }
+        };
+        walk(el);
+        return out;
       },
-      querySelector() {
-        return null;
+      querySelector(sel) {
+        const list = el.querySelectorAll(sel);
+        return list.length ? list[0] : null;
       }
     };
 
@@ -154,72 +311,126 @@ function createStubbedDomEnvironment(initialOptions = {}) {
       set(v) {
         innerHtmlVal = String(v ?? "");
         innerHtmlSetCount++;
-        for (const match of innerHtmlVal.matchAll(/<([a-z0-9-]+)\s+([^>]*id="([^"]+)"[^>]*)>/gi)) {
-          const childEl = elements.get(match[3]) || makeElement(match[3], match[1]);
-          childEl.tagName = match[1].toUpperCase();
-          for (const attr of match[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
-            childEl.setAttribute(attr[1], attr[2]);
-            if (attr[1] === "class") {
-              attr[2].split(/\s+/).filter(Boolean).forEach((c) => childEl.classList.add(c));
+
+        const detachTree = (node) => {
+          for (const c of node._children || []) {
+            if (!c.id) c.isConnected = false;
+            c.parentElement = null;
+            detachTree(c);
+          }
+          node._children = [];
+        };
+        detachTree(el);
+
+        if (el._renderedTriggerKeys) {
+          for (const oldKey of el._renderedTriggerKeys) {
+            const prevTrig = elements.get(oldKey);
+            if (prevTrig && !prevTrig.id) prevTrig.isConnected = false;
+            elements.delete(oldKey);
+          }
+        }
+        el._renderedTriggerKeys = [];
+
+        const stack = [el];
+        const cleanMarkup = innerHtmlVal.replace(/<!--[\s\S]*?-->/g, "");
+        for (const tagMatch of cleanMarkup.matchAll(/<(\/?)([a-z0-9-]+)([^>]*)>/gi)) {
+          const isClosing = tagMatch[1] === "/";
+          const tagNameRaw = tagMatch[2];
+          const tagUpper = tagNameRaw.toUpperCase();
+          const attrStr = tagMatch[3] || "";
+
+          if (isClosing) {
+            for (let i = stack.length - 1; i >= 1; i--) {
+              if (stack[i].tagName === tagUpper) {
+                stack.length = i;
+                break;
+              }
             }
-            if (attr[1] === "style") {
-              const dispMatch = attr[2].match(/(?:^|;)\s*display\s*:\s*([^;]+)/i);
+            continue;
+          }
+
+          const idMatch = attrStr.match(/\bid="([^"]+)"/i);
+          const nodeId = idMatch ? idMatch[1] : "";
+          const childEl = nodeId ? (elements.get(nodeId) || makeElement(nodeId, tagNameRaw)) : makeElement("", tagNameRaw);
+          childEl.tagName = tagUpper;
+          childEl.isConnected = true;
+          childEl._children = [];
+
+          if (nodeId) {
+            classSetClear(childEl, attrStr);
+          }
+          childEl.disabled = /\bdisabled\b/i.test(attrStr);
+          if (/\bchecked\b/i.test(attrStr)) childEl.checked = true;
+
+          for (const attr of attrStr.matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
+            const attrName = attr[1];
+            const attrVal = decodeHtmlEntities(attr[2]);
+            childEl.setAttribute(attrName, attrVal);
+            if (attrName === "class") {
+              attrVal.split(/\s+/).filter(Boolean).forEach((c) => childEl.classList.add(c));
+            }
+            if (attrName === "style") {
+              const dispMatch = attrVal.match(/(?:^|;)\s*display\s*:\s*([^;]+)/i);
               if (dispMatch) childEl.style.display = dispMatch[1].trim();
             }
           }
+
+          const parent = stack[stack.length - 1];
+          childEl.parentElement = parent;
+          parent._children.push(childEl);
+
+          const trigVal = childEl.getAttribute("data-overlay-trigger");
+          if (trigVal !== null) {
+            const trigKey = `trigger:${trigVal}`;
+            elements.set(trigKey, childEl);
+            el._renderedTriggerKeys.push(trigKey);
+          }
+          const expVal = childEl.getAttribute("data-focus-expand");
+          if (expVal !== null) {
+            const expKey = `expand:${expVal}`;
+            elements.set(expKey, childEl);
+            el._renderedTriggerKeys.push(expKey);
+          }
+
+          const selfClosing = attrStr.trim().endsWith("/") || VOID_TAGS.has(tagNameRaw.toLowerCase());
+          if (!selfClosing) {
+            stack.push(childEl);
+          }
         }
+
         for (const textMatch of innerHtmlVal.matchAll(/<([a-z0-9-]+)\s+[^>]*id="([^"]+)"[^>]*>([^<]*)<\/\1>/gi)) {
           const targetEl = elements.get(textMatch[2]);
           if (targetEl && targetEl.tagName !== "TEXTAREA") {
-            targetEl.textContent = textMatch[3]
-              .replace(/&lt;/g, "<")
-              .replace(/&gt;/g, ">")
-              .replace(/&quot;/g, '"')
-              .replace(/&amp;/g, "&")
-              .trim();
+            targetEl.textContent = decodeHtmlEntities(textMatch[3]).trim();
           }
         }
         for (const taMatch of innerHtmlVal.matchAll(/<textarea\s+[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/textarea>/gi)) {
           const taEl = elements.get(taMatch[1]) || makeElement(taMatch[1], "TEXTAREA");
           taEl.tagName = "TEXTAREA";
-          taEl.value = taMatch[2]
-            .replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/&quot;/g, '"')
-            .replace(/&amp;/g, "&");
+          taEl.value = decodeHtmlEntities(taMatch[2]);
         }
         for (const selMatch of innerHtmlVal.matchAll(/<select\s+[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/select>/gi)) {
           const selEl = elements.get(selMatch[1]) || makeElement(selMatch[1], "SELECT");
           selEl.tagName = "SELECT";
           const optMatch = selMatch[2].match(/<option\s+[^>]*value="([^"]*)"[^>]*selected/i);
           if (optMatch) {
-            selEl.value = optMatch[1];
+            selEl.value = decodeHtmlEntities(optMatch[1]);
           }
-        }
-        // Detach previously rendered trigger elements inside this container before registering fresh ones
-        if (el._renderedTriggerKeys) {
-          for (const oldKey of el._renderedTriggerKeys) {
-            const prevTrig = elements.get(oldKey);
-            if (prevTrig) prevTrig.isConnected = false;
-            elements.delete(oldKey);
-          }
-        }
-        el._renderedTriggerKeys = [];
-        for (const trigMatch of innerHtmlVal.matchAll(/<([a-z0-9-]+)\s+([^>]*data-overlay-trigger="([^"]+)"[^>]*)>/gi)) {
-          const trigKey = `trigger:${trigMatch[3]}`;
-          const trigEl = makeElement("", trigMatch[1]);
-          trigEl.isConnected = true;
-          for (const attr of trigMatch[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
-            trigEl.setAttribute(attr[1], attr[2]);
-            if (attr[1] === "class") {
-              attr[2].split(/\s+/).filter(Boolean).forEach((c) => trigEl.classList.add(c));
-            }
-          }
-          elements.set(trigKey, trigEl);
-          el._renderedTriggerKeys.push(trigKey);
         }
       }
     });
+
+    function classSetClear(target, attrStr) {
+      if (/\bclass="/i.test(attrStr)) {
+        for (const cls of [...classSetFor(target)]) {
+          target.classList.remove(cls);
+        }
+      }
+    }
+
+    function classSetFor(target) {
+      return (target.getAttribute("class") || "").split(/\s+/).filter(Boolean);
+    }
 
     Object.defineProperty(el, "textContent", {
       get() {
@@ -237,14 +448,19 @@ function createStubbedDomEnvironment(initialOptions = {}) {
   const documentElement = makeElement("__html__", "html");
   const body = makeElement("__body__", "body");
 
-  // Pre-seed elements with IDs from panel markup
+  // Pre-seed elements with IDs and parent/child structure from panel markup
   const panelMarkup = PANEL_HTML.replace(/<script(?:\s[^>]*)?>[\s\S]*?<\/script>/gi, "");
-  for (const match of panelMarkup.matchAll(/<([a-z0-9-]+)\s+([^>]*id="([^"]+)"[^>]*)>/gi)) {
-    const el = elements.get(match[3]) || makeElement(match[3], match[1]);
-    for (const attr of match[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
-      el.setAttribute(attr[1], attr[2]);
-      if (attr[1] === "class") {
-        attr[2].split(/\s+/).filter(Boolean).forEach((c) => el.classList.add(c));
+  const bodyMatch = panelMarkup.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+  if (bodyMatch) {
+    body.innerHTML = bodyMatch[1];
+  } else {
+    for (const match of panelMarkup.matchAll(/<([a-z0-9-]+)\s+([^>]*id="([^"]+)"[^>]*)>/gi)) {
+      const el = elements.get(match[3]) || makeElement(match[3], match[1]);
+      for (const attr of match[2].matchAll(/([a-z0-9-]+)="([^"]*)"/gi)) {
+        el.setAttribute(attr[1], attr[2]);
+        if (attr[1] === "class") {
+          attr[2].split(/\s+/).filter(Boolean).forEach((c) => el.classList.add(c));
+        }
       }
     }
   }
@@ -308,29 +524,36 @@ function createStubbedDomEnvironment(initialOptions = {}) {
       body,
       getElementById: (id) => elements.get(id) || makeElement(id, "div"),
       createElement: (tag) => makeElement(`elem_${Math.random().toString(36).slice(2)}`, tag),
-      querySelectorAll: () => [],
+      querySelectorAll: (sel) => body.querySelectorAll(sel),
       querySelector: (sel) => {
         if (!sel || typeof sel !== "string") return null;
         if (sel.startsWith("#")) {
           const byId = elements.get(sel.slice(1));
           return byId && byId.isConnected !== false ? byId : null;
         }
-        const trigMatch = sel.match(/^\[data-overlay-trigger="([^"]+)"\]$/);
+        const trigMatch = sel.match(/^\[data-overlay-trigger="((?:\\.|[^"\\])*)"\]$/);
         if (trigMatch) {
-          const trig = elements.get(`trigger:${trigMatch[1]}`);
+          const val = unescapeAttr(trigMatch[1]);
+          const trig = elements.get(`trigger:${val}`);
           if (trig && trig.isConnected !== false) return trig;
           for (const candidate of elements.values()) {
             if (
               candidate &&
               candidate.isConnected !== false &&
               typeof candidate.getAttribute === "function" &&
-              candidate.getAttribute("data-overlay-trigger") === trigMatch[1]
+              candidate.getAttribute("data-overlay-trigger") === val
             ) {
               return candidate;
             }
           }
         }
-        return null;
+        const expMatch = sel.match(/^\[data-focus-expand="((?:\\.|[^"\\])*)"\]$/);
+        if (expMatch) {
+          const val = unescapeAttr(expMatch[1]);
+          const exp = elements.get(`expand:${val}`);
+          if (exp && exp.isConnected !== false) return exp;
+        }
+        return body.querySelector(sel);
       },
       addEventListener: (type, fn) => {
         if (!documentListeners.has(type)) documentListeners.set(type, []);
@@ -411,11 +634,73 @@ function createStubbedDomEnvironment(initialOptions = {}) {
               }
             } else if (msg.params?.name === "bmad_queue_manage") {
               queueMicrotask(() => {
+                if (typeof queueManageHandler === "function") {
+                  try {
+                    const nextState = queueManageHandler(msg.params.arguments);
+                    dispatchWindowMessage({
+                      jsonrpc: "2.0",
+                      id: msg.id,
+                      result: { structuredContent: nextState }
+                    });
+                  } catch (err) {
+                    dispatchWindowMessage({
+                      jsonrpc: "2.0",
+                      id: msg.id,
+                      error: { message: err?.message || String(err) }
+                    });
+                  }
+                  return;
+                }
                 dispatchWindowMessage({
                   jsonrpc: "2.0",
                   id: msg.id,
                   result: { structuredContent: sandbox.window.__bmadTestHooks?.getCurrentState?.() || buildSampleState() }
                 });
+              });
+            } else if (msg.params?.name === "bmad_inspect_artifact") {
+              pendingInspectArtifactResolutions.push({
+                resolve: (structuredContent) =>
+                  dispatchWindowMessage({
+                    jsonrpc: "2.0",
+                    id: msg.id,
+                    result: { structuredContent }
+                  }),
+                reject: (message) =>
+                  dispatchWindowMessage({
+                    jsonrpc: "2.0",
+                    id: msg.id,
+                    error: { message }
+                  })
+              });
+            } else if (msg.params?.name === "bmad_reconcile_trackers") {
+              pendingReconcileResolutions.push({
+                resolve: (structuredContent) =>
+                  dispatchWindowMessage({
+                    jsonrpc: "2.0",
+                    id: msg.id,
+                    result: { structuredContent }
+                  }),
+                reject: (message) =>
+                  dispatchWindowMessage({
+                    jsonrpc: "2.0",
+                    id: msg.id,
+                    error: { message }
+                  })
+              });
+            } else if (msg.params?.name === "bmad_open_artifact_file") {
+              pendingOpenArtifactResolutions.push({
+                resolve: (structuredContent) =>
+                  dispatchWindowMessage({
+                    jsonrpc: "2.0",
+                    id: msg.id,
+                    result: { structuredContent }
+                  }),
+                reject: (message) =>
+                  dispatchWindowMessage({
+                    jsonrpc: "2.0",
+                    id: msg.id,
+                    error: { message }
+                  })
               });
             }
           }
@@ -437,9 +722,15 @@ function createStubbedDomEnvironment(initialOptions = {}) {
     intervalCallbacks,
     scheduledTimers,
     pendingToolResolutions,
+    pendingInspectArtifactResolutions,
+    pendingReconcileResolutions,
+    pendingOpenArtifactResolutions,
     buildSampleState,
     dispatchDocumentEvent,
     dispatchWindowMessage,
+    setQueueManageHandler: (fn) => {
+      queueManageHandler = fn;
+    },
     getActiveElement: () => activeElement,
     setActiveElement: (el) => {
       activeElement = el;
@@ -457,6 +748,31 @@ function createStubbedDomEnvironment(initialOptions = {}) {
       const resolver = pendingToolResolutions.shift();
       assert.ok(resolver, "No pending bmad_get_state call to resolve");
       resolver(state);
+    },
+    resolveNextInspectArtifact(structuredContent) {
+      const entry = pendingInspectArtifactResolutions.shift();
+      assert.ok(entry, "No pending bmad_inspect_artifact call to resolve");
+      entry.resolve(structuredContent);
+    },
+    rejectNextInspectArtifact(message) {
+      const entry = pendingInspectArtifactResolutions.shift();
+      assert.ok(entry, "No pending bmad_inspect_artifact call to reject");
+      entry.reject(message);
+    },
+    resolveNextReconcile(structuredContent) {
+      const entry = pendingReconcileResolutions.shift();
+      assert.ok(entry, "No pending bmad_reconcile_trackers call to resolve");
+      entry.resolve(structuredContent);
+    },
+    rejectNextReconcile(message) {
+      const entry = pendingReconcileResolutions.shift();
+      assert.ok(entry, "No pending bmad_reconcile_trackers call to reject");
+      entry.reject(message);
+    },
+    resolveNextOpenArtifact(structuredContent) {
+      const entry = pendingOpenArtifactResolutions.shift();
+      assert.ok(entry, "No pending bmad_open_artifact_file call to resolve");
+      entry.resolve(structuredContent);
     },
     flushTimers() {
       const toRun = scheduledTimers.splice(0, scheduledTimers.length);
@@ -1116,9 +1432,6 @@ describe("Epic 4 Story 4.2: User edit preservation + section signature diffing r
           stories: [{ id: 1, title: "Story 1", smartStatus: "in-progress" }]
         }
       ],
-      skillsCatalog: [
-        { skill: "bmad-build", displayName: "BMAD Build", description: "Build code", phase: "4-implementation" }
-      ],
       artifacts: [
         { relPath: "docs/spec.md", name: "spec.md", kind: "doc", phaseName: "Phase 1", mtimeMs: 1000 }
       ],
@@ -1138,7 +1451,6 @@ describe("Epic 4 Story 4.2: User edit preservation + section signature diffing r
     const insightsList = env.elements.get("insightsList");
     const phasesList = env.elements.get("phasesList");
     const epicsList = env.elements.get("epicsList");
-    const skillsList = env.elements.get("skillsCatalogList");
     const artsList = env.elements.get("artifactsDirectoryList");
     const provBar = env.elements.get("providerStateBar");
 
@@ -1146,7 +1458,6 @@ describe("Epic 4 Story 4.2: User edit preservation + section signature diffing r
     const insightsCount1 = insightsList.innerHtmlSetCount;
     const phasesCount1 = phasesList.innerHtmlSetCount;
     const epicsCount1 = epicsList.innerHtmlSetCount;
-    const skillsCount1 = skillsList.innerHtmlSetCount;
     const artsCount1 = artsList.innerHtmlSetCount;
     const provCount1 = provBar.innerHtmlSetCount;
 
@@ -1177,11 +1488,6 @@ describe("Epic 4 Story 4.2: User edit preservation + section signature diffing r
       epicsList.innerHtmlSetCount,
       epicsCount1,
       "epicsList innerHTML must NOT be replaced when signature matches"
-    );
-    assert.equal(
-      skillsList.innerHtmlSetCount,
-      skillsCount1,
-      "skillsCatalogList innerHTML must NOT be replaced when signature matches"
     );
     assert.equal(
       artsList.innerHtmlSetCount,
@@ -2432,6 +2738,1476 @@ describe("Epic 8 Story 8.4: Work tab current-focus hero, Action Window & RD-8 co
     assert.equal(lastComplete.params.arguments.storyStatus, "in-progress");
   });
 });
+
+describe("Epic 8 Story 8.2: 3-tab Work / Queue / Project navigation, inline phase diff & overlay focus fallback", () => {
+  it("defaults to 'work' tab, routes #btnGoToQueueFromWork to 'queue', and normalizes unknown/legacy tab IDs to 'work'", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    assert.equal(hooks.getActiveTabId(), "work", "Initial active tab must be 'work'");
+
+    env.elements.get("btnGoToQueueFromWork").dispatchEvent({ type: "click" });
+    assert.equal(hooks.getActiveTabId(), "queue", "#btnGoToQueueFromWork must navigate to 'queue'");
+    assert.equal(env.elements.get("tab-queue").style.display, "block");
+    assert.equal(env.elements.get("tab-work").style.display, "none");
+
+    for (const legacyOrUnknown of ["artifacts", "catalog", "advisor", "progress", "nonexistent-tab"]) {
+      hooks.switchTab(legacyOrUnknown);
+      assert.equal(hooks.getActiveTabId(), "work", `Unknown/legacy tab '${legacyOrUnknown}' must normalize to 'work'`);
+      assert.equal(env.elements.get("tab-work").style.display, "block");
+      assert.equal(env.elements.get("tab-queue").style.display, "none");
+      assert.equal(env.elements.get("tab-project").style.display, "none");
+    }
+  });
+
+  it("inspects phase artifact [data-art-diff] chips inline inside 'project' (success + error fallback) without switching tabs", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    hooks.switchTab("project");
+    assert.equal(hooks.getActiveTabId(), "project");
+
+    hooks.renderWorkspaceState(
+      env.buildSampleState({
+        phases: [
+          {
+            id: "2-planning",
+            name: "Phase 2 · Planning",
+            progressPct: 60,
+            status: "in-progress",
+            summary: "UX specifications",
+            artifacts: [
+              {
+                relPath: "docs/ux.md",
+                name: "ux.md",
+                displayLabel: "ux.md",
+                mtimeMs: 1700000000000
+              }
+            ]
+          }
+        ],
+        artifacts: [
+          {
+            relPath: "docs/ux.md",
+            name: "ux.md",
+            kind: "ux",
+            phaseId: "2-planning",
+            phaseName: "Planning",
+            gitStatus: "modified",
+            mtimeMs: 1700000000000
+          }
+        ]
+      })
+    );
+
+    const previewCard = env.elements.get("artifactPreviewCard");
+    let scrolledIntoView = 0;
+    previewCard.scrollIntoView = () => {
+      scrolledIntoView++;
+    };
+
+    const phasesList = env.elements.get("phasesList");
+    const diffBtns = phasesList.querySelectorAll("[data-art-diff]");
+    assert.equal(diffBtns.length, 1, "Phase chip [data-art-diff] button must be rendered");
+
+    // 1. Click diff chip -> stays on 'project', shows preview card, calls bmad_inspect_artifact
+    diffBtns[0].dispatchEvent({ type: "click", stopPropagation() {} });
+    assert.equal(hooks.getActiveTabId(), "project", "Clicking phase artifact chip must stay on 'project'");
+    assert.equal(previewCard.style.display, "block");
+    assert.equal(env.elements.get("previewFileName").textContent, "docs/ux.md");
+    assert.equal(scrolledIntoView, 1);
+
+    const inspectCall = env.toolCalls.filter((c) => c.params?.name === "bmad_inspect_artifact").pop();
+    assert.equal(inspectCall?.params?.arguments?.relPath, "docs/ux.md");
+
+    env.resolveNextInspectArtifact({
+      relPath: "docs/ux.md",
+      mtimeMs: 1700000000000,
+      diffSource: "Git Diff",
+      diff: "@@ -1,1 +1,2 @@\n+Added line\n-Removed line",
+      preview: "Full content"
+    });
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.getActiveTabId(), "project");
+    assert.match(env.elements.get("artifactPreviewContent").innerHTML, /diff-add/);
+    assert.match(env.elements.get("artifactPreviewContent").innerHTML, /diff-del/);
+
+    // 2. Tool error renders "Failed to load artifact: <message>" in #artifactPreviewContent while staying on 'project'
+    diffBtns[0].dispatchEvent({ type: "click", stopPropagation() {} });
+    env.rejectNextInspectArtifact("Access denied outside root");
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.getActiveTabId(), "project");
+    assert.equal(
+      env.elements.get("artifactPreviewContent").textContent,
+      "Failed to load artifact: Access denied outside root"
+    );
+  });
+
+  it("restores focus to #projectTabHeading when closing an overlay on 'project' whose trigger is detached and unmatched", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    hooks.switchTab("project");
+    const detachedTrigger = env.makeElement("detached-phase-trigger", "DIV");
+    detachedTrigger.isConnected = false;
+
+    hooks.openOverlay({
+      kind: "focus",
+      targetType: "phase",
+      targetKey: "missing-phase-id",
+      triggerEl: detachedTrigger,
+      triggerSelector: '[data-overlay-trigger="phase:missing-phase-id"]'
+    });
+    assert.equal(hooks.isOverlayOpen(), true);
+
+    hooks.closeOverlay();
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(
+      env.getActiveElement()?.id,
+      "projectTabHeading",
+      "Closing overlay on 'project' with unresolvable trigger must restore focus to #projectTabHeading"
+    );
+  });
+});
+
+describe("Epic 8 Story 8.5: Focus View across Work, Queue & Project cards with click guard & live sync (RD-7 / AD-10 / AD-17)", () => {
+  function buildRichFocusState(env) {
+    return env.buildSampleState({
+      projectName: "Focus View Project",
+      availableModels: [
+        { id: "prov/model-a", modelId: "model-a", providerName: "Prov", current: true },
+        { id: "prov/model-b", modelId: "model-b", providerName: "Prov" }
+      ],
+      turnAnalysis: {
+        turnCount: 7,
+        aiSummaryHeadline: "Turn 7 analyzed workspace artifacts",
+        lastAssistantSummary: "Ready for Story 8.5 verification.",
+        currentFocus: {
+          text: "Focus View is ready across Work, Queue, and Project.",
+          basisLabel: "Current focus",
+          conversationCount: 2,
+          source: "deterministic"
+        }
+      },
+      smartInsights: [
+        { title: "Tracker Sync", detail: "1 story ready for review", severity: "warning" },
+        { title: "Tests Green", detail: "All 35 guard checks pass", severity: "success" }
+      ],
+      phases: [
+        {
+          id: "4-implementation",
+          name: "Phase 4 · Implementation",
+          progressPct: 75,
+          status: "in-progress",
+          summary: "Building panel Focus View.",
+          artifacts: [
+            { relPath: "docs/plan-8-5.md", name: "plan-8-5.md", displayLabel: "plan-8-5.md", mtimeMs: 1700000000000 }
+          ]
+        }
+      ],
+      epics: [
+        {
+          id: "epic-8",
+          slug: "epic-panel-readability-redesign",
+          number: 8,
+          title: "Panel Readability Redesign",
+          smartProgressPct: 80,
+          declaredProgressPct: 60,
+          hasRetrospective: false,
+          stories: [
+            {
+              id: "8.5",
+              title: "Focus View across cards",
+              description: "Wire all 8 Focus View targets with click guard.",
+              verify: "node --test tests/panel-guards.test.mjs",
+              smartStatus: "in-progress",
+              declaredStatus: "ready-for-dev",
+              aiReconciled: true,
+              smartReason: "Panel markup updated",
+              overrideKey: "epic-panel-readability-redesign#5",
+              recommendedModel: { modelId: "prov/model-a", shortName: "model-a", tier: "💻 Coding", reason: "Fastest coding model" }
+            }
+          ]
+        }
+      ],
+      artifacts: [
+        {
+          relPath: "docs/plan-8-5.md",
+          name: "plan-8-5.md",
+          kind: "plan",
+          phaseId: "4-implementation",
+          phaseName: "Implementation",
+          gitStatus: "modified",
+          mtimeMs: 1700000000000
+        }
+      ],
+      taskQueue: {
+        status: "running",
+        executionMode: "separate-sessions",
+        defaultReviewMode: "none",
+        activeTask: {
+          id: "q-active-1",
+          title: "Active Spotlight Task",
+          taskPhase: "build",
+          skill: "/bmad-build-auto",
+          status: "running",
+          model: "prov/model-a",
+          modelShort: "model-a",
+          reviewMode: "quick",
+          prompt: '/bmad-build-auto "Build spotlight task"',
+          effectivePrompt: '/bmad-build-auto "Build spotlight task (gate: quick)"'
+        },
+        counts: { total: 2, running: 1, queued: 1, done: 0, failed: 0, progressPct: 0 },
+        items: [
+          {
+            id: "q-active-1",
+            title: "Active Spotlight Task",
+            taskPhase: "build",
+            skill: "/bmad-build-auto",
+            status: "running",
+            model: "prov/model-a",
+            modelShort: "model-a",
+            reviewMode: "quick",
+            prompt: '/bmad-build-auto "Build spotlight task"',
+            effectivePrompt: '/bmad-build-auto "Build spotlight task (gate: quick)"'
+          },
+          {
+            id: "q-item-2",
+            title: "Queued Followup Task",
+            taskPhase: "plan",
+            skill: "/bmad-build-auto",
+            status: "queued",
+            model: "prov/model-a",
+            modelShort: "model-a",
+            reviewMode: "none",
+            prompt: '/bmad-build-auto "Plan followup task"',
+            effectivePrompt: '/bmad-build-auto "Plan followup task (halt after planning)"'
+          }
+        ]
+      }
+    });
+  }
+
+  it("opens all 8 canonical Focus View targetTypes via card clicks and ⤢ Expand buttons using overlay-* IDs and restores focus on close", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    const state = buildRichFocusState(env);
+    hooks.renderWorkspaceState(state);
+
+    // 1. Work: insights via #insightsCard body & #btnExpandInsights
+    const insightsCard = env.elements.get("insightsCard");
+    insightsCard.dispatchEvent({ type: "click", target: insightsCard });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.kind, "focus");
+    assert.equal(hooks.getActiveOverlay()?.targetType, "insights");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "insights");
+    assert.match(env.elements.get("overlayBody").innerHTML, /id="overlay-insights-turn"/);
+    assert.match(env.elements.get("overlayBody").innerHTML, /id="overlay-insights-list"/);
+    assert.match(env.elements.get("overlayBody").innerHTML, /Tracker Sync/);
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), insightsCard, "Closing insights Focus View restores focus to #insightsCard");
+
+    const expandInsightsBtn = env.elements.get("btnExpandInsights");
+    expandInsightsBtn.dispatchEvent({ type: "click", target: expandInsightsBtn, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.targetType, "insights");
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), expandInsightsBtn, "Closing from ⤢ restores focus to #btnExpandInsights");
+
+    // 2. Queue: active-spotlight via card & ⤢ button
+    hooks.switchTab("queue");
+    const spotlightCard = env.sandbox.document.querySelector('[data-overlay-trigger="active-spotlight:q-active-1"]');
+    assert.ok(spotlightCard, "active-spotlight card trigger must be rendered");
+    spotlightCard.dispatchEvent({ type: "click", target: spotlightCard });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.targetType, "active-spotlight");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "q-active-1");
+    assert.match(env.elements.get("overlayBody").innerHTML, /id="overlay-q-prompt"/);
+    assert.match(env.elements.get("overlayBody").innerHTML, /id="overlay-q-effective-prompt"/);
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), spotlightCard);
+
+    // 3. Queue: queue-item via card & ⤢ button, zero background ID duplication
+    const qCard = env.sandbox.document.querySelector('[data-overlay-trigger="queue-item:q-item-2"]');
+    const qExpandBtn = env.sandbox.document.querySelector('[data-focus-expand="queue-item:q-item-2"]');
+    assert.ok(qCard && qExpandBtn, "queue-item card and ⤢ button must be rendered");
+    qExpandBtn.dispatchEvent({ type: "click", target: qExpandBtn, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.targetType, "queue-item");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "q-item-2");
+    const qOverlayHtml = env.elements.get("overlayBody").innerHTML;
+    assert.match(qOverlayHtml, /id="overlay-q-model"/);
+    assert.match(qOverlayHtml, /id="overlay-q-review"/);
+    assert.match(qOverlayHtml, /id="overlay-q-prompt"/);
+    assert.doesNotMatch(qOverlayHtml, /id="q-model-|id="q-review-/);
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), qExpandBtn);
+
+    // 4. Project: phase
+    hooks.switchTab("project");
+    const phaseCard = env.sandbox.document.querySelector('[data-overlay-trigger="phase:4-implementation"]');
+    assert.ok(phaseCard, "phase card trigger must be rendered");
+    phaseCard.dispatchEvent({ type: "click", target: phaseCard });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.targetType, "phase");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "4-implementation");
+    assert.match(env.elements.get("overlayBody").innerHTML, /id="overlay-phase-artifacts"/);
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), phaseCard);
+
+    // 5. Project: epic (and drill-down into story)
+    const epicBox = env.sandbox.document.querySelector('[data-overlay-trigger="epic:epic-8"]');
+    assert.ok(epicBox, "epic-box trigger must be rendered");
+    epicBox.dispatchEvent({ type: "click", target: epicBox });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.targetType, "epic");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "epic-8");
+    const epicBodyHtml = env.elements.get("overlayBody").innerHTML;
+    assert.match(epicBodyHtml, /id="overlay-epic-queue-all"/);
+    assert.match(epicBodyHtml, /id="overlay-epic-stories"/);
+    const drillStoryBtn = env.elements.get("overlay-epic-story-0");
+    drillStoryBtn.dispatchEvent({ type: "click", target: drillStoryBtn });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "story");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "epic-panel-readability-redesign#5");
+    hooks.closeOverlay();
+
+    // 6. Project: story via ⤢ button
+    const storyExpand = env.sandbox.document.querySelector('[data-focus-expand="story:epic-panel-readability-redesign#5"]');
+    assert.ok(storyExpand, "story ⤢ button must be rendered");
+    storyExpand.dispatchEvent({ type: "click", target: storyExpand, bubbles: true });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "story");
+    assert.match(env.elements.get("overlayBody").innerHTML, /id="overlay-story-cmd"/);
+    assert.match(env.elements.get("overlayBody").innerHTML, /id="overlay-story-model"/);
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), storyExpand);
+
+    // 7. Project: artifact via ⤢ button (cold load) and #btnExpandArtifactPreview
+    const artExpand = env.sandbox.document.querySelector('[data-focus-expand="artifact:docs/plan-8-5.md"]');
+    assert.ok(artExpand, "artifact ⤢ button must be rendered");
+    artExpand.dispatchEvent({ type: "click", target: artExpand, bubbles: true });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "artifact");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "docs/plan-8-5.md");
+    assert.doesNotMatch(env.elements.get("overlayBody").innerHTML, /id="artifactPreviewContent"/);
+    env.resolveNextInspectArtifact({
+      relPath: "docs/plan-8-5.md",
+      mtimeMs: 1700000000000,
+      diffSource: "Git Diff",
+      diff: "+Story 8.5 line",
+      preview: "Plan 8.5 full content"
+    });
+    await env.flushMicrotasks();
+    assert.match(env.elements.get("overlay-art-preview").innerHTML, /Story 8\.5 line/);
+    hooks.closeOverlay();
+    assert.equal(
+      env.getActiveElement()?.getAttribute?.("data-focus-expand"),
+      "artifact:docs/plan-8-5.md",
+      "Closing artifact Focus View after re-render falls back via triggerSelector to the fresh ⤢ button"
+    );
+
+    // #btnExpandArtifactPreview opens cached artifact immediately
+    const previewExpand = env.elements.get("btnExpandArtifactPreview");
+    previewExpand.dispatchEvent({ type: "click", target: previewExpand });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "artifact");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "docs/plan-8-5.md");
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), previewExpand);
+
+    // 8. Project: reconciliation-diff via #reconciliationDiffCard & #btnExpandReconciliationDiff
+    const diffCard = env.elements.get("reconciliationDiffCard");
+    diffCard.dispatchEvent({ type: "click", target: diffCard });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "reconciliation-diff");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "reconciliation-diff");
+    assert.doesNotMatch(env.elements.get("overlayBody").innerHTML, /id="diffCardContent"/);
+    hooks.closeOverlay();
+    assert.equal(env.getActiveElement(), diffCard);
+
+    // Verify overlay type ramp rules in PANEL_HTML
+    assert.match(PANEL_HTML, /\.overlay-title[\s\S]*?font-size:\s*var\(--overlay-title-size\)/);
+    assert.match(PANEL_HTML, /\.overlay-body-text[\s\S]*?font-size:\s*var\(--overlay-body-size\)/);
+    assert.match(PANEL_HTML, /\.overlay-command-text[\s\S]*?font-size:\s*var\(--overlay-command-size\)/);
+    assert.match(PANEL_HTML, /\.overlay-meta-text[\s\S]*?font-size:\s*var\(--overlay-meta-size\)/);
+  });
+
+  it("enforces interactive-descendant click guard across all Focus View targets and stops nested story-row clicks from opening epic Focus View", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+    hooks.renderWorkspaceState(buildRichFocusState(env));
+
+    // 1. Insights card interactive children (.pill) do not open Focus View
+    const insightsCard = env.elements.get("insightsCard");
+    const turnBadge = env.elements.get("turnBadge");
+    insightsCard.dispatchEvent({ type: "click", target: turnBadge });
+    assert.equal(hooks.isOverlayOpen(), false, "Clicking .pill inside #insightsCard must not open Focus View");
+
+    // 2. Queue item interactive children (<select>, <button>, .pill) keep normal clicks
+    hooks.switchTab("queue");
+    const qCard = env.sandbox.document.querySelector('[data-overlay-trigger="queue-item:q-item-2"]');
+    const qSelect = env.elements.get("q-model-1");
+    qCard.dispatchEvent({ type: "click", target: qSelect });
+    assert.equal(hooks.isOverlayOpen(), false, "Clicking <select> inside queue card must not open Focus View");
+
+    const qDoneBtn = qCard.querySelector('[data-q-done="q-item-2"]');
+    assert.ok(qDoneBtn);
+    qDoneBtn.dispatchEvent({ type: "click", target: qDoneBtn, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), false, "Clicking Mark Done button inside queue card must not open Focus View");
+
+    // 3. Phase card artifact chip button does not open phase Focus View
+    hooks.switchTab("project");
+    const phaseCard = env.sandbox.document.querySelector('[data-overlay-trigger="phase:4-implementation"]');
+    const artDiffChip = phaseCard.querySelector('[data-art-diff="docs/plan-8-5.md"]');
+    assert.ok(artDiffChip);
+    artDiffChip.dispatchEvent({ type: "click", target: artDiffChip, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), false, "Clicking phase artifact chip must not open phase Focus View");
+
+    // 4. Artifact row .art-row-btn and 🔀 Diff button do not open artifact Focus View
+    const artRow = env.sandbox.document.querySelector('[data-overlay-trigger="artifact:docs/plan-8-5.md"]');
+    const artRowBtn = artRow.querySelector(".art-row-btn");
+    assert.ok(artRowBtn);
+    artRowBtn.dispatchEvent({ type: "click", target: artRowBtn, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), false, "Clicking .art-row-btn must preview inline without opening Focus View");
+
+    // 5. Reconciliation diff #btnCloseDiff does not open reconciliation-diff Focus View
+    const diffCard = env.elements.get("reconciliationDiffCard");
+    const closeDiffBtn = env.elements.get("btnCloseDiff");
+    closeDiffBtn.dispatchEvent({ type: "click", target: closeDiffBtn, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), false, "Clicking #btnCloseDiff must close inline diff without opening Focus View");
+
+    // 6. Epic toggle button and Queue Epic button do not open epic Focus View
+    const epicBox = env.sandbox.document.querySelector('[data-overlay-trigger="epic:epic-8"]');
+    const epicToggle = epicBox.querySelector('[data-epic-toggle="epic-8"]');
+    assert.ok(epicToggle);
+    epicBox.dispatchEvent({ type: "click", target: epicToggle });
+    assert.equal(hooks.isOverlayOpen(), false, "Clicking .epic-toggle-btn must not open epic Focus View");
+
+    // 7. Nested .story-row inside .epic-box opens ONLY story Focus View even when bubbling
+    const storyRow = env.sandbox.document.querySelector('[data-overlay-trigger="story:epic-panel-readability-redesign#5"]');
+    assert.ok(storyRow);
+    storyRow.dispatchEvent({ type: "click", target: storyRow, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.targetType, "story", "Nested .story-row click must open story Focus View");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "epic-panel-readability-redesign#5");
+    hooks.closeOverlay();
+
+    // Even if epicBox directly receives an event whose target is storyRow, nested-trigger guard ignores it
+    epicBox.dispatchEvent({ type: "click", target: storyRow });
+    assert.equal(hooks.isOverlayOpen(), false, "Parent .epic-box must ignore clicks whose closest trigger is nested .story-row");
+
+    // 8. Special characters (quotes) in targetKey do not throw during closeOverlay triggerSelector lookup
+    hooks.openOverlay({
+      kind: "focus",
+      targetType: "story",
+      targetKey: 'quoted"key\\test',
+      triggerEl: null
+    });
+    assert.doesNotThrow(() => hooks.closeOverlay());
+  });
+
+  it("syncs live Queue model, review, and prompt edits via update-item across polls, guards empty/error Save, and suppresses missing toast when completing active-spotlight", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    let liveState = buildRichFocusState(env);
+    let failNextQueueManage = false;
+
+    env.setQueueManageHandler((args) => {
+      if (failNextQueueManage) {
+        failNextQueueManage = false;
+        throw new Error("Simulated queue write failure");
+      }
+      const nextItems = (liveState.taskQueue.items || []).map((it) => {
+        if (it.id !== args.taskId) return it;
+        if (args.action === "update-item") {
+          return {
+            ...it,
+            ...(args.model ? { model: args.model, modelShort: args.model.split("/").pop() } : {}),
+            ...(args.reviewMode ? { reviewMode: args.reviewMode } : {}),
+            ...(args.prompt ? { prompt: args.prompt, effectivePrompt: args.prompt + " [synced]" } : {})
+          };
+        }
+        if (args.action === "complete-task") {
+          return { ...it, status: "done" };
+        }
+        return it;
+      });
+      const nextActive =
+        args.action === "complete-task" && liveState.taskQueue.activeTask?.id === args.taskId
+          ? null
+          : nextItems.find((i) => i.id === liveState.taskQueue.activeTask?.id) || null;
+      liveState = {
+        ...liveState,
+        taskQueue: {
+          ...liveState.taskQueue,
+          activeTask: nextActive,
+          items: nextItems
+        }
+      };
+      return liveState;
+    });
+
+    hooks.switchTab("queue");
+    hooks.renderWorkspaceState(liveState);
+
+    // Open queue-item Focus View
+    const qCard = env.sandbox.document.querySelector('[data-overlay-trigger="queue-item:q-item-2"]');
+    qCard.dispatchEvent({ type: "click", target: qCard });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "queue-item");
+
+    // 1. Live model & review update clears stale pendingWorkspaceState, updates underlying card & overlay
+    hooks.setPendingWorkspaceState(env.buildSampleState({ projectName: "Stale Poll Must Clear" }));
+    const modelSel = env.elements.get("overlay-q-model");
+    modelSel.value = "prov/model-b";
+    modelSel.dispatchEvent({ type: "change" });
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.equal(env.elements.get("q-model-1").value, "prov/model-b", "Underlying queue card model updated");
+    assert.equal(env.elements.get("overlay-q-model").value, "prov/model-b", "Open overlay model reconciled");
+
+    const revSel = env.elements.get("overlay-q-review");
+    revSel.value = "thorough";
+    revSel.dispatchEvent({ type: "change" });
+    await env.flushMicrotasks();
+    assert.equal(env.elements.get("q-review-1").value, "thorough", "Underlying queue card review gate updated");
+    assert.equal(env.elements.get("overlay-q-review").value, "thorough", "Open overlay review gate reconciled");
+
+    // 2. Empty prompt on Save shows warning toast and skips RPC
+    const promptTa = env.elements.get("overlay-q-prompt");
+    promptTa.value = "   ";
+    promptTa.dispatchEvent({ type: "input" });
+    const callsBeforeEmpty = env.toolCalls.length;
+    env.elements.get("overlay-q-save-prompt").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.equal(env.toolCalls.length, callsBeforeEmpty, "Empty prompt must skip bmad_queue_manage RPC");
+    assert.match(env.elements.get("toastText").textContent, /empty/i);
+
+    // 3. Edit prompt -> survives poll & close/reopen, RPC error preserves draft
+    promptTa.value = '/bmad-build-auto "Updated queued prompt v2"';
+    promptTa.dispatchEvent({ type: "input" });
+    assert.equal(hooks.getUserEditedPrompts().get("queue:q-item-2")?.value, '/bmad-build-auto "Updated queued prompt v2"');
+
+    // Close & reopen -> draft survives
+    hooks.closeOverlay();
+    const qCard2 = env.sandbox.document.querySelector('[data-overlay-trigger="queue-item:q-item-2"]');
+    qCard2.dispatchEvent({ type: "click", target: qCard2 });
+    assert.equal(env.elements.get("overlay-q-prompt").value, '/bmad-build-auto "Updated queued prompt v2"');
+
+    // RPC error keeps draft & shows error toast
+    failNextQueueManage = true;
+    env.elements.get("overlay-q-save-prompt").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.match(env.elements.get("toastText").textContent, /Queue action failed/);
+    assert.equal(hooks.getUserEditedPrompts().get("queue:q-item-2")?.value, '/bmad-build-auto "Updated queued prompt v2"');
+
+    // Save successfully -> clears pendingWorkspaceState, updates underlying card & overlay
+    hooks.setPendingWorkspaceState(env.buildSampleState({ projectName: "Stale Poll 2" }));
+    env.elements.get("overlay-q-save-prompt").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.match(env.elements.get("queueItemsList").innerHTML, /Updated queued prompt v2(?:&quot;|") \[synced\]/);
+    assert.equal(env.elements.get("overlay-q-prompt").value, '/bmad-build-auto "Updated queued prompt v2"');
+
+    // 4. Unsaved prompt draft commits before New Session launch
+    const promptTaAgain = env.elements.get("overlay-q-prompt");
+    promptTaAgain.value = '/bmad-build-auto "Launch-committed prompt v3"';
+    promptTaAgain.dispatchEvent({ type: "input" });
+    const callsBeforeLaunch = env.toolCalls.length;
+    env.elements.get("overlay-q-launch").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    const postLaunchCalls = env.toolCalls.slice(callsBeforeLaunch);
+    const commitCall = postLaunchCalls.find(
+      (c) => c.params?.name === "bmad_queue_manage" && c.params?.arguments?.action === "update-item"
+    );
+    const prepCall = postLaunchCalls.find((c) => c.params?.name === "bmad_prepare_new_session");
+    assert.equal(commitCall?.params?.arguments?.prompt, '/bmad-build-auto "Launch-committed prompt v3"');
+    assert.match(prepCall?.params?.arguments?.prompt || "", /Launch-committed prompt v3/);
+    hooks.closeOverlay();
+
+    // 5. Completing active-spotlight from Focus View closes overlay without "That item is no longer available" toast
+    const spotlightCard = env.sandbox.document.querySelector('[data-overlay-trigger="active-spotlight:q-active-1"]');
+    spotlightCard.dispatchEvent({ type: "click", target: spotlightCard });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "active-spotlight");
+
+    // First verify failed complete-task resets suppression flag
+    failNextQueueManage = true;
+    env.elements.get("overlay-q-done").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.equal(hooks.isOverlayOpen(), true);
+
+    // Now succeed -> activeTask clears -> closes cleanly with completion toast & focuses #queueTabHeading
+    env.elements.get("overlay-q-done").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(env.elements.get("toastText").textContent, "✓ Task marked Done & next task promoted");
+    assert.equal(env.getActiveElement(), env.elements.get("queueTabHeading"));
+  });
+
+  it("syncs Story Focus View prompt/model drafts to underlying .story-row on close and reconciles Queue Story", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    let state = buildRichFocusState(env);
+    env.setQueueManageHandler((args) => {
+      if (args.action === "add" && Array.isArray(args.items)) {
+        const added = args.items.map((x, idx) => ({
+          id: `added-${idx}`,
+          ...x,
+          status: "queued",
+          effectivePrompt: x.prompt
+        }));
+        state = {
+          ...state,
+          taskQueue: {
+            ...state.taskQueue,
+            items: [...state.taskQueue.items, ...added]
+          }
+        };
+      }
+      return state;
+    });
+
+    hooks.switchTab("project");
+    hooks.renderWorkspaceState(state);
+
+    const storyRow = env.sandbox.document.querySelector('[data-overlay-trigger="story:epic-panel-readability-redesign#5"]');
+    storyRow.dispatchEvent({ type: "click", target: storyRow, bubbles: true });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "story");
+
+    const storyCmd = env.elements.get("overlay-story-cmd");
+    const storyModel = env.elements.get("overlay-story-model");
+    storyCmd.value = '/bmad-build-auto "Custom story 8.5 prompt"';
+    storyCmd.dispatchEvent({ type: "input" });
+    storyModel.value = "prov/model-b";
+    storyModel.dispatchEvent({ type: "change" });
+
+    // Background poll stashes while open; close flushes and repaints underlying story row
+    hooks.closeOverlay();
+    const epicsHtmlAfterClose = env.elements.get("epicsList").innerHTML;
+    assert.match(epicsHtmlAfterClose, /🤖 model-b/, "Underlying story row model pill reflects Story Focus View edit");
+    assert.match(epicsHtmlAfterClose, /✎ Customized/, "Underlying story row shows Customized badge");
+    assert.match(epicsHtmlAfterClose, /Custom story 8\.5 prompt/, "Underlying story row button prompt reflects draft");
+
+    // Reopen story Focus View, verify draft persists, and Queue Story reconciles in place
+    const storyRow2 = env.sandbox.document.querySelector('[data-overlay-trigger="story:epic-panel-readability-redesign#5"]');
+    storyRow2.dispatchEvent({ type: "click", target: storyRow2, bubbles: true });
+    assert.equal(env.elements.get("overlay-story-cmd").value, '/bmad-build-auto "Custom story 8.5 prompt"');
+    assert.equal(env.elements.get("overlay-story-model").value, "prov/model-b");
+
+    env.elements.get("overlay-story-queue").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.equal(hooks.isOverlayOpen(), true, "Queue Story keeps Story Focus View open and reconciles in place");
+    assert.match(env.elements.get("epicsList").innerHTML, /⏳ Queued/, "Underlying story row shows Queued pill");
+    assert.equal(env.elements.get("overlay-story-queue").textContent, "↻ Update in Queue");
+  });
+
+  it("syncs Artifact Focus View async load, Diff/Content toggles, and error fallback without losing intra-overlay focus", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    hooks.switchTab("project");
+    hooks.renderWorkspaceState(buildRichFocusState(env));
+
+    const artExpand = env.sandbox.document.querySelector('[data-focus-expand="artifact:docs/plan-8-5.md"]');
+    artExpand.dispatchEvent({ type: "click", target: artExpand, bubbles: true });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "artifact");
+    assert.equal(env.elements.get("overlay-art-preview").textContent, "Loading artifact diff & content…");
+
+    // Focus #overlay-art-content-btn while loading and resolve inspect
+    const contentBtn = env.elements.get("overlay-art-content-btn");
+    contentBtn.focus();
+
+    env.resolveNextInspectArtifact({
+      relPath: "docs/plan-8-5.md",
+      mtimeMs: 1700000000000,
+      diffSource: "Git Diff",
+      diff: "+Added line in plan",
+      preview: "Full plan markdown content"
+    });
+    await env.flushMicrotasks();
+
+    assert.equal(env.getActiveElement(), contentBtn, "Async load keeps intra-overlay focus intact");
+    assert.match(env.elements.get("overlay-art-preview").innerHTML, /diff-add/);
+    assert.match(env.elements.get("artifactPreviewContent").innerHTML, /diff-add/);
+
+    // Toggle to Content -> updates both overlay and background inspector aria-pressed & text
+    contentBtn.dispatchEvent({ type: "click" });
+    assert.equal(contentBtn.getAttribute("aria-pressed"), "true");
+    assert.equal(env.elements.get("overlay-art-diff-btn").getAttribute("aria-pressed"), "false");
+    assert.equal(env.elements.get("btnToggleContentMode").getAttribute("aria-pressed"), "true");
+    assert.equal(env.elements.get("overlay-art-preview").textContent, "Full plan markdown content");
+    assert.equal(env.elements.get("artifactPreviewContent").textContent, "Full plan markdown content");
+
+    // Error path when cold-opening another artifact
+    hooks.closeOverlay();
+    hooks.renderWorkspaceState(
+      env.buildSampleState({
+        artifacts: [{ relPath: "docs/missing.md", name: "missing.md", kind: "doc", phaseName: "Planning", mtimeMs: 1000 }]
+      })
+    );
+    const missingExpand = env.sandbox.document.querySelector('[data-focus-expand="artifact:docs/missing.md"]');
+    missingExpand.dispatchEvent({ type: "click", target: missingExpand, bubbles: true });
+    env.rejectNextInspectArtifact("File not found");
+    await env.flushMicrotasks();
+
+    assert.equal(env.elements.get("overlay-art-preview").textContent, "Failed to load artifact: File not found");
+  });
+
+  it("persists Reconciliation Diff across preview/apply, reconciles overlay live, clears on #btnCloseDiff, and handles null reconciliationDiff", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    const baseState = buildRichFocusState(env);
+    hooks.switchTab("project");
+    hooks.renderWorkspaceState(baseState);
+
+    // 1. Dry run persists lastReconciliationDiff and renders in Focus View
+    env.elements.get("btnPreviewReconcile").dispatchEvent({ type: "click" });
+    env.resolveNextReconcile({
+      changesCount: 1,
+      updatedFiles: ["tickets.toml"],
+      changes: [
+        {
+          file: "tickets.toml",
+          key: "epic-panel-readability-redesign#5",
+          oldStatus: "ready-for-dev",
+          newStatus: "done",
+          reason: "All Focus View tests verified"
+        }
+      ]
+    });
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.getLastReconciliationDiff()?.dryRun, true);
+    const expandDiffBtn = env.elements.get("btnExpandReconciliationDiff");
+    expandDiffBtn.dispatchEvent({ type: "click", target: expandDiffBtn, bubbles: true });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "reconciliation-diff");
+    const diffBodyHtml = env.elements.get("overlayBody").innerHTML;
+    assert.match(diffBodyHtml, /tickets\.toml/);
+    assert.match(diffBodyHtml, /ready-for-dev/);
+    assert.match(diffBodyHtml, /All Focus View tests verified/);
+
+    // 2. Apply inside overlay clears pendingWorkspaceState and reconciles live
+    hooks.setPendingWorkspaceState(env.buildSampleState({ projectName: "Stale Poll" }));
+    env.elements.get("overlay-diff-apply").dispatchEvent({ type: "click" });
+    env.resolveNextReconcile({
+      changesCount: 1,
+      updatedFiles: ["tickets.toml"],
+      changes: [
+        {
+          file: "tickets.toml",
+          key: "epic-panel-readability-redesign#5",
+          oldStatus: "ready-for-dev",
+          newStatus: "done",
+          reason: "Applied to disk"
+        }
+      ],
+      newScan: { ...baseState, projectName: "Reconciled Live Scan" }
+    });
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.equal(hooks.getLastReconciliationDiff()?.dryRun, false);
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.match(env.elements.get("overlayTitle").textContent, /Reconciled 1 keys/);
+    assert.match(env.elements.get("overlayBody").innerHTML, /Applied to disk/);
+
+    // 3. reconciliationDiff: null closes overlay with missing-item toast + #projectTabHeading focus
+    hooks.reconcileActiveOverlay({ ...baseState, reconciliationDiff: null });
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(env.elements.get("toastText").textContent, "That item is no longer available");
+    assert.equal(env.getActiveElement(), env.elements.get("projectTabHeading"));
+
+    // 4. #btnCloseDiff clears lastReconciliationDiff and restores focus to #btnPreviewReconcile
+    assert.ok(hooks.getLastReconciliationDiff(), "lastReconciliationDiff is populated before close");
+    env.elements.get("btnCloseDiff").dispatchEvent({ type: "click" });
+    assert.equal(hooks.getLastReconciliationDiff(), null, "#btnCloseDiff must clear lastReconciliationDiff");
+    assert.equal(env.getActiveElement(), env.elements.get("btnPreviewReconcile"));
+  });
+
+  it("supports Focus View drill-down Back navigation, empty-prompt guard, stale artifact cache reset, and done-story review skill queuing", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    const state = buildRichFocusState(env);
+    state.epics[0].stories.push({
+      id: "8.1",
+      title: "Done Palette Story",
+      description: "Completed story",
+      smartStatus: "done",
+      declaredStatus: "done",
+      overrideKey: "epic-panel-readability-redesign#1",
+      recommendedModel: { modelId: "prov/model-a", shortName: "model-a" }
+    });
+    state.recommendations = [
+      {
+        title: "Guard Test Rec",
+        plainTitle: "Test empty guard",
+        plainSummary: "Summary",
+        skill: "/bmad-ux",
+        phase: "2-planning",
+        fullCommand: '/bmad-ux "Initial"'
+      }
+    ];
+
+    hooks.switchTab("project");
+    hooks.renderWorkspaceState(state);
+
+    // 1. Epic -> Story drill-down -> <- Back returns to Epic
+    const epicBox = env.sandbox.document.querySelector('[data-overlay-trigger="epic:epic-8"]');
+    epicBox.dispatchEvent({ type: "click", target: epicBox });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "epic");
+    env.elements.get("overlay-epic-story-0").dispatchEvent({ type: "click" });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "story");
+    const backBtn = env.elements.get("overlay-back-btn");
+    assert.ok(backBtn, "Drilled-down Story Focus View must render ← Back button");
+    backBtn.dispatchEvent({ type: "click" });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "epic");
+    hooks.closeOverlay();
+
+    // 2. Phase -> Artifact drill-down -> <- Back returns to Phase
+    const phaseCard = env.sandbox.document.querySelector('[data-overlay-trigger="phase:4-implementation"]');
+    phaseCard.dispatchEvent({ type: "click", target: phaseCard });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "phase");
+    env.elements.get("overlay-phase-art-diff-0").dispatchEvent({ type: "click" });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "artifact");
+    env.resolveNextInspectArtifact({
+      relPath: "docs/plan-8-5.md",
+      mtimeMs: 1700000000000,
+      diffSource: "Git Diff",
+      diff: "+Line",
+      preview: "Plan 8.5 content"
+    });
+    await env.flushMicrotasks();
+    env.elements.get("overlay-back-btn").dispatchEvent({ type: "click" });
+    assert.equal(hooks.getActiveOverlay()?.targetType, "phase");
+    hooks.closeOverlay();
+
+    // 3. Switching to a second artifact that fails to load clears stale loadedArtifactData from the first artifact
+    hooks.renderWorkspaceState({
+      ...state,
+      artifacts: [
+        ...state.artifacts,
+        { relPath: "docs/broken.md", name: "broken.md", kind: "doc", phaseName: "Planning", mtimeMs: 100 }
+      ]
+    });
+    const brokenExpand = env.sandbox.document.querySelector('[data-focus-expand="artifact:docs/broken.md"]');
+    brokenExpand.dispatchEvent({ type: "click", target: brokenExpand, bubbles: true });
+    env.rejectNextInspectArtifact("Disk read failed");
+    await env.flushMicrotasks();
+    assert.equal(env.elements.get("overlay-art-preview").textContent, "Failed to load artifact: Disk read failed");
+    hooks.closeOverlay();
+    // Clicking Content mode on failed card must not render previous Plan 8.5 content
+    env.elements.get("btnToggleContentMode").dispatchEvent({ type: "click" });
+    assert.equal(env.elements.get("artifactPreviewContent").textContent, "Failed to load artifact: Disk read failed");
+
+    // 4. Done story queued from Project row uses /bmad-code-review skill
+    const callsBeforeQueueStory = env.toolCalls.length;
+    const doneStoryQueueBtn = env.sandbox.document.querySelector('[data-queue-story-id="8.1"]');
+    assert.ok(doneStoryQueueBtn);
+    doneStoryQueueBtn.dispatchEvent({ type: "click", stopPropagation() {} });
+    await env.flushMicrotasks();
+    const queueStoryCall = env.toolCalls.slice(callsBeforeQueueStory).find((c) => c.params?.name === "bmad_queue_manage");
+    assert.equal(queueStoryCall?.params?.arguments?.items?.[0]?.skill, "/bmad-code-review");
+
+    // 5. Empty prompt guard in Work Action Window prevents RPC on empty textarea
+    hooks.switchTab("work");
+    const recCard = env.elements.get("rec-card-0");
+    recCard.dispatchEvent({ type: "click", target: recCard });
+    const recTa = env.elements.get("overlay-rec-cmd");
+    recTa.value = "   ";
+    recTa.dispatchEvent({ type: "input" });
+    const callsBeforeEmptyAction = env.toolCalls.length;
+    env.elements.get("overlay-btn-queue").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.equal(env.toolCalls.length, callsBeforeEmptyAction);
+    assert.match(env.elements.get("toastText").textContent, /empty/i);
+    hooks.closeOverlay();
+  });
+});
+
+describe("Epic 8 Story 8.6: Finalized AD-16 overlay lifecycle, Escape/Tab, reconcile, selectedRecKeys, baseModel & interactive-descendant guard suite", () => {
+  it("handles #overlayCloseBtn click, #overlayLayer backdrop vs #overlayCard click, aria-hidden transitions, single non-stacking replacement, and closed closeOverlay() no-op", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    const overlayLayer = env.elements.get("overlayLayer");
+    const overlayCard = env.elements.get("overlayCard");
+    const overlayCloseBtn = env.elements.get("overlayCloseBtn");
+    const overlayBody = env.elements.get("overlayBody");
+    const overlayTitle = env.elements.get("overlayTitle");
+
+    // Initial closed state + safe no-op closeOverlay()
+    assert.equal(overlayLayer.getAttribute("aria-hidden"), "true");
+    assert.equal(overlayLayer.style.display, "none");
+    assert.doesNotThrow(() => hooks.closeOverlay());
+    assert.equal(hooks.isOverlayOpen(), false);
+
+    hooks.renderWorkspaceState(
+      env.buildSampleState({
+        projectName: "Base Lifecycle Project",
+        smartInsights: [{ title: "Insight 1", detail: "Detail 1", severity: "info" }],
+        taskQueue: {
+          status: "idle",
+          executionMode: "separate-sessions",
+          defaultReviewMode: "none",
+          counts: { total: 1, running: 0, queued: 1, done: 0, failed: 0, progressPct: 0 },
+          items: [
+            {
+              id: "q-replace-1",
+              title: "Replacement Queue Item",
+              status: "queued",
+              model: "prov/model-a",
+              reviewMode: "none",
+              effectivePrompt: '/bmad-build "Replace"'
+            }
+          ]
+        }
+      })
+    );
+
+    const insightsTrigger = env.elements.get("insightsCard");
+    hooks.openOverlay({
+      kind: "focus",
+      targetType: "insights",
+      targetKey: "insights",
+      triggerEl: insightsTrigger
+    });
+
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(overlayLayer.getAttribute("aria-hidden"), "false");
+    assert.equal(overlayLayer.classList.contains("visible"), true);
+    assert.equal(overlayLayer.style.display, "flex");
+    assert.ok(overlayBody.innerHTML.length > 0, "#overlayBody must render content when open");
+
+    // Clicking inside #overlayCard does NOT close the overlay (bubbles to #overlayLayer, target !== overlayLayer)
+    overlayCard.dispatchEvent({ type: "click", target: overlayCard, bubbles: true });
+    assert.equal(hooks.isOverlayOpen(), true, "Clicking #overlayCard must keep overlay open");
+
+    // Single non-stacking replacement: opening queue-item while insights is open replaces activeOverlay in place
+    const queueTrigger = env.makeElement("queue-replace-trigger", "BUTTON");
+    hooks.openOverlay({
+      kind: "focus",
+      targetType: "queue-item",
+      targetKey: "q-replace-1",
+      triggerEl: queueTrigger
+    });
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(hooks.getActiveOverlay()?.targetType, "queue-item");
+    assert.equal(hooks.getActiveOverlay()?.targetKey, "q-replace-1");
+    assert.equal(overlayTitle.textContent, "Replacement Queue Item");
+
+    // Stash state, then close via #overlayCloseBtn click -> aria-hidden="true", clears #overlayBody, restores focus, flushes stash
+    const stashedAfterBtn = env.buildSampleState({ projectName: "Flushed Via CloseBtn" });
+    hooks.setPendingWorkspaceState(stashedAfterBtn);
+    overlayCloseBtn.dispatchEvent({ type: "click", target: overlayCloseBtn });
+
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(overlayLayer.getAttribute("aria-hidden"), "true");
+    assert.equal(overlayLayer.classList.contains("visible"), false);
+    assert.equal(overlayLayer.style.display, "none");
+    assert.equal(overlayBody.innerHTML, "");
+    assert.equal(env.getActiveElement(), queueTrigger);
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.match(env.elements.get("projectTitle").textContent, /Flushed Via CloseBtn/);
+
+    // Reopen and close via #overlayLayer backdrop click (target === overlayLayer)
+    hooks.openOverlay({
+      kind: "focus",
+      targetType: "insights",
+      targetKey: "insights",
+      triggerEl: insightsTrigger
+    });
+    const stashedAfterBackdrop = env.buildSampleState({ projectName: "Flushed Via Backdrop" });
+    hooks.setPendingWorkspaceState(stashedAfterBackdrop);
+    overlayLayer.dispatchEvent({ type: "click", target: overlayLayer });
+
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(overlayLayer.getAttribute("aria-hidden"), "true");
+    assert.equal(overlayLayer.style.display, "none");
+    assert.equal(overlayBody.innerHTML, "");
+    assert.equal(env.getActiveElement(), insightsTrigger);
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.match(env.elements.get("projectTitle").textContent, /Flushed Via Backdrop/);
+  });
+
+  it("stashes mid-flight background refreshState started before openOverlay() and flushes immediately on close", async () => {
+    const env = createStubbedDomEnvironment({ autoRespondGetState: false });
+    await env.flushMicrotasks();
+
+    env.resolveNextGetState(env.buildSampleState({ projectName: "Initial Before Midflight" }));
+    await env.flushMicrotasks();
+
+    const hooks = env.getTestHooks();
+    const bgPromise = hooks.refreshState({ isBackground: true });
+    assert.equal(hooks.getIsRefreshing(), true);
+
+    // User opens overlay before the background bmad_get_state call resolves
+    const triggerEl = env.elements.get("insightsCard");
+    hooks.openOverlay({
+      kind: "focus",
+      targetType: "insights",
+      targetKey: "insights",
+      triggerEl
+    });
+    assert.equal(hooks.isOverlayOpen(), true);
+
+    const midflightState = env.buildSampleState({ projectName: "Midflight Poll While Overlay Open" });
+    env.resolveNextGetState(midflightState);
+    await bgPromise;
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.getIsRefreshing(), false, "isRefreshing lock must reset after mid-flight resolution");
+    assert.deepEqual(
+      hooks.getPendingWorkspaceState(),
+      midflightState,
+      "Mid-flight background poll resolving while overlay is open must stash into pendingWorkspaceState"
+    );
+    assert.match(
+      env.elements.get("projectTitle").textContent,
+      /Initial Before Midflight/,
+      "Background DOM must not update while overlay is open"
+    );
+
+    hooks.closeOverlay();
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.match(
+      env.elements.get("projectTitle").textContent,
+      /Midflight Poll While Overlay Open/,
+      "Stashed mid-flight state must flush immediately on closeOverlay()"
+    );
+  });
+
+  it("handles Escape from focused INPUT and non-form button inside overlay, and clears selectOpenUntil on Tab while preserving overlay Tab trap", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    const sampleRec = {
+      title: "Escape And Tab Edge Cases",
+      skill: "/bmad-build",
+      phase: "4-implementation",
+      fullCommand: '/bmad-build "Edge cases"',
+      recommendedModel: { modelId: "prov/model-a" }
+    };
+    hooks.renderWorkspaceState(env.buildSampleState({ projectName: "Base Escape Tab", recommendations: [sampleRec] }));
+
+    const recKey = hooks.getRecOverrideKey(sampleRec);
+    const triggerEl = env.makeElement("edge-trigger", "BUTTON");
+
+    // (a) Escape from a focused INPUT inside an open overlay blurs input, closes overlay, flushes stash, restores focus
+    hooks.openOverlay({
+      kind: "action",
+      targetType: "recommendation",
+      targetKey: recKey,
+      triggerEl
+    });
+    const overlayInput = env.makeElement("overlay-edge-input", "INPUT");
+    env.elements.get("overlayBody").appendChild(overlayInput);
+    overlayInput.focus();
+    let inputBlurred = false;
+    const origInputBlur = overlayInput.blur;
+    overlayInput.blur = () => {
+      inputBlurred = true;
+      origInputBlur();
+    };
+    hooks.setPendingWorkspaceState(
+      env.buildSampleState({ projectName: "Flushed After Input Escape", recommendations: [sampleRec] })
+    );
+
+    env.dispatchDocumentEvent({
+      type: "keydown",
+      key: "Escape",
+      preventDefault: () => {},
+      stopPropagation: () => {}
+    });
+    assert.equal(inputBlurred, true, "Escape inside overlay must blur focused INPUT");
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(env.getActiveElement(), triggerEl);
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.match(env.elements.get("projectTitle").textContent, /Flushed After Input Escape/);
+
+    // (b) Escape from a non-form button (#overlayCloseBtn) closes overlay and flushes stash
+    hooks.openOverlay({
+      kind: "action",
+      targetType: "recommendation",
+      targetKey: recKey,
+      triggerEl
+    });
+    env.elements.get("overlayCloseBtn").focus();
+    assert.equal(env.getActiveElement()?.id, "overlayCloseBtn");
+    hooks.setPendingWorkspaceState(
+      env.buildSampleState({ projectName: "Flushed After Button Escape", recommendations: [sampleRec] })
+    );
+
+    env.dispatchDocumentEvent({
+      type: "keydown",
+      key: "Escape",
+      preventDefault: () => {},
+      stopPropagation: () => {}
+    });
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(env.getActiveElement(), triggerEl);
+    assert.equal(hooks.getPendingWorkspaceState(), null);
+    assert.match(env.elements.get("projectTitle").textContent, /Flushed After Button Escape/);
+
+    // (c) Tab with selectOpenUntil > Date.now() clears selectOpenUntil = 0 AND still traps Tab inside overlay
+    hooks.openOverlay({
+      kind: "action",
+      targetType: "recommendation",
+      targetKey: recKey,
+      triggerEl
+    });
+    const focusables = hooks.getOverlayFocusableElements();
+    assert.ok(focusables.length >= 2);
+    const firstFocusable = focusables[0];
+    const lastFocusable = focusables[focusables.length - 1];
+
+    const overlaySelect = env.elements.get("overlay-rec-model");
+    env.dispatchDocumentEvent({ type: "pointerdown", target: overlaySelect });
+    assert.ok(hooks.getSelectOpenUntil() > Date.now());
+
+    // Position focus on lastFocusable and press Tab -> clears selectOpenUntil AND wraps to firstFocusable
+    lastFocusable.focus();
+    let tabPrevented = false;
+    env.dispatchDocumentEvent({
+      type: "keydown",
+      key: "Tab",
+      shiftKey: false,
+      preventDefault: () => {
+        tabPrevented = true;
+      }
+    });
+    assert.equal(hooks.getSelectOpenUntil(), 0, "Tab must clear selectOpenUntil");
+    assert.equal(tabPrevented, true, "Tab must still trap focus inside overlay after clearing selectOpenUntil");
+    assert.equal(env.getActiveElement(), firstFocusable, "Tab at last focusable must wrap to first focusable");
+    hooks.closeOverlay();
+  });
+
+  it("handles reconcileActiveOverlay closed no-op, disabled-element focus fallback, and explicit refreshState({ isBackground: false }) reconciliation", async () => {
+    const env = createStubbedDomEnvironment({ autoRespondGetState: false });
+    await env.flushMicrotasks();
+
+    const hooks = env.getTestHooks();
+    const initialQueue = {
+      status: "idle",
+      executionMode: "separate-sessions",
+      defaultReviewMode: "none",
+      counts: { total: 1, running: 0, queued: 1, done: 0, failed: 0, progressPct: 0 },
+      items: [
+        {
+          id: "q-rec-1",
+          title: "Reconcile Edge Task",
+          status: "queued",
+          model: "prov/model-a",
+          reviewMode: "none",
+          effectivePrompt: '/bmad-build "Reconcile"'
+        }
+      ]
+    };
+
+    const initialState = env.buildSampleState({
+      projectName: "Reconcile Base",
+      availableModels: [
+        { id: "prov/model-a", modelId: "model-a", providerName: "Prov" },
+        { id: "prov/model-b", modelId: "model-b", providerName: "Prov" }
+      ],
+      taskQueue: initialQueue
+    });
+    env.resolveNextGetState(initialState);
+    await env.flushMicrotasks();
+
+    // (a) reconcileActiveOverlay when closed is a false no-op
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(hooks.reconcileActiveOverlay(initialState), false);
+
+    // (b) Disabled previously-focused control (#overlay-q-done becomes disabled when status turns "done") falls back to enabled overlay focusable
+    hooks.switchTab("queue");
+    hooks.openOverlay({
+      kind: "focus",
+      targetType: "queue-item",
+      targetKey: "q-rec-1",
+      triggerEl: env.elements.get("queueTabHeading")
+    });
+    const doneBtn = env.elements.get("overlay-q-done");
+    assert.equal(doneBtn.disabled, false);
+    doneBtn.focus();
+    assert.equal(env.getActiveElement()?.id, "overlay-q-done");
+
+    const doneState = env.buildSampleState({
+      ...initialState,
+      taskQueue: {
+        ...initialQueue,
+        counts: { total: 1, running: 0, queued: 0, done: 1, failed: 0, progressPct: 100 },
+        items: [{ ...initialQueue.items[0], status: "done" }]
+      }
+    });
+    const reconciled = hooks.reconcileActiveOverlay(doneState);
+    assert.equal(reconciled, true);
+    assert.equal(env.elements.get("overlay-q-done").disabled, true);
+    const activeAfterReconcile = env.getActiveElement();
+    assert.ok(activeAfterReconcile, "Focus must land on a valid control after previously focused button becomes disabled");
+    assert.notEqual(activeAfterReconcile.id, "overlay-q-done", "Focus must NOT stay on disabled #overlay-q-done");
+    assert.equal(activeAfterReconcile.disabled, false, "Fallback focus target must be enabled");
+
+    // (c) Explicit refreshState({ isBackground: false }) while overlay is open clears stale pendingWorkspaceState and reconciles in place, then closes on removal
+    hooks.setPendingWorkspaceState(env.buildSampleState({ projectName: "Stale Poll Should Clear" }));
+    const explicitPromise1 = hooks.refreshState({ isBackground: false });
+    const updatedViaExplicit = env.buildSampleState({
+      ...doneState,
+      projectName: "Explicit Sync Updated",
+      taskQueue: {
+        ...doneState.taskQueue,
+        items: [{ ...doneState.taskQueue.items[0], model: "prov/model-b" }]
+      }
+    });
+    env.resolveNextGetState(updatedViaExplicit);
+    await explicitPromise1;
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.getPendingWorkspaceState(), null, "Explicit refreshState must clear stale pendingWorkspaceState");
+    assert.equal(hooks.isOverlayOpen(), true);
+    assert.equal(env.elements.get("overlay-q-model").value, "prov/model-b");
+
+    // Explicit refreshState where item is removed closes overlay with toast + #queueTabHeading focus
+    const explicitPromise2 = hooks.refreshState({ isBackground: false });
+    env.resolveNextGetState(
+      env.buildSampleState({
+        ...updatedViaExplicit,
+        taskQueue: {
+          ...updatedViaExplicit.taskQueue,
+          counts: { total: 0, running: 0, queued: 0, done: 0, failed: 0, progressPct: 0 },
+          items: []
+        }
+      })
+    );
+    await explicitPromise2;
+    await env.flushMicrotasks();
+
+    assert.equal(hooks.isOverlayOpen(), false);
+    assert.equal(env.elements.get("toastText").textContent, "That item is no longer available");
+    assert.equal(env.getActiveElement(), env.elements.get("queueTabHeading"));
+  });
+
+  it("prunes disappeared keys from selectedRecKeys, clears on batch enqueue, guards empty selection, and toggles Select All / Deselect All", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    const rec1 = {
+      title: "Keep Me",
+      plainTitle: "Keep this task",
+      skill: "/bmad-build",
+      phase: "4-implementation",
+      fullCommand: '/bmad-build "Keep"',
+      recommendedModel: { modelId: "prov/model-a" }
+    };
+    const rec2 = {
+      title: "Drop Me Next Poll",
+      plainTitle: "Drop this task",
+      skill: "/bmad-ux",
+      phase: "2-planning",
+      fullCommand: '/bmad-ux "Drop"',
+      recommendedModel: { modelId: "prov/model-b" }
+    };
+    const availableModels = [
+      { id: "prov/model-a", modelId: "model-a", providerName: "Prov" },
+      { id: "prov/model-b", modelId: "model-b", providerName: "Prov" }
+    ];
+
+    hooks.renderWorkspaceState(env.buildSampleState({ recommendations: [rec1, rec2], availableModels }));
+
+    // Select All -> Deselect All round-trip
+    const selectAllBtn = env.elements.get("btnSelectAllRecs");
+    const queueSelectedBtn = env.elements.get("btnQueueSelectedRecs");
+    selectAllBtn.dispatchEvent({ type: "click" });
+    assert.equal(hooks.getSelectedRecKeys().size, 2);
+    assert.equal(selectAllBtn.textContent, "☐ Deselect All");
+    assert.equal(queueSelectedBtn.textContent, "➕ Add Checked (2) to Queue");
+
+    selectAllBtn.dispatchEvent({ type: "click" });
+    assert.equal(hooks.getSelectedRecKeys().size, 0);
+    assert.equal(selectAllBtn.textContent, "☑️ Select All");
+    assert.equal(queueSelectedBtn.textContent, "➕ Add Checked to Queue");
+
+    // Empty-selection click shows warning toast and skips RPC
+    const callsBeforeEmpty = env.toolCalls.length;
+    queueSelectedBtn.dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    assert.equal(env.toolCalls.length, callsBeforeEmpty, "Empty selection must not invoke bmad_queue_manage");
+    assert.equal(env.elements.get("toastBanner").classList.contains("is-warning"), true);
+    assert.match(env.elements.get("toastText").textContent, /Check one or more recommended tasks first/);
+
+    // Check both recs, then drop rec2 on next poll -> selectedRecKeys prunes disappeared rec2 key
+    selectAllBtn.dispatchEvent({ type: "click" });
+    assert.equal(hooks.getSelectedRecKeys().size, 2);
+
+    hooks.renderWorkspaceState(env.buildSampleState({ recommendations: [rec1], availableModels }));
+    assert.equal(hooks.getSelectedRecKeys().size, 1, "Disappeared recommendation key must be pruned from selectedRecKeys");
+    assert.equal(hooks.getSelectedRecKeys().has(hooks.getRecOverrideKey(rec1)), true);
+    assert.equal(hooks.getSelectedRecKeys().has(hooks.getRecOverrideKey(rec2)), false);
+    assert.equal(queueSelectedBtn.textContent, "➕ Add Checked (1) to Queue");
+
+    // Batch enqueue remaining rec -> clears selectedRecKeys and switches to queue
+    const callsBeforeEnqueue = env.toolCalls.length;
+    queueSelectedBtn.dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    const batchCall = env.toolCalls.slice(callsBeforeEnqueue).find((c) => c.params?.name === "bmad_queue_manage");
+    assert.ok(batchCall, "Batch enqueue must call bmad_queue_manage");
+    assert.equal(batchCall.params.arguments.items.length, 1);
+    assert.equal(hooks.getSelectedRecKeys().size, 0, "selectedRecKeys must clear after successful batch enqueue");
+    assert.equal(hooks.getActiveTabId(), "queue");
+  });
+
+  it("resolves all 5 tiers of getRecommendationBaseModelId consistently across card render, Action Window, card action, and batch enqueue", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    // Tier 5: empty availableModels + null / omitted rec -> ""
+    hooks.setCurrentState(env.buildSampleState({ availableModels: [] }));
+    assert.equal(hooks.getRecommendationBaseModelId(null), "");
+    assert.equal(hooks.getRecommendationBaseModelId({ title: "No model" }), "");
+
+    // Tier 4: omitted recommendedModel with non-current models -> first model ID
+    hooks.setCurrentState(
+      env.buildSampleState({
+        availableModels: [
+          { id: "prov/first-model", modelId: "first-model" },
+          { id: "prov/second-model", modelId: "second-model" }
+        ]
+      })
+    );
+    assert.equal(hooks.getRecommendationBaseModelId({ title: "Tier 4" }), "prov/first-model");
+
+    // Tier 3: omitted recommendedModel with a { current: true } model -> current model ID
+    hooks.setCurrentState(
+      env.buildSampleState({
+        availableModels: [
+          { id: "prov/first-model", modelId: "first-model" },
+          { id: "prov/current-model", modelId: "current-model", current: true }
+        ]
+      })
+    );
+    assert.equal(hooks.getRecommendationBaseModelId({ title: "Tier 3" }), "prov/current-model");
+
+    // Tier 2: string recommendedModel
+    assert.equal(
+      hooks.getRecommendationBaseModelId({ title: "Tier 2", recommendedModel: "prov/string-model" }),
+      "prov/string-model"
+    );
+
+    // Tier 1: object recommendedModel.modelId
+    assert.equal(
+      hooks.getRecommendationBaseModelId({ title: "Tier 1", recommendedModel: { modelId: "prov/object-model" } }),
+      "prov/object-model"
+    );
+
+    // Cross-consumer consistency when recommendedModel is omitted (Tier 3)
+    const omittedRec = {
+      title: "Omitted Model Consistency",
+      plainTitle: "Omitted model consistency check",
+      skill: "/bmad-build",
+      phase: "4-implementation",
+      fullCommand: '/bmad-build "Consistency"'
+    };
+    const models = [
+      { id: "prov/first-model", modelId: "first-model", providerName: "Prov" },
+      { id: "prov/current-model", modelId: "current-model", providerName: "Prov", current: true }
+    ];
+    hooks.renderWorkspaceState(env.buildSampleState({ recommendations: [omittedRec], availableModels: models }));
+
+    assert.match(env.elements.get("rec-model-pill-0").textContent, /current-model/);
+
+    // Edit model in Action Window to prov/first-model and close
+    env.elements.get("rec-card-0").dispatchEvent({ type: "click", target: env.elements.get("rec-card-0") });
+    const overlayModel = env.elements.get("overlay-rec-model");
+    assert.equal(overlayModel.value, "prov/current-model", "Action Window must start on same Tier 3 base model");
+    overlayModel.value = "prov/first-model";
+    overlayModel.dispatchEvent({ type: "change" });
+    hooks.closeOverlay();
+
+    // Card Add to Queue uses user-selected model (not clobbered by base mismatch)
+    const callsBeforeCardQueue = env.toolCalls.length;
+    env.elements.get("rec-queue-0").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    const cardQueueCall = env.toolCalls.slice(callsBeforeCardQueue).find((c) => c.params?.name === "bmad_queue_manage");
+    assert.equal(cardQueueCall?.params?.arguments?.items?.[0]?.model, "prov/first-model");
+
+    // Batch enqueue also uses user-selected model
+    hooks.getSelectedRecKeys().add(hooks.getRecOverrideKey(omittedRec));
+    const callsBeforeBatch = env.toolCalls.length;
+    env.elements.get("btnQueueSelectedRecs").dispatchEvent({ type: "click" });
+    await env.flushMicrotasks();
+    const batchCall = env.toolCalls.slice(callsBeforeBatch).find((c) => c.params?.name === "bmad_queue_manage");
+    assert.equal(batchCall?.params?.arguments?.items?.[0]?.model, "prov/first-model");
+  });
+
+  it("verifies full AD-17 §3 interactive-descendant matrix directly and via nested closest() children", async () => {
+    const env = createStubbedDomEnvironment();
+    await env.flushMicrotasks();
+    const hooks = env.getTestHooks();
+
+    const container = env.makeElement("matrix-container", "DIV");
+    const nonInteractiveDiv = env.makeElement("plain-div", "DIV");
+    const nonInteractiveSpan = env.makeElement("plain-span", "SPAN");
+    container.appendChild(nonInteractiveDiv);
+    nonInteractiveDiv.appendChild(nonInteractiveSpan);
+
+    assert.equal(hooks.isInteractiveDescendantClick(null, container), false);
+    assert.equal(hooks.isInteractiveDescendantClick({}, container), false);
+    assert.equal(hooks.isInteractiveDescendantClick({ target: container }, container), false);
+    assert.equal(hooks.isInteractiveDescendantClick({ target: nonInteractiveDiv }, container), false);
+    assert.equal(hooks.isInteractiveDescendantClick({ target: nonInteractiveSpan }, container), false);
+    assert.equal(hooks.isInteractiveDescendantClick({ target: { tagName: "SPAN" } }, container), false);
+
+    const interactiveSpecs = [
+      { label: "BUTTON", tag: "BUTTON" },
+      { label: "A", tag: "A" },
+      { label: "INPUT", tag: "INPUT" },
+      { label: "SELECT", tag: "SELECT" },
+      { label: "TEXTAREA", tag: "TEXTAREA" },
+      { label: "LABEL", tag: "LABEL" },
+      { label: "[role=tab]", tag: "DIV", role: "tab" },
+      { label: ".status-pill", tag: "SPAN", cls: "status-pill" },
+      { label: ".pill", tag: "SPAN", cls: "pill" }
+    ];
+
+    for (const spec of interactiveSpecs) {
+      const interactiveEl = env.makeElement(`int-${spec.label}`, spec.tag);
+      if (spec.role) interactiveEl.setAttribute("role", spec.role);
+      if (spec.cls) interactiveEl.classList.add(spec.cls);
+      const nestedChild = env.makeElement(`nested-${spec.label}`, "SPAN");
+      interactiveEl.appendChild(nestedChild);
+      container.appendChild(interactiveEl);
+
+      assert.equal(
+        hooks.isInteractiveDescendantClick({ target: interactiveEl }, container),
+        true,
+        `Direct ${spec.label} click must be guarded`
+      );
+      assert.equal(
+        hooks.isInteractiveDescendantClick({ target: nestedChild }, container),
+        true,
+        `Nested child inside ${spec.label} must be guarded via closest()`
+      );
+    }
+  });
+});
+
+
 
 
 
